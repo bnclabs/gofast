@@ -301,12 +301,26 @@ func (s *Server) closeConnections() {
 	s.conns = nil
 }
 
+type serverRequest struct {
+	flags    TransportFlag
+	opaque   uint32
+	rqst     bool
+	strm     bool
+	streamch chan []interface{}
+}
+
+func (s *Server) addRequest(flags TransportFlag, opaque uint32) *serverRequest {
+	tflags := TransportFlag(flags.GetEncoding())
+	tflags.SetCompression(flags.GetCompression())
+	return &serverRequest{flags: tflags, opaque: opaque}
+}
+
 // handle connection request. connection might be kept open in client's
 // connection pool.
 func (s *Server) handleConnection(conn net.Conn, reqch chan []interface{}) {
 	log, prefix, raddr := s.log, s.logPrefix, conn.RemoteAddr()
 	rxmsg := "%v on connection %q received %s {%x,%x,%x}\n"
-	txmsg := "%v on connection %q transmitting response {%x,%x,%x}\n"
+	//txmsg := "%v on connection %q transmitting response {%x,%x,%x}\n"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -319,10 +333,10 @@ func (s *Server) handleConnection(conn net.Conn, reqch chan []interface{}) {
 	}()
 
 	// transport buffer for transmission
-	//tpkt := s.newTransport(conn)
+	tpkt := s.newTransport(conn)
 	respch := make(chan []interface{}, s.streamChanSize)
-	//timeoutMs := s.writeDeadline * time.Millisecond
-	requests := make(map[uint32]chan bool)
+	timeoutMs := s.writeDeadline * time.Millisecond
+	requests := make(map[uint32]*serverRequest)
 
 loop:
 	for {
@@ -331,28 +345,46 @@ loop:
 			if !ok {
 				break loop
 			}
-			mtype, rflags := req[0].(uint16), req[1].(TransportFlag)
+			mtype, flags := req[0].(uint16), req[1].(TransportFlag)
 			opaque, payload := req[2].(uint32), req[3]
 			// flags
-			f_r, f_s := rflags.IsRequest(), rflags.IsStream()
-			f_e := rflags.IsEndStream()
-			//streamch, known := requests[opaque]
+			f_r, f_s := flags.IsRequest(), flags.IsStream()
+			f_e := flags.IsEndStream()
 			_, known := requests[opaque]
-			if f_r && !known { // new request
-				if f_s == false && f_e == false {
-					log.Tracef(rxmsg, prefix, raddr, "POST", opaque, rflags, mtype)
+			if f_r {
+				if f_s == false && f_e == false && known == false {
+					log.Tracef(rxmsg, prefix, raddr, "POST", opaque, flags, mtype)
 					if callb := s.getPostHandler(opaque); callb != nil {
 						callb(opaque, payload)
 					}
-				}
 
-			} else if f_r == false && known { // streaming request.
+				} else if f_s && f_e && known == false {
+					log.Tracef(rxmsg, prefix, raddr, "RQST", opaque, flags, mtype)
+					if callb := s.getRequestHandler(opaque); callb != nil {
+						callb(opaque, payload, respch)
+						sr := s.addRequest(flags, opaque)
+						sr.rqst = true
+						requests[opaque] = sr
+					}
+				}
 
 			} else { // ignore
 			}
 
 		case resp := <-respch:
-			log.Tracef(txmsg, prefix, raddr, "POST", resp)
+			opaque, response := resp[0].(uint32), resp[1]
+			sr, known := requests[opaque]
+			flags := sr.flags
+			if sr.rqst {
+				flags = flags.SetEndStream()
+				delete(requests, opaque)
+			}
+			if known {
+				conn.SetWriteDeadline(time.Now().Add(timeoutMs))
+				if err := tpkt.Send(flags, opaque, response); err != nil {
+					break loop
+				}
+			}
 
 		case <-s.killch:
 			break loop

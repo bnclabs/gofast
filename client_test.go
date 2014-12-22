@@ -5,8 +5,6 @@ import "time"
 import "bytes"
 import "fmt"
 import "log"
-import "unsafe"
-import "sync/atomic"
 
 var clientConfig = map[string]interface{}{
 	"maxPayload":     1024 * 1024,

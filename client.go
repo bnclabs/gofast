@@ -12,6 +12,10 @@ import "runtime/debug"
 // closed, helpful when there is a race between API and Close()
 var ErrorClosed = errors.New("gofast.clientClosed")
 
+var ErrorDuplicateRequest = errors.New("gofast.duplicateRequest")
+
+var ErrorBadRequest = errors.New("gofast.badRequest")
+
 // Client connects with remote server via a single connection.
 type Client struct {
 	host string // remote address
@@ -24,7 +28,7 @@ type Client struct {
 	encoders    map[TransportFlag]Encoder
 	zippers     map[TransportFlag]Compressor
 	muxch       chan []interface{}
-	demuxers    map[uint32]chan<- []interface{} // opaque -> receivers
+	requests    map[uint32]*clientRequest
 	finch       chan bool
 	// config params
 	maxPayload     int           // for transport
@@ -55,7 +59,7 @@ func NewClient(
 		encoders:   make(map[TransportFlag]Encoder),
 		zippers:    make(map[TransportFlag]Compressor),
 		muxch:      make(chan []interface{}, muxChanSize),
-		demuxers:   make(map[uint32]chan<- []interface{}),
+		requests:   make(map[uint32]*clientRequest),
 		finch:      make(chan bool),
 		// config
 		maxPayload:     config["maxPayload"].(int),
@@ -81,7 +85,7 @@ func (c *Client) Start() {
 	go c.doReceive(c.conn)
 }
 
-// SetEncoder till set an encoder to encode and decode payload.
+// SetEncoder till set encoder handler to encode and decode payload.
 // Shall be called before starting the client.
 func (c *Client) SetEncoder(typ TransportFlag, encoder Encoder) {
 	c.muTransport.Lock()
@@ -89,14 +93,15 @@ func (c *Client) SetEncoder(typ TransportFlag, encoder Encoder) {
 	c.encoders[typ] = encoder
 }
 
-// SetZipper will set a zipper type to compress and decompress payload.
-// Shall be called before starting the client.
+// SetZipper will set zipper handler to compress and decompress
+// payload. Shall be called before starting the client.
 func (c *Client) SetZipper(typ TransportFlag, zipper Compressor) {
 	c.muTransport.Lock()
 	defer c.muTransport.Unlock()
 	c.zippers[typ] = zipper
 }
 
+// Close this client
 func (c *Client) Close() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -115,17 +120,56 @@ func (c *Client) Close() {
 	}
 }
 
+// Post payload to remote server, don't wait for response.
 func (c *Client) Post(flags TransportFlag, payload interface{}) error {
 	flags = flags.ClearStream().ClearEndStream().SetRequest()
 	cmd := []interface{}{flags, OpaquePost, payload}
 	return failsafeOpAsync(c.muxch, cmd, c.finch)
 }
 
+// Request server and wait for a single response from server
+// and return response from server.
+func (c *Client) Request(
+	flags TransportFlag,
+	payload interface{}) (response interface{}, err error) {
+
+	return c.RequestWith(0, flags, payload)
+}
+
+// Request server and wait for a single response from server
+// and return response from server.
+func (c *Client) RequestWith(
+	opaque uint32,
+	flags TransportFlag,
+	request interface{}) (response interface{}, err error) {
+
+	flags = flags.SetRequest().SetStream().SetEndStream()
+	rflags := TransportFlag(flags.GetEncoding())
+	rflags = rflags.SetCompression(flags.GetCompression())
+	respch := make(chan []interface{}, 1)
+	cmd := []interface{}{rflags, opaque, request, respch}
+	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
+	if err := opError(err, resp, 1); err != nil {
+		return nil, err
+	}
+	return resp[0], nil
+}
+
 //------------------
 // private functions
 //------------------
 
-func (c *Client) newRequest(opaque uint32) uint32 {
+type clientRequest struct {
+	flags  TransportFlag
+	opaque uint32
+	respch chan<- []interface{}
+}
+
+func (c *Client) addRequest(
+	flags TransportFlag,
+	opaque uint32,
+	respch chan<- []interface{}) *clientRequest {
+
 	c.muTransport.Lock()
 	defer c.muTransport.Unlock()
 	if opaque == 0 {
@@ -133,28 +177,30 @@ func (c *Client) newRequest(opaque uint32) uint32 {
 		if c.currOpaque > 0x7FFFFFF { // TODO: no magic numbers
 			c.currOpaque = 1
 		}
-		return c.currOpaque
+		opaque = c.currOpaque
 	}
-	return opaque
+	cr := &clientRequest{flags, opaque, respch}
+	c.setRequest(opaque, cr)
+	return cr
 }
 
-func (c *Client) setDemuxch(opaque uint32, ch chan<- []interface{}) {
+func (c *Client) setRequest(opaque uint32, cr *clientRequest) {
 	c.muTransport.Lock()
 	defer c.muTransport.Unlock()
-	c.demuxers[opaque] = ch
+	c.requests[opaque] = cr
 }
 
-func (c *Client) getDemuxch(opaque uint32) (chan<- []interface{}, bool) {
+func (c *Client) getRequest(opaque uint32) (*clientRequest, bool) {
 	c.muTransport.Lock()
 	defer c.muTransport.Unlock()
-	ch, ok := c.demuxers[opaque]
-	return ch, ok
+	cr, ok := c.requests[opaque]
+	return cr, ok
 }
 
-func (c *Client) delDemuxch(opaque uint32) {
+func (c *Client) delRequest(opaque uint32) {
 	c.muTransport.Lock()
 	defer c.muTransport.Unlock()
-	delete(c.demuxers, opaque)
+	delete(c.requests, opaque)
 }
 
 //--------------------
@@ -166,7 +212,7 @@ func (c *Client) handleConnection(conn net.Conn, muxch <-chan []interface{}) {
 	log, prefix := c.log, c.logPrefix
 	tpkt := c.newTransport(conn)
 	log.Debugf("%v handleConnection() ...\n", prefix)
-	txmsg := "%v transmitting {%x,%x,%T}\n"
+	txmsg := "%v transmitting %v {%x,%x,%T}\n"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -181,14 +227,40 @@ func (c *Client) handleConnection(conn net.Conn, muxch <-chan []interface{}) {
 
 loop:
 	for {
+		err := error(nil)
 		msg := <-muxch
-		tflags, opaque := msg[0].(TransportFlag), msg[1].(uint32)
-		payload := msg[2]
-		conn.SetWriteDeadline(time.Now().Add(timeoutMs))
-		if err := tpkt.Send(tflags, opaque, payload); err != nil {
-			break loop
+		flags, opaque := msg[0].(TransportFlag), msg[1].(uint32)
+		payload, respch := msg[2], msg[3].(chan<- []interface{})
+		f_r, f_s := flags.IsRequest(), flags.IsStream()
+		f_e := flags.IsEndStream()
+		_, known := c.requests[opaque]
+		if f_r { // new request
+			if f_s == false && f_e == false && known == false {
+				log.Tracef(txmsg, prefix, "POST", flags, opaque, payload)
+
+			} else if f_s && f_e && known == false {
+				c.addRequest(flags, opaque, respch)
+				log.Tracef(txmsg, prefix, "RQST", flags, opaque, payload)
+
+			} else if known {
+				err = ErrorDuplicateRequest
+				log.Errorf(txmsg, prefix, "DUPE", flags, opaque, payload)
+				respch <- []interface{}{err}
+
+			} else {
+				err = ErrorBadRequest
+				log.Errorf(txmsg, prefix, "BADR", flags, opaque, payload)
+				respch <- []interface{}{err}
+			}
+
+		} else { // streaming request
 		}
-		log.Tracef(txmsg, prefix, opaque, tflags, payload)
+		if err == nil {
+			conn.SetWriteDeadline(time.Now().Add(timeoutMs))
+			if err := tpkt.Send(flags, opaque, payload); err != nil {
+				break loop
+			}
+		}
 	}
 }
 
@@ -211,15 +283,16 @@ loop:
 	for {
 		// Note: receive on connection shall work without timeout.
 		// will exit only when remote fails or server is closed.
-		mtype, flags, opaque, payload, err := rpkt.Receive()
+		mtype, _, opaque, payload, err := rpkt.Receive()
 		if err != nil {
 			if err != io.EOF {
 				log.Errorf("%v remote exited: %v\n", prefix, err)
 			}
 			break loop
 		}
-		if respch, ok := c.getDemuxch(opaque); ok {
-			respch <- []interface{}{mtype, flags, opaque, payload}
+		if cr, ok := c.getRequest(opaque); ok {
+			cr.respch <- []interface{}{mtype, payload}
+
 		} else { // ignore reponses if opaque not found.
 		}
 	}
@@ -236,43 +309,4 @@ func (c *Client) newTransport(conn net.Conn) *TransportPacket {
 		pkt.SetZipper(flag.GetCompression(), zipper)
 	}
 	return pkt
-}
-
-//----------------
-// local functions
-//----------------
-
-// failsafeOp can be used by gen-server implementors to avoid infinitely
-// blocked API calls.
-func failsafeOp(
-	muxch, respch chan []interface{}, cmd []interface{},
-	finch chan bool) ([]interface{}, error) {
-
-	select {
-	case muxch <- cmd:
-		if respch != nil {
-			select {
-			case resp := <-respch:
-				return resp, nil
-			case <-finch:
-				return nil, ErrorClosed
-			}
-		}
-	case <-finch:
-		return nil, ErrorClosed
-	}
-	return nil, nil
-}
-
-// failsafeOpAsync is same as FailsafeOp that can be used for
-// asynchronous operation, that is, caller does not wait for response.
-func failsafeOpAsync(
-	muxch chan []interface{}, cmd []interface{}, finch chan bool) error {
-
-	select {
-	case muxch <- cmd:
-	case <-finch:
-		return ErrorClosed
-	}
-	return nil
 }
