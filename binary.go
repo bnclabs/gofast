@@ -3,7 +3,7 @@ package gofast
 import "errors"
 
 const (
-	MtypeBinaryPayload uint16 = 0xE000
+	MtypeBinaryPayload uint16 = 0xF000
 )
 
 var ErrorInvalidMtype = errors.New("gofast.invalidMtype")
@@ -32,7 +32,9 @@ func (codec *BinaryEncoder) Decode(
 	data []byte) (payload interface{}, err error) {
 
 	if mtype == MtypeBinaryPayload {
-		return data, nil
+		out := make([]byte, len(data))
+		copy(out, data)
+		return out, nil
 	}
 	return nil, ErrorInvalidMtype
 }

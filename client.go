@@ -12,8 +12,11 @@ import "runtime/debug"
 // closed, helpful when there is a race between API and Close()
 var ErrorClosed = errors.New("gofast.clientClosed")
 
+// ErrorDuplicateRequest means a request is already in flight with
+// supplied opaque.
 var ErrorDuplicateRequest = errors.New("gofast.duplicateRequest")
 
+// ErrorBadRequest is returned for malformed request.
 var ErrorBadRequest = errors.New("gofast.badRequest")
 
 // Client connects with remote server via a single connection.
@@ -51,11 +54,10 @@ func NewClient(
 	}
 
 	muxChanSize := config["muxChanSize"].(int)
-	streamChanSize := config["streamChanSize"].(int)
 	c = &Client{
 		host: host,
 		// transport
-		currOpaque: uint32(1),
+		currOpaque: uint32(0),
 		encoders:   make(map[TransportFlag]Encoder),
 		zippers:    make(map[TransportFlag]Compressor),
 		muxch:      make(chan []interface{}, muxChanSize),
@@ -65,7 +67,7 @@ func NewClient(
 		maxPayload:     config["maxPayload"].(int),
 		writeDeadline:  time.Duration(config["writeDeadline"].(int)),
 		muxChanSize:    muxChanSize,
-		streamChanSize: streamChanSize,
+		streamChanSize: config["streamChanSize"].(int),
 		log:            log,
 	}
 	c.conn, err = net.Dial("tcp", host)
@@ -121,14 +123,22 @@ func (c *Client) Close() {
 }
 
 // Post payload to remote server, don't wait for response.
+// Asynchronous call.
+//
+// `flags` can be set with a supported encoding and compression type.
 func (c *Client) Post(flags TransportFlag, payload interface{}) error {
+	var respch chan []interface{}
 	flags = flags.ClearStream().ClearEndStream().SetRequest()
-	cmd := []interface{}{flags, OpaquePost, payload}
+	cmd := []interface{}{flags, OpaquePost, payload, respch}
 	return failsafeOpAsync(c.muxch, cmd, c.finch)
 }
 
 // Request server and wait for a single response from server
 // and return response from server.
+//
+// `flags` can be set with a supported encoding and compression type.
+//
+// Returns back with decoded response, otherwise error.
 func (c *Client) Request(
 	flags TransportFlag,
 	payload interface{}) (response interface{}, err error) {
@@ -136,18 +146,20 @@ func (c *Client) Request(
 	return c.RequestWith(0, flags, payload)
 }
 
-// Request server and wait for a single response from server
-// and return response from server.
+// RequestWith is same as Request but allowing application to supply
+// the opaque value for this request.
+//
+// `flags` can be set with a supported encoding and compression type.
+//
+// Returns back with decoded response, otherwise error.
 func (c *Client) RequestWith(
 	opaque uint32,
 	flags TransportFlag,
 	request interface{}) (response interface{}, err error) {
 
 	flags = flags.SetRequest().SetStream().SetEndStream()
-	rflags := TransportFlag(flags.GetEncoding())
-	rflags = rflags.SetCompression(flags.GetCompression())
 	respch := make(chan []interface{}, 1)
-	cmd := []interface{}{rflags, opaque, request, respch}
+	cmd := []interface{}{flags, opaque, request, respch}
 	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
 	if err := opError(err, resp, 1); err != nil {
 		return nil, err
@@ -155,23 +167,26 @@ func (c *Client) RequestWith(
 	return resp[0], nil
 }
 
-//------------------
-// private functions
-//------------------
+//-----------------
+// request handling
+//-----------------
 
 type clientRequest struct {
 	flags  TransportFlag
 	opaque uint32
+	rqst   bool
+	strm   bool
 	respch chan<- []interface{}
 }
 
 func (c *Client) addRequest(
 	flags TransportFlag,
 	opaque uint32,
-	respch chan<- []interface{}) *clientRequest {
+	respch chan<- []interface{}) (*clientRequest, uint32) {
 
-	c.muTransport.Lock()
-	defer c.muTransport.Unlock()
+	// Note: Same encoding and compression as that of the initiating
+	// request will be used while transporting a response for
+	// that request.
 	if opaque == 0 {
 		c.currOpaque++
 		if c.currOpaque > 0x7FFFFFF { // TODO: no magic numbers
@@ -179,9 +194,11 @@ func (c *Client) addRequest(
 		}
 		opaque = c.currOpaque
 	}
-	cr := &clientRequest{flags, opaque, respch}
+	tflags := TransportFlag(flags.GetEncoding())
+	tflags.SetCompression(flags.GetCompression())
+	cr := &clientRequest{flags: tflags, opaque: opaque, respch: respch}
 	c.setRequest(opaque, cr)
-	return cr
+	return cr, opaque
 }
 
 func (c *Client) setRequest(opaque uint32, cr *clientRequest) {
@@ -230,27 +247,28 @@ loop:
 		err := error(nil)
 		msg := <-muxch
 		flags, opaque := msg[0].(TransportFlag), msg[1].(uint32)
-		payload, respch := msg[2], msg[3].(chan<- []interface{})
+		payload, respch := msg[2], msg[3].(chan []interface{})
 		f_r, f_s := flags.IsRequest(), flags.IsStream()
 		f_e := flags.IsEndStream()
-		_, known := c.requests[opaque]
+		cr, known := c.getRequest(opaque)
 		if f_r { // new request
 			if f_s == false && f_e == false && known == false {
 				log.Tracef(txmsg, prefix, "POST", flags, opaque, payload)
 
 			} else if f_s && f_e && known == false {
-				c.addRequest(flags, opaque, respch)
+				cr, opaque = c.addRequest(flags, opaque, respch)
+				cr.rqst = true
 				log.Tracef(txmsg, prefix, "RQST", flags, opaque, payload)
 
 			} else if known {
 				err = ErrorDuplicateRequest
 				log.Errorf(txmsg, prefix, "DUPE", flags, opaque, payload)
-				respch <- []interface{}{err}
+				respch <- []interface{}{nil, err}
 
 			} else {
 				err = ErrorBadRequest
 				log.Errorf(txmsg, prefix, "BADR", flags, opaque, payload)
-				respch <- []interface{}{err}
+				respch <- []interface{}{nil, err}
 			}
 
 		} else { // streaming request
@@ -269,6 +287,7 @@ func (c *Client) doReceive(conn net.Conn) {
 	log, prefix := c.log, c.logPrefix
 	rpkt := c.newTransport(conn)
 	log.Debugf("%v doReceive() ...\n", prefix)
+	rxmsg := "%v receiving {%x,%x,%x}\n"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -283,16 +302,20 @@ loop:
 	for {
 		// Note: receive on connection shall work without timeout.
 		// will exit only when remote fails or server is closed.
-		mtype, _, opaque, payload, err := rpkt.Receive()
+		mtype, flags, opaque, payload, err := rpkt.Receive()
 		if err != nil {
 			if err != io.EOF {
 				log.Errorf("%v remote exited: %v\n", prefix, err)
 			}
 			break loop
 		}
-		if cr, ok := c.getRequest(opaque); ok {
-			cr.respch <- []interface{}{mtype, payload}
-
+		cr, ok := c.getRequest(opaque)
+		if ok {
+			log.Tracef(rxmsg, prefix, flags, opaque, mtype)
+			if cr.rqst {
+				c.delRequest(opaque)
+			}
+			cr.respch <- []interface{}{payload, nil}
 		} else { // ignore reponses if opaque not found.
 		}
 	}

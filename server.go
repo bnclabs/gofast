@@ -64,6 +64,7 @@ type Server struct {
 	muTransport sync.Mutex
 	encoders    map[TransportFlag]Encoder
 	zippers     map[TransportFlag]Compressor
+	requests    map[uint32]*serverRequest // map of opaque -> serverRequest
 	// local fields
 	muConn sync.Mutex
 	lis    net.Listener
@@ -80,7 +81,8 @@ type Server struct {
 
 // NewServer creates a new server for fast communication.
 func NewServer(
-	laddr string, config map[string]interface{},
+	laddr string,
+	config map[string]interface{},
 	log Logger) (s *Server, err error) {
 
 	if log == nil {
@@ -95,9 +97,10 @@ func NewServer(
 		// transport
 		encoders: make(map[TransportFlag]Encoder),
 		zippers:  make(map[TransportFlag]Compressor),
+		requests: make(map[uint32]*serverRequest), // opaque -> serverReq.
 		// local fields
 		killch: make(chan bool),
-		conns:  make(map[string]net.Conn),
+		conns:  make(map[string]net.Conn), // remoteaddr -> net.Conn
 		// config
 		maxPayload:     config["maxPayload"].(int),
 		writeDeadline:  time.Duration(config["writeDeadline"].(int)),
@@ -285,7 +288,7 @@ func (s *Server) listener() {
 func (s *Server) addConn(conn net.Conn) {
 	s.muConn.Lock()
 	defer s.muConn.Unlock()
-	if s.conns != nil {
+	if s.conns != nil { // server has already closed !
 		s.conns[conn.RemoteAddr().String()] = conn
 	}
 }
@@ -301,6 +304,10 @@ func (s *Server) closeConnections() {
 	s.conns = nil
 }
 
+//-----------------
+// request handling
+//-----------------
+
 type serverRequest struct {
 	flags    TransportFlag
 	opaque   uint32
@@ -310,17 +317,47 @@ type serverRequest struct {
 }
 
 func (s *Server) addRequest(flags TransportFlag, opaque uint32) *serverRequest {
+	// Note: Same encoding and compression as that of the initiating
+	// request will be used while transporting a response for
+	// that request.
 	tflags := TransportFlag(flags.GetEncoding())
 	tflags.SetCompression(flags.GetCompression())
-	return &serverRequest{flags: tflags, opaque: opaque}
+	sr := &serverRequest{flags: tflags, opaque: opaque}
+	s.setRequest(opaque, sr)
+	return sr
 }
+
+func (s *Server) setRequest(opaque uint32, cr *serverRequest) {
+	s.muTransport.Lock()
+	defer s.muTransport.Unlock()
+	s.requests[opaque] = cr
+}
+
+func (s *Server) getRequest(opaque uint32) (*serverRequest, bool) {
+	s.muTransport.Lock()
+	defer s.muTransport.Unlock()
+	cr, ok := s.requests[opaque]
+	return cr, ok
+}
+
+func (s *Server) delRequest(opaque uint32) {
+	s.muTransport.Lock()
+	defer s.muTransport.Unlock()
+	delete(s.requests, opaque)
+}
+
+//--------------------
+// Connection handling
+//--------------------
 
 // handle connection request. connection might be kept open in client's
 // connection pool.
 func (s *Server) handleConnection(conn net.Conn, reqch chan []interface{}) {
 	log, prefix, raddr := s.log, s.logPrefix, conn.RemoteAddr()
+	tpkt := s.newTransport(conn)
+	log.Debugf("%v handleConnection() ...\n", prefix)
 	rxmsg := "%v on connection %q received %s {%x,%x,%x}\n"
-	//txmsg := "%v on connection %q transmitting response {%x,%x,%x}\n"
+	txmsg := "%v on connection %q transmitting response {%x,%x,%T}\n"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -333,16 +370,14 @@ func (s *Server) handleConnection(conn net.Conn, reqch chan []interface{}) {
 	}()
 
 	// transport buffer for transmission
-	tpkt := s.newTransport(conn)
 	respch := make(chan []interface{}, s.streamChanSize)
 	timeoutMs := s.writeDeadline * time.Millisecond
-	requests := make(map[uint32]*serverRequest)
 
 loop:
 	for {
 		select {
 		case req, ok := <-reqch:
-			if !ok {
+			if !ok { // doReceive() has closed
 				break loop
 			}
 			mtype, flags := req[0].(uint16), req[1].(TransportFlag)
@@ -350,21 +385,22 @@ loop:
 			// flags
 			f_r, f_s := flags.IsRequest(), flags.IsStream()
 			f_e := flags.IsEndStream()
-			_, known := requests[opaque]
-			if f_r {
+			_, known := s.getRequest(opaque)
+			if f_r { // new request
 				if f_s == false && f_e == false && known == false {
-					log.Tracef(rxmsg, prefix, raddr, "POST", opaque, flags, mtype)
+					// post and forget it.
+					log.Tracef(rxmsg, prefix, raddr, "POST", flags, opaque, mtype)
 					if callb := s.getPostHandler(opaque); callb != nil {
 						callb(opaque, payload)
 					}
 
 				} else if f_s && f_e && known == false {
-					log.Tracef(rxmsg, prefix, raddr, "RQST", opaque, flags, mtype)
+					// request and wait for cleanup.
+					log.Tracef(rxmsg, prefix, raddr, "RQST", flags, opaque, mtype)
 					if callb := s.getRequestHandler(opaque); callb != nil {
 						callb(opaque, payload, respch)
 						sr := s.addRequest(flags, opaque)
 						sr.rqst = true
-						requests[opaque] = sr
 					}
 				}
 
@@ -373,13 +409,14 @@ loop:
 
 		case resp := <-respch:
 			opaque, response := resp[0].(uint32), resp[1]
-			sr, known := requests[opaque]
+			sr, known := s.getRequest(opaque)
 			flags := sr.flags
 			if sr.rqst {
 				flags = flags.SetEndStream()
-				delete(requests, opaque)
+				s.delRequest(opaque)
 			}
 			if known {
+				log.Tracef(txmsg, prefix, raddr, flags, opaque, response)
 				conn.SetWriteDeadline(time.Now().Add(timeoutMs))
 				if err := tpkt.Send(flags, opaque, response); err != nil {
 					break loop
