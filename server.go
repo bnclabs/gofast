@@ -7,47 +7,31 @@ import "time"
 import "io"
 import "runtime/debug"
 
+// function supplied to request-handlers to post response to client.
+type ResponseSender func(mtype uint16, response interface{}, finish bool)
+
 // PostHandler is callback from transport to application to handle
 // post-requests.
-type PostHandler func(opaque uint32, request interface{})
-
-// from client and post response message(s) on `respch`
-// channel, until `quitch` is closed.
-// - if `respch` is empty, then client is not expecting a response.
-// - if `quitch` is empty, then callb() should forget the request after
-//   sending back a single response.
-// - if no more response to be sent, then following message should be posted
-//      []interface{}{opaque, nil, true}
-//   after posting msg, call-back shall return false.
-//   after posting this message, call-back will not be called for same opaque
-//   unless otherwise it is for a new request.
-// - if payload is last response, then following message should be posted
-//      []interface{}{opaque, payload, true}
-// - if client does not want to receive anymore response for that request,
-//   `quitch` shall be closed.
+type PostHandler func(request interface{})
 
 // RequestHandler is callback from transport to application to handle
 // single request and expects a single response, which shall be posted
-// on `respch`.
-// response format from callback -- []interface{}{opaque, payload}
-// where,
-//      opaque, same as the one received from request.
-type RequestHandler func(
-	opaque uint32, req interface{}, respch chan []interface{})
+// by calling `send` function.
+type RequestHandler func(request interface{}, send ResponseSender)
 
 // StreamHandler is callback from transport to application to handle
-// bi-directional stream of messages between client and server. A
-// stream of request messages, with same opaque, shall be posted
+// bi-directional stream of messages between client and server. All
+// subsequent message from client for same request will posted
 // on `streamch` returned by the callback.
-// request format on streamch -- []interface{}{opaque, payload, finish}
-// response format from callback -- []interface{}{opaque, payload, finish}
+// Request handler can stream one or more messages back to client by
+// calling `send` function.
+//
+// []interface{}{mtype, payload, finish} -> streamch
 // where,
-//      opaque, same as the one received from initiating request.
 //      payload, a single stream message
 //      finish, indicates that the other side whats to close.
 type StreamHandler func(
-	opaque uint32, req interface{},
-	respch chan []interface{}) (streamch chan []interface{})
+	request interface{}, send ResponseSender) (streamch chan []interface{})
 
 // Server handles incoming connections.
 type Server struct {
@@ -57,14 +41,13 @@ type Server struct {
 	postHandler    PostHandler
 	reqHandler     RequestHandler
 	streamHandler  StreamHandler
-	postHandlers   map[uint32]PostHandler    // map of opaque -> handler
-	reqHandlers    map[uint32]RequestHandler // map of opaque -> handler
-	streamHandlers map[uint32]StreamHandler  // map of opaque -> handler
+	postHandlers   map[uint16]PostHandler    // map of msg-type -> handler
+	reqHandlers    map[uint16]RequestHandler // map of msg-type -> handler
+	streamHandlers map[uint16]StreamHandler  // map of msg-type -> handler
 	// transport
 	muTransport sync.Mutex
 	encoders    map[TransportFlag]Encoder
 	zippers     map[TransportFlag]Compressor
-	requests    map[uint32]*serverRequest // map of opaque -> serverRequest
 	// local fields
 	muConn sync.Mutex
 	lis    net.Listener
@@ -91,13 +74,12 @@ func NewServer(
 	s = &Server{
 		laddr: laddr,
 		// handlers
-		postHandlers:   make(map[uint32]PostHandler),
-		reqHandlers:    make(map[uint32]RequestHandler),
-		streamHandlers: make(map[uint32]StreamHandler),
+		postHandlers:   make(map[uint16]PostHandler),
+		reqHandlers:    make(map[uint16]RequestHandler),
+		streamHandlers: make(map[uint16]StreamHandler),
 		// transport
 		encoders: make(map[TransportFlag]Encoder),
 		zippers:  make(map[TransportFlag]Compressor),
-		requests: make(map[uint32]*serverRequest), // opaque -> serverReq.
 		// local fields
 		killch: make(chan bool),
 		conns:  make(map[string]net.Conn), // remoteaddr -> net.Conn
@@ -150,11 +132,11 @@ func (s *Server) SetPostHandler(handler PostHandler) {
 	s.postHandler = handler
 }
 
-// SetPostHandlerFor specified opaques.
-func (s *Server) SetPostHandlerFor(opaque uint32, handler PostHandler) {
+// SetPostHandlerFor specified message type.
+func (s *Server) SetPostHandlerFor(mtype uint16, handler PostHandler) {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
-	s.postHandlers[opaque] = handler
+	s.postHandlers[mtype] = handler
 }
 
 // SetRequestHandler default handler for request messages.
@@ -164,11 +146,11 @@ func (s *Server) SetRequestHandler(handler RequestHandler) {
 	s.reqHandler = handler
 }
 
-// SetRequestHandlerFor specified opaques.
-func (s *Server) SetRequestHandlerFor(opaque uint32, handler RequestHandler) {
+// SetRequestHandlerFor specified message type.
+func (s *Server) SetRequestHandlerFor(mtype uint16, handler RequestHandler) {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
-	s.reqHandlers[opaque] = handler
+	s.reqHandlers[mtype] = handler
 }
 
 // SetStreamHandler default handler for bi-directional streams.
@@ -178,44 +160,44 @@ func (s *Server) SetStreamHandler(handler StreamHandler) {
 	s.streamHandler = handler
 }
 
-// SetStreamHandlerFor specified opaques.
-func (s *Server) SetStreamHandlerFor(opaque uint32, handler StreamHandler) {
+// SetStreamHandlerFor specified message type.
+func (s *Server) SetStreamHandlerFor(mtype uint16, handler StreamHandler) {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
-	s.streamHandlers[opaque] = handler
+	s.streamHandlers[mtype] = handler
 }
 
 // getPostHandler return handler for post request, registered
-// for opaque. If no handler registered for opaque return default
+// for mtype. If no handler registered for mtype return default
 // handler.
-func (s *Server) getPostHandler(opaque uint32) PostHandler {
+func (s *Server) getPostHandler(mtype uint16) PostHandler {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
-	if handler, ok := s.postHandlers[opaque]; ok {
+	if handler, ok := s.postHandlers[mtype]; ok {
 		return handler
 	}
 	return s.postHandler
 }
 
 // getRequestHandler return handler for single response, registered
-// for opaque. If no handler registered for opaque return default
+// for mtype. If no handler registered for mtype return default
 // handler.
-func (s *Server) getRequestHandler(opaque uint32) RequestHandler {
+func (s *Server) getRequestHandler(mtype uint16) RequestHandler {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
-	if handler, ok := s.reqHandlers[opaque]; ok {
+	if handler, ok := s.reqHandlers[mtype]; ok {
 		return handler
 	}
 	return s.reqHandler
 }
 
 // getStreamHandler return handler for bi-directional streaming,
-// registered for opaque. If no handler registered for opaque
+// registered for mtype. If no handler registered for mtype
 // return default handler.
-func (s *Server) getStreamHandler(opaque uint32) StreamHandler {
+func (s *Server) getStreamHandler(mtype uint16) StreamHandler {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
-	if handler, ok := s.streamHandlers[opaque]; ok {
+	if handler, ok := s.streamHandlers[mtype]; ok {
 		return handler
 	}
 	return s.streamHandler
@@ -315,35 +297,41 @@ type serverRequest struct {
 	strm     bool
 	streamch chan []interface{}
 }
+type connRequests struct {
+	mu       sync.Mutex
+	requests map[uint32]*serverRequest
+}
 
-func (s *Server) addRequest(flags TransportFlag, opaque uint32) *serverRequest {
+func (reqs *connRequests) addRequest(
+	flags TransportFlag, opaque uint32) *serverRequest {
+
 	// Note: Same encoding and compression as that of the initiating
 	// request will be used while transporting a response for
 	// that request.
 	tflags := TransportFlag(flags.GetEncoding())
 	tflags.SetCompression(flags.GetCompression())
 	sr := &serverRequest{flags: tflags, opaque: opaque}
-	s.setRequest(opaque, sr)
+	reqs.setRequest(opaque, sr)
 	return sr
 }
 
-func (s *Server) setRequest(opaque uint32, cr *serverRequest) {
-	s.muTransport.Lock()
-	defer s.muTransport.Unlock()
-	s.requests[opaque] = cr
+func (reqs *connRequests) setRequest(opaque uint32, sr *serverRequest) {
+	reqs.mu.Lock()
+	defer reqs.mu.Unlock()
+	reqs.requests[opaque] = sr
 }
 
-func (s *Server) getRequest(opaque uint32) (*serverRequest, bool) {
-	s.muTransport.Lock()
-	defer s.muTransport.Unlock()
-	cr, ok := s.requests[opaque]
-	return cr, ok
+func (reqs *connRequests) getRequest(opaque uint32) (*serverRequest, bool) {
+	reqs.mu.Lock()
+	defer reqs.mu.Unlock()
+	sr, ok := reqs.requests[opaque]
+	return sr, ok
 }
 
-func (s *Server) delRequest(opaque uint32) {
-	s.muTransport.Lock()
-	defer s.muTransport.Unlock()
-	delete(s.requests, opaque)
+func (reqs *connRequests) delRequest(opaque uint32) {
+	reqs.mu.Lock()
+	defer reqs.mu.Unlock()
+	delete(reqs.requests, opaque)
 }
 
 //--------------------
@@ -372,6 +360,7 @@ func (s *Server) handleConnection(conn net.Conn, reqch chan []interface{}) {
 	// transport buffer for transmission
 	respch := make(chan []interface{}, s.streamChanSize)
 	timeoutMs := s.writeDeadline * time.Millisecond
+	srs := connRequests{requests: make(map[uint32]*serverRequest)}
 
 loop:
 	for {
@@ -385,21 +374,21 @@ loop:
 			// flags
 			f_r, f_s := flags.IsRequest(), flags.IsStream()
 			f_e := flags.IsEndStream()
-			_, known := s.getRequest(opaque)
+			_, known := srs.getRequest(opaque)
 			if f_r { // new request
 				if f_s == false && f_e == false && known == false {
 					// post and forget it.
 					log.Tracef(rxmsg, prefix, raddr, "POST", flags, opaque, mtype)
-					if callb := s.getPostHandler(opaque); callb != nil {
-						callb(opaque, payload)
+					if callb := s.getPostHandler(mtype); callb != nil {
+						callb(payload)
 					}
 
 				} else if f_s && f_e && known == false {
 					// request and wait for cleanup.
 					log.Tracef(rxmsg, prefix, raddr, "RQST", flags, opaque, mtype)
-					if callb := s.getRequestHandler(opaque); callb != nil {
-						callb(opaque, payload, respch)
-						sr := s.addRequest(flags, opaque)
+					if callb := s.getRequestHandler(mtype); callb != nil {
+						callb(payload, makeSender(opaque, respch))
+						sr := srs.addRequest(flags, opaque)
 						sr.rqst = true
 					}
 				}
@@ -408,17 +397,18 @@ loop:
 			}
 
 		case resp := <-respch:
-			opaque, response := resp[0].(uint32), resp[1]
-			sr, known := s.getRequest(opaque)
+			opaque, mtype := resp[0].(uint32), resp[1].(uint16)
+			response, _ /*finish*/ := resp[2], resp[3].(bool)
+			sr, known := srs.getRequest(opaque)
 			flags := sr.flags
 			if sr.rqst {
 				flags = flags.SetEndStream()
-				s.delRequest(opaque)
+				srs.delRequest(opaque)
 			}
 			if known {
 				log.Tracef(txmsg, prefix, raddr, flags, opaque, response)
 				conn.SetWriteDeadline(time.Now().Add(timeoutMs))
-				if err := tpkt.Send(flags, opaque, response); err != nil {
+				if err := tpkt.Send(mtype, flags, opaque, response); err != nil {
 					break loop
 				}
 			}
@@ -460,5 +450,11 @@ loop:
 		case <-s.killch:
 			break loop
 		}
+	}
+}
+
+func makeSender(opaque uint32, respch chan<- []interface{}) ResponseSender {
+	return func(mtype uint16, response interface{}, finish bool) {
+		respch <- []interface{}{opaque, mtype, response, finish}
 	}
 }

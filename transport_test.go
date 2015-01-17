@@ -6,10 +6,6 @@ import "reflect"
 import "bytes"
 import "io/ioutil"
 
-const (
-	testMessageHello = 0x0001
-)
-
 var binaryPayload, _ = ioutil.ReadFile("./transport.go")
 
 func TestEncodingBinary(t *testing.T) {
@@ -24,8 +20,9 @@ func TestEncodingBinary(t *testing.T) {
 	pkt := NewTransportPacket(tc, 1000*1024, NewSystemLog())
 	pkt.SetEncoder(EncodingBinary, nil)
 
-	opaque, payload := uint32(0xDEADBEAF), []byte("encoding-binary")
-	if err := pkt.Send(flags, opaque, payload); err != nil {
+	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
+	payload = []byte("encoding-binary")
+	if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 		t.Fatal(err)
 	}
 	if mtype, rflags, ropaque, rpayload, err := pkt.Receive(); err != nil {
@@ -48,11 +45,12 @@ func TestCompressions(t *testing.T) {
 	// new transport packet
 	tc := newTestConnection().reset()
 	pkt := NewTransportPacket(tc, 1000*1024, NewSystemLog())
-	opaque, payload := uint32(0xDEADBEAF), binaryPayload
+	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
+	payload = binaryPayload
 	flags := TransportFlag(0).SetBinary().SetGzip()
 
 	verify := func() {
-		if err := pkt.Send(flags, opaque, payload); err != nil {
+		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			t.Fatal(err)
 		}
 		if mtype, rflags, ropaque, rpayload, err := pkt.Receive(); err != nil {
@@ -106,9 +104,10 @@ func BenchmarkBinaryTx(b *testing.B) {
 	pkt := NewTransportPacket(tc, 1000*1024, NewSystemLog())
 	pkt.SetEncoder(EncodingBinary, nil)
 
-	opaque, payload := uint32(0xdeadbeaf), binaryPayload
+	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
+	payload = binaryPayload
 	for i := 0; i < b.N; i++ {
-		if err := pkt.Send(flags, opaque, payload); err != nil {
+		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
 		}
 		b.SetBytes(int64(len(binaryPayload)))
@@ -125,9 +124,10 @@ func BenchmarkBinaryRx(b *testing.B) {
 	pkt := NewTransportPacket(tc, 1000*1024, NewSystemLog())
 	pkt.SetEncoder(EncodingBinary, nil)
 
-	opaque, payload := uint32(0xDEADBEAF), binaryPayload
+	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
+	payload = binaryPayload
 	for i := 0; i < b.N; i++ {
-		if err := pkt.Send(flags, opaque, payload); err != nil {
+		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
 		}
 		if _, _, _, _, err := pkt.Receive(); err != nil {
@@ -148,9 +148,10 @@ func BenchmarkGzipTx(b *testing.B) {
 	pkt.SetEncoder(EncodingBinary, nil)
 	pkt.SetZipper(CompressionGzip, nil)
 
-	opaque, payload := uint32(0xdeadbeaf), binaryPayload
+	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
+	payload = binaryPayload
 	for i := 0; i < b.N; i++ {
-		if err := pkt.Send(flags, opaque, payload); err != nil {
+		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
 		}
 		b.SetBytes(int64(tc.woff))
@@ -168,9 +169,10 @@ func BenchmarkGzipRx(b *testing.B) {
 	pkt.SetEncoder(EncodingBinary, nil)
 	pkt.SetZipper(CompressionGzip, nil)
 
-	opaque, payload := uint32(0xDEADBEAF), binaryPayload
+	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
+	payload = binaryPayload
 	for i := 0; i < b.N; i++ {
-		if err := pkt.Send(flags, opaque, payload); err != nil {
+		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
 		}
 		if _, _, _, _, err := pkt.Receive(); err != nil {
@@ -190,9 +192,10 @@ func BenchmarkLZWTx(b *testing.B) {
 	pkt.SetEncoder(EncodingBinary, nil)
 	pkt.SetZipper(CompressionLZW, nil)
 
-	opaque, payload := uint32(0xdeadbeaf), binaryPayload
+	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
+	payload = binaryPayload
 	for i := 0; i < b.N; i++ {
-		if err := pkt.Send(flags, opaque, payload); err != nil {
+		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
 		}
 		b.SetBytes(int64(tc.woff))
@@ -210,9 +213,10 @@ func BenchmarkLZWRx(b *testing.B) {
 	pkt.SetEncoder(EncodingBinary, nil)
 	pkt.SetZipper(CompressionLZW, nil)
 
-	opaque, payload := uint32(0xDEADBEAF), binaryPayload
+	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
+	payload = binaryPayload
 	for i := 0; i < b.N; i++ {
-		if err := pkt.Send(flags, opaque, payload); err != nil {
+		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
 		}
 		if _, _, _, _, err := pkt.Receive(); err != nil {

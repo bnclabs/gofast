@@ -97,10 +97,6 @@ var ErrorEncoderUnknown = errors.New("gofast.encoderUnknown")
 // ErrorZipperUnknown for unknown compression.
 var ErrorZipperUnknown = errors.New("gofast.zipperUnknown")
 
-const (
-	OpaquePost uint32 = 0xFFFF0000
-)
-
 // Transporter interface to send and receive packets.
 // APIs are not thread safe.
 type Transporter interface { // facilitates unit testing
@@ -121,7 +117,7 @@ type Encoder interface {
 	// array, with exact length.
 	Encode(
 		flags TransportFlag, opaque uint32, payload interface{},
-		out []byte) (data []byte, mtype uint16, err error)
+		out []byte) (data []byte, err error)
 
 	// Decode callback while Receive() packet.
 	Decode(
@@ -224,7 +220,8 @@ func (pkt *TransportPacket) SetZipper(typ TransportFlag, zipper Compressor) {
 // Send payload to the other end using transport encoding
 // and compression.
 func (pkt *TransportPacket) Send(
-	flags TransportFlag, opaque uint32, payload interface{}) error {
+	mtype uint16, flags TransportFlag, opaque uint32,
+	payload interface{}) error {
 
 	prefix, log := pkt.logPrefix, pkt.log
 
@@ -234,7 +231,7 @@ func (pkt *TransportPacket) Send(
 		log.Errorf("%v (flags %x) Send() unknown encoder\n", prefix, flags)
 		return ErrorEncoderUnknown
 	}
-	buf, mtype, err := encoder.Encode(flags, opaque, payload, pkt.bufEnc)
+	buf, err := encoder.Encode(flags, opaque, payload, pkt.bufEnc)
 	if err != nil {
 		log.Errorf("%v (flags %x) Send() encode: %v\n", prefix, flags, err)
 		return err

@@ -31,7 +31,7 @@ type Client struct {
 	encoders    map[TransportFlag]Encoder
 	zippers     map[TransportFlag]Compressor
 	muxch       chan []interface{}
-	requests    map[uint32]*clientRequest
+	requests    map[uint32]*clientRequest // opaque -> in-flight-request
 	finch       chan bool
 	// config params
 	maxPayload     int           // for transport
@@ -89,18 +89,20 @@ func (c *Client) Start() {
 
 // SetEncoder till set encoder handler to encode and decode payload.
 // Shall be called before starting the client.
-func (c *Client) SetEncoder(typ TransportFlag, encoder Encoder) {
+func (c *Client) SetEncoder(typ TransportFlag, encoder Encoder) *Client {
 	c.muTransport.Lock()
 	defer c.muTransport.Unlock()
 	c.encoders[typ] = encoder
+	return c
 }
 
 // SetZipper will set zipper handler to compress and decompress
 // payload. Shall be called before starting the client.
-func (c *Client) SetZipper(typ TransportFlag, zipper Compressor) {
+func (c *Client) SetZipper(typ TransportFlag, zipper Compressor) *Client {
 	c.muTransport.Lock()
 	defer c.muTransport.Unlock()
 	c.zippers[typ] = zipper
+	return c
 }
 
 // Close this client
@@ -126,40 +128,28 @@ func (c *Client) Close() {
 // Asynchronous call.
 //
 // `flags` can be set with a supported encoding and compression type.
-func (c *Client) Post(flags TransportFlag, payload interface{}) error {
+func (c *Client) Post(
+	flags TransportFlag, mtype uint16, payload interface{}) error {
+
 	var respch chan []interface{}
 	flags = flags.ClearStream().ClearEndStream().SetRequest()
-	cmd := []interface{}{flags, OpaquePost, payload, respch}
+	cmd := []interface{}{flags, NoOpaque, mtype, payload, respch}
 	return failsafeOpAsync(c.muxch, cmd, c.finch)
 }
 
 // Request server and wait for a single response from server
 // and return response from server.
-//
-// `flags` can be set with a supported encoding and compression type.
-//
-// Returns back with decoded response, otherwise error.
+//  `flags` refer to transport spec.
+//  `payload` is actual request.
+//  `mtype` is 16-bit value that can be used to interpret payload.
 func (c *Client) Request(
 	flags TransportFlag,
-	payload interface{}) (response interface{}, err error) {
-
-	return c.RequestWith(0, flags, payload)
-}
-
-// RequestWith is same as Request but allowing application to supply
-// the opaque value for this request.
-//
-// `flags` can be set with a supported encoding and compression type.
-//
-// Returns back with decoded response, otherwise error.
-func (c *Client) RequestWith(
-	opaque uint32,
-	flags TransportFlag,
+	mtype uint16,
 	request interface{}) (response interface{}, err error) {
 
 	flags = flags.SetRequest().SetStream().SetEndStream()
 	respch := make(chan []interface{}, 1)
-	cmd := []interface{}{flags, opaque, request, respch}
+	cmd := []interface{}{flags, NoOpaque, mtype, request, respch}
 	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
 	if err := opError(err, resp, 1); err != nil {
 		return nil, err
@@ -181,24 +171,20 @@ type clientRequest struct {
 
 func (c *Client) addRequest(
 	flags TransportFlag,
-	opaque uint32,
 	respch chan<- []interface{}) (*clientRequest, uint32) {
 
 	// Note: Same encoding and compression as that of the initiating
 	// request will be used while transporting a response for
 	// that request.
-	if opaque == 0 {
-		c.currOpaque++
-		if c.currOpaque > 0x7FFFFFF { // TODO: no magic numbers
-			c.currOpaque = 1
-		}
-		opaque = c.currOpaque
+	c.currOpaque++
+	if c.currOpaque > 0x7FFFFFF { // TODO: no magic numbers
+		c.currOpaque = 1
 	}
 	tflags := TransportFlag(flags.GetEncoding())
 	tflags.SetCompression(flags.GetCompression())
-	cr := &clientRequest{flags: tflags, opaque: opaque, respch: respch}
-	c.setRequest(opaque, cr)
-	return cr, opaque
+	cr := &clientRequest{flags: tflags, opaque: c.currOpaque, respch: respch}
+	c.setRequest(c.currOpaque, cr)
+	return cr, c.currOpaque
 }
 
 func (c *Client) setRequest(opaque uint32, cr *clientRequest) {
@@ -247,7 +233,8 @@ loop:
 		err := error(nil)
 		msg := <-muxch
 		flags, opaque := msg[0].(TransportFlag), msg[1].(uint32)
-		payload, respch := msg[2], msg[3].(chan []interface{})
+		mtype := msg[2].(uint16)
+		payload, respch := msg[3], msg[4].(chan []interface{})
 		f_r, f_s := flags.IsRequest(), flags.IsStream()
 		f_e := flags.IsEndStream()
 		cr, known := c.getRequest(opaque)
@@ -256,7 +243,7 @@ loop:
 				log.Tracef(txmsg, prefix, "POST", flags, opaque, payload)
 
 			} else if f_s && f_e && known == false {
-				cr, opaque = c.addRequest(flags, opaque, respch)
+				cr, opaque = c.addRequest(flags, respch)
 				cr.rqst = true
 				log.Tracef(txmsg, prefix, "RQST", flags, opaque, payload)
 
@@ -275,7 +262,7 @@ loop:
 		}
 		if err == nil {
 			conn.SetWriteDeadline(time.Now().Add(timeoutMs))
-			if err := tpkt.Send(flags, opaque, payload); err != nil {
+			if err := tpkt.Send(mtype, flags, opaque, payload); err != nil {
 				break loop
 			}
 		}

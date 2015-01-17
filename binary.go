@@ -2,10 +2,6 @@ package gofast
 
 import "errors"
 
-const (
-	MtypeBinaryPayload uint16 = 0xF000
-)
-
 var ErrorInvalidMtype = errors.New("gofast.invalidMtype")
 
 // BinaryEncoder implement default handlers for EncodingBinary.
@@ -19,11 +15,11 @@ func NewBinaryEncoder() *BinaryEncoder {
 // Encode implements Encoder{} interface.
 func (codec *BinaryEncoder) Encode(
 	flags TransportFlag, opaque uint32,
-	payload interface{}, out []byte) (data []byte, mtype uint16, err error) {
+	payload interface{}, out []byte) (data []byte, err error) {
 
 	s := payload.([]byte)
 	copy(out, s)
-	return out[:len(s)], MtypeBinaryPayload, nil
+	return out[:len(s)], nil
 }
 
 // Decode implements Encoder{} interface.
