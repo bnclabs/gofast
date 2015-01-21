@@ -1,4 +1,4 @@
-// On the wire transport for custom packets packet.
+// High performance symmetric protocol for on the wire data transport.
 //
 //    0               8               16              24            31
 //    +---------------+---------------+---------------+---------------+
@@ -84,19 +84,6 @@ import "net"
 import "io"
 import "fmt"
 
-// ErrorPacketWrite is error writing packet on the wire.
-var ErrorPacketWrite = errors.New("gofast.packetWrite")
-
-// ErrorPacketOverflow is input packet overflows maximum
-// configured packet size.
-var ErrorPacketOverflow = errors.New("gofast.packetOverflow")
-
-// ErrorEncoderUnknown for unknown encoder.
-var ErrorEncoderUnknown = errors.New("gofast.encoderUnknown")
-
-// ErrorZipperUnknown for unknown compression.
-var ErrorZipperUnknown = errors.New("gofast.zipperUnknown")
-
 // Transporter interface to send and receive packets.
 // APIs are not thread safe.
 type Transporter interface { // facilitates unit testing
@@ -113,7 +100,7 @@ type Encoder interface {
 	// buffer to convert the payload, either case it shall return
 	// a valid output slice.
 	//
-	// Returns buffer as byte-slice, may be a reference into `out`
+	// return buffer as byte-slice, may be a reference into `out`
 	// array, with exact length.
 	Encode(
 		flags TransportFlag, opaque uint32, payload interface{},
@@ -132,7 +119,7 @@ type Compressor interface {
 	// buffer to send back compressed data, either case it shall
 	// return a valid output slice.
 	//
-	// Returns buffer as byte-slice, may be a reference into `out`
+	// return buffer as byte-slice, may be a reference into `out`
 	// array, with exact length.
 	Zip(in, out []byte) (data []byte, err error)
 
@@ -145,8 +132,7 @@ type Compressor interface {
 }
 
 // TransportPacket to send and receive mutation packets between
-// router and downstream client.
-// Not thread safe.
+// router and downstream client. Not thread safe.
 type TransportPacket struct {
 	conn      Transporter
 	flags     TransportFlag
@@ -159,9 +145,13 @@ type TransportPacket struct {
 	logPrefix string
 }
 
-// NewTransportPacket creates a new transporter to
-// frame, encode and compress payload before sending it to remote and
+// NewTransportPacket creates a new transporter on a single connection
+// to frame, encode and compress payload before sending it to remote and
 // deframe, decompress, decode while receiving payload from remote.
+//
+// - if `log` argument is nil, builtin logger will be used.
+// - `buflen` defines the maximum size of the packet, decompressed
+//   payload shall not exceed this size.
 func NewTransportPacket(
 	conn Transporter, buflen int, log Logger) *TransportPacket {
 
@@ -217,8 +207,14 @@ func (pkt *TransportPacket) SetZipper(typ TransportFlag, zipper Compressor) {
 	}
 }
 
-// Send payload to the other end using transport encoding
-// and compression.
+// Send payload to the other end. Payload is defined by,
+//      {message-type (mtype), flags, opaque}
+//
+// - flags specify encoding, compression and streaming semantics.
+// - opaque can be used for concurrent requests on same connection.
+//
+// caller can check return error for io.EOF to detect connection
+// drops.
 func (pkt *TransportPacket) Send(
 	mtype uint16, flags TransportFlag, opaque uint32,
 	payload interface{}) error {
@@ -255,19 +251,31 @@ func (pkt *TransportPacket) Send(
 	frameHdr(mtype, uint16(flags), opaque, uint32(len(buf)),
 		pkt.bufComp[:pktDataOffset])
 	if n, err := pkt.conn.Write(pkt.bufComp[:pktDataOffset]); err != nil {
+		if err == io.EOF {
+			log.Infof("%v: %v\n", prefix, err)
+			return err
+		}
 		log.Errorf("%v (flags %x) Send() failed: %v\n", prefix, flags, err)
 		return ErrorPacketWrite
-	} else if n != int(pktDataOffset) {
-		log.Errorf("%v (flags %x) Send() wrote %v bytes\n", prefix, flags, n)
+
+	} else if l := int(pktDataOffset); n != l {
+		msg := "%v (flags %x) Send() wrote %v(%v) bytes\n"
+		log.Errorf(msg, prefix, flags, l, n)
 		return ErrorPacketWrite
 	}
 
 	// then send payload
 	if n, err := pkt.conn.Write(buf); err != nil {
+		if err == io.EOF {
+			log.Infof("%v: %v\n", prefix, err)
+			return err
+		}
 		log.Errorf("%v (flags %x) Send() failed: %v\n", prefix, flags, err)
 		return ErrorPacketWrite
-	} else if n != len(buf) {
-		log.Errorf("%v (flags %x) Send() wrote %v bytes\n", prefix, flags, n)
+
+	} else if l := len(buf); n != l {
+		msg := "%v (flags %x) Send() wrote %v(%v) bytes\n"
+		log.Errorf(msg, prefix, flags, l, n)
 		return ErrorPacketWrite
 	}
 	log.Tracef("%v {%x,%x,%x} -> wrote %v bytes\n",
@@ -275,8 +283,14 @@ func (pkt *TransportPacket) Send(
 	return nil
 }
 
-// Receive payload from remote, decode, decompress the payload and return the
-// payload.
+// Recieve payload from remote. Payload is defined by,
+//      {message-type (mtype), flags, opaque}
+//
+// - flags specify encoding, compression and streaming semantics.
+// - opaque can be used for concurrent requests on same connection.
+//
+// caller can check return error for io.EOF to detect connection
+// drops.
 func (pkt *TransportPacket) Receive() (
 	mtype uint16, flags TransportFlag, opaque uint32,
 	payload interface{}, err error) {
@@ -285,9 +299,12 @@ func (pkt *TransportPacket) Receive() (
 
 	// read and de-frame header
 	if err = fullRead(pkt.conn, pkt.bufComp[:pktDataOffset]); err != nil {
-		if err != io.EOF { // TODO check whether connection closed
-			log.Errorf("%v Receive() packet failed: %v\n", prefix, err)
+		if err == io.EOF {
+			log.Infof("%v: %v\n", prefix, err)
+			return
 		}
+		log.Errorf("%v Receive() packet failed: %v\n", prefix, err)
+		err = ErrorPacketRead
 		return
 	}
 	mtype, f, opaque, ln := deframeHdr(pkt.bufComp[:pktDataOffset])
@@ -300,9 +317,12 @@ func (pkt *TransportPacket) Receive() (
 	// read payload
 	buf := pkt.bufComp[pktDataOffset : uint32(pktDataOffset)+ln]
 	if err = fullRead(pkt.conn, buf); err != nil {
-		if err != io.EOF { // TODO check whether connection closed
-			log.Errorf("%v Receive() packet failed: %v\n", prefix, err)
+		if err == io.EOF {
+			log.Infof("%v: %v\n", prefix, err)
+			return
 		}
+		log.Errorf("%v Receive() packet failed: %v\n", prefix, err)
+		err = ErrorPacketRead
 		return
 	}
 	log.Tracef("%v {%x,%x,%x,%x} <- read %v bytes\n",
