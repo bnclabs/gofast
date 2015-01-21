@@ -1,3 +1,21 @@
+// concurrency model:
+//
+//                       NewServer()
+//
+//                         (spawn)
+//
+//                        listener() <---- new-connection request
+//
+//               (spawn)          (spawn)
+//
+//              doReceive     handleConnection()
+//                                   |
+//    Close()                        *-- PostHandler() ------- Application ---->
+//                                   |
+//                                   *-- RequestHandler() ---- Application ---->
+//                                   |                              |
+//                                   *<------- ResponseSender() ----*
+
 package gofast
 
 import "fmt"
@@ -7,24 +25,28 @@ import "time"
 import "io"
 import "runtime/debug"
 
-// function supplied to request-handlers to post response to client.
-type ResponseSender func(mtype uint16, response interface{}, finish bool)
-
-// PostHandler is callback from transport to application to handle
-// post-requests.
+// PostHandler is callback from server to application
+// to handle post-requests.
 type PostHandler func(request interface{})
 
-// RequestHandler is callback from transport to application to handle
-// single request and expects a single response, which shall be posted
-// by calling `send` function.
+// RequestHandler is callback from server to application
+// to handle single request and expects a single response,
+// which application can post by calling `send` function.
 type RequestHandler func(request interface{}, send ResponseSender)
 
-// StreamHandler is callback from transport to application to handle
-// bi-directional stream of messages between client and server. All
-// subsequent message from client for same request will posted
-// on `streamch` returned by the callback.
-// Request handler can stream one or more messages back to client by
-// calling `send` function.
+// ResponseSender is callback-handler from server to application
+// passed via RequestHandler. Application can use this
+// function to post response message on the wire.
+type ResponseSender func(mtype uint16, response interface{}, finish bool)
+
+// StreamHandler is callback from server to application
+// to start a bi-directional stream of messages between
+// client and server. All subsequent message from client
+// for same request (aka opaque) will posted on `streamch`
+// returned by the callback.
+//
+// Application can stream one or more messages back to
+// client by calling `send` function.
 //
 // []interface{}{mtype, payload, finish} -> streamch
 // where,
@@ -62,7 +84,9 @@ type Server struct {
 	logPrefix      string
 }
 
-// NewServer creates a new server for fast communication.
+// NewServer creates server for fast communication.
+// Subsequently application can register post, request
+// or stream handlers with the server.
 func NewServer(
 	laddr string,
 	config map[string]interface{},
@@ -125,6 +149,20 @@ func (s *Server) Close() (err error) {
 	return
 }
 
+// SetEncoder till set an encoder to encode and decode payload.
+func (s *Server) SetEncoder(typ TransportFlag, encoder Encoder) {
+	s.muTransport.Lock()
+	defer s.muTransport.Unlock()
+	s.encoders[typ] = encoder
+}
+
+// SetZipper will set a zipper type to compress and decompress payload.
+func (s *Server) SetZipper(typ TransportFlag, zipper Compressor) {
+	s.muTransport.Lock()
+	defer s.muTransport.Unlock()
+	s.zippers[typ] = zipper
+}
+
 // SetPostHandler default handler for post messages.
 func (s *Server) SetPostHandler(handler PostHandler) {
 	s.muHandler.Lock()
@@ -167,9 +205,10 @@ func (s *Server) SetStreamHandlerFor(mtype uint16, handler StreamHandler) {
 	s.streamHandlers[mtype] = handler
 }
 
-// getPostHandler return handler for post request, registered
-// for mtype. If no handler registered for mtype return default
-// handler.
+// getPostHandler return post handler registered for `mtype`.
+// - if handler is not registered for mtype return default
+//   handler.
+// - if default handler is not registered return nil.
 func (s *Server) getPostHandler(mtype uint16) PostHandler {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
@@ -179,9 +218,10 @@ func (s *Server) getPostHandler(mtype uint16) PostHandler {
 	return s.postHandler
 }
 
-// getRequestHandler return handler for single response, registered
-// for mtype. If no handler registered for mtype return default
-// handler.
+// getRequestHandler return request handler registered for mtype.
+// - if handler is not registered for mtype return default
+//   handler.
+// - if default handler is not registered return nil.
 func (s *Server) getRequestHandler(mtype uint16) RequestHandler {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
@@ -191,9 +231,10 @@ func (s *Server) getRequestHandler(mtype uint16) RequestHandler {
 	return s.reqHandler
 }
 
-// getStreamHandler return handler for bi-directional streaming,
-// registered for mtype. If no handler registered for mtype
-// return default handler.
+// getStreamHandler return stream handler registered for mtype.
+// - if handler is not registered for mtype return default
+//   handler.
+// - if default handler is not registered return nil.
 func (s *Server) getStreamHandler(mtype uint16) StreamHandler {
 	s.muHandler.Lock()
 	defer s.muHandler.Unlock()
@@ -203,103 +244,14 @@ func (s *Server) getStreamHandler(mtype uint16) StreamHandler {
 	return s.streamHandler
 }
 
-// SetEncoder till set an encoder to encode and decode payload.
-func (s *Server) SetEncoder(typ TransportFlag, encoder Encoder) {
-	s.muTransport.Lock()
-	defer s.muTransport.Unlock()
-	s.encoders[typ] = encoder
-}
-
-// SetZipper will set a zipper type to compress and decompress payload.
-func (s *Server) SetZipper(typ TransportFlag, zipper Compressor) {
-	s.muTransport.Lock()
-	defer s.muTransport.Unlock()
-	s.zippers[typ] = zipper
-}
-
-func (s *Server) newTransport(conn net.Conn) *TransportPacket {
-	s.muTransport.Lock()
-	defer s.muTransport.Unlock()
-	pkt := NewTransportPacket(conn, s.maxPayload, s.log)
-	for flag, encoder := range s.encoders {
-		pkt.SetEncoder(flag.GetEncoding(), encoder)
-	}
-	for flag, zipper := range s.zippers {
-		pkt.SetZipper(flag.GetCompression(), zipper)
-	}
-	return pkt
-}
-
-//--------------------
-// Connection handling
-//--------------------
-
-// go-routine to listen for new connections, if this routine goes
-// down server is shutdown.
-func (s *Server) listener() {
-	log := s.log
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("%v listener() crashed: %v\n", s.logPrefix, r)
-			StackTrace(string(debug.Stack()))
-		}
-		go s.Close()
-	}()
-
-	for {
-		if conn, err := s.lis.Accept(); err == nil {
-			s.addConn(conn)
-
-			// start a receive routine.
-			reqch := make(chan []interface{}, s.reqChanSize)
-			go s.doReceive(conn, reqch)
-
-			// handle both socket transmission and callback dispatching
-			go s.handleConnection(conn, reqch)
-
-		} else {
-			if e, ok := err.(*net.OpError); ok && e.Op != "accept" {
-				panic(err)
-			}
-			break
-		}
-	}
-}
-
-// add a new connection to server
-func (s *Server) addConn(conn net.Conn) {
-	s.muConn.Lock()
-	defer s.muConn.Unlock()
-	if s.conns != nil { // server has already closed !
-		s.conns[conn.RemoteAddr().String()] = conn
-	}
-}
-
-// close all active connections, caller should protect it with mutex.
-func (s *Server) closeConnections() {
-	s.muConn.Lock()
-	defer s.muConn.Unlock()
-	for raddr, conn := range s.conns {
-		s.log.Infof("%v close connection with client %v\n", s.logPrefix, raddr)
-		conn.Close()
-	}
-	s.conns = nil
-}
-
 //-----------------
 // request handling
 //-----------------
 
-type serverRequest struct {
-	flags    TransportFlag
-	opaque   uint32
-	rqst     bool
-	strm     bool
-	streamch chan []interface{}
-}
+// outstanding requests on a single connection.
 type connRequests struct {
 	mu       sync.Mutex
-	requests map[uint32]*serverRequest
+	requests map[uint32]*serverRequest // opaque -> *serverRequest
 }
 
 func (reqs *connRequests) addRequest(
@@ -334,23 +286,89 @@ func (reqs *connRequests) delRequest(opaque uint32) {
 	delete(reqs.requests, opaque)
 }
 
+type serverRequest struct {
+	flags    TransportFlag
+	opaque   uint32
+	rqst     bool
+	strm     bool
+	streamch chan []interface{}
+}
+
 //--------------------
 // Connection handling
 //--------------------
 
-// handle connection request. connection might be kept open in client's
-// connection pool.
+// add a new connection to server
+func (s *Server) addConn(conn net.Conn) {
+	s.muConn.Lock()
+	defer s.muConn.Unlock()
+	if s.conns != nil { // server has already closed !
+		s.conns[conn.RemoteAddr().String()] = conn
+	}
+}
+
+// close all active connections, caller should protect it with mutex.
+func (s *Server) closeConnections() {
+	s.muConn.Lock()
+	defer s.muConn.Unlock()
+	closeMsg := "%v close connection with client %v\n"
+	if s.conns != nil {
+		for raddr, conn := range s.conns {
+			s.log.Infof(closeMsg, s.logPrefix, raddr)
+			conn.Close()
+		}
+		s.conns = nil
+	}
+}
+
+// receive requests from remote, when this function returns
+// the connection is expected to be closed.
+func (s *Server) doReceive(conn net.Conn, reqch chan<- []interface{}) {
+	raddr, log, prefix := conn.RemoteAddr(), s.log, s.logPrefix
+
+	rpkt := s.newTransport(conn)
+	log.Debugf("%v doReceive() from %q ...\n", prefix, raddr)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("%v doReceive() %q crashed: %v\n", prefix, raddr, r)
+			StackTrace(string(debug.Stack()))
+		}
+		close(reqch)
+	}()
+
+loop:
+	for {
+		// Note: receive on connection shall work without timeout.
+		// will exit only when connection drops or server is closed.
+		mtype, flags, opaque, payload, err := rpkt.Receive()
+		if err == io.EOF {
+			log.Infof("%v connection %q dropped: %v\n", prefix, raddr, err)
+			break loop
+
+		} else if err != nil {
+			log.Errorf("%v connection %q failed: %v\n", prefix, raddr, err)
+			break loop
+		}
+		select {
+		case reqch <- []interface{}{mtype, flags, opaque, payload}:
+		case <-s.killch:
+			break loop
+		}
+	}
+}
+
+// handle a single connection from remote.
 func (s *Server) handleConnection(conn net.Conn, reqch chan []interface{}) {
 	log, prefix, raddr := s.log, s.logPrefix, conn.RemoteAddr()
 	tpkt := s.newTransport(conn)
 	log.Debugf("%v handleConnection() ...\n", prefix)
-	rxmsg := "%v on connection %q received %s {%x,%x,%x}\n"
-	txmsg := "%v on connection %q transmitting response {%x,%x,%T}\n"
+	rxmsg := "%v {%s,%x,%x,%x} <- %q\n"
+	txmsg := "%v {%x,%x,%T} -> %q\n"
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf(
-				"%v handleConnection() %q crashed: %v\n", prefix, raddr, r)
+			msg := "%v handleConnection() %q crashed: %v\n"
+			log.Errorf(msg, prefix, raddr, r)
 			StackTrace(string(debug.Stack()))
 		}
 		conn.Close()
@@ -377,17 +395,15 @@ loop:
 			_, known := srs.getRequest(opaque)
 			if f_r { // new request
 				if f_s == false && f_e == false && known == false {
-					// post and forget it.
-					log.Tracef(rxmsg, prefix, raddr, "POST", flags, opaque, mtype)
+					log.Tracef(rxmsg, prefix, "POST", flags, opaque, mtype, raddr)
 					if callb := s.getPostHandler(mtype); callb != nil {
 						callb(payload)
 					}
 
 				} else if f_s && f_e && known == false {
-					// request and wait for cleanup.
-					log.Tracef(rxmsg, prefix, raddr, "RQST", flags, opaque, mtype)
+					log.Tracef(rxmsg, prefix, "RQST", flags, opaque, mtype, raddr)
 					if callb := s.getRequestHandler(mtype); callb != nil {
-						callb(payload, makeSender(opaque, respch))
+						callb(payload, makeRespSender(opaque, respch))
 						sr := srs.addRequest(flags, opaque)
 						sr.rqst = true
 					}
@@ -397,7 +413,7 @@ loop:
 			}
 
 		case resp := <-respch:
-			opaque, mtype := resp[0].(uint32), resp[1].(uint16)
+			mtype, opaque := resp[0].(uint16), resp[1].(uint32)
 			response, _ /*finish*/ := resp[2], resp[3].(bool)
 			sr, known := srs.getRequest(opaque)
 			flags := sr.flags
@@ -405,8 +421,8 @@ loop:
 				flags = flags.SetEndStream()
 				srs.delRequest(opaque)
 			}
-			if known {
-				log.Tracef(txmsg, prefix, raddr, flags, opaque, response)
+			if known { // response is sent back for known requests
+				log.Tracef(txmsg, prefix, flags, opaque, response, raddr)
 				conn.SetWriteDeadline(time.Now().Add(timeoutMs))
 				if err := tpkt.Send(mtype, flags, opaque, response); err != nil {
 					break loop
@@ -419,42 +435,57 @@ loop:
 	}
 }
 
-// receive requests from remote, when this function returns
-// the connection is expected to be closed.
-func (s *Server) doReceive(conn net.Conn, reqch chan<- []interface{}) {
-	raddr, log, prefix := conn.RemoteAddr(), s.log, s.logPrefix
-
-	rpkt := s.newTransport(conn)
-	log.Debugf("%v doReceive() from %q ...\n", prefix, raddr)
+// go-routine to listen for new connections,
+// if this routine exits server is shutdown.
+func (s *Server) listener() {
+	log := s.log
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("%v doReceive() %q crashed: %v\n", prefix, raddr, r)
+			log.Errorf("%v listener() crashed: %v\n", s.logPrefix, r)
 			StackTrace(string(debug.Stack()))
 		}
-		close(reqch)
+		go s.Close()
 	}()
 
-loop:
 	for {
-		// Note: receive on connection shall work without timeout.
-		// will exit only when remote fails or server is closed.
-		mtype, flags, opaque, payload, err := rpkt.Receive()
-		if err != nil {
-			if err != io.EOF { // TODO check whether connection closed
-				log.Errorf("%v client %q exited: %v\n", prefix, raddr, err)
+		if conn, err := s.lis.Accept(); err == nil {
+			s.addConn(conn)
+
+			// start a receive routine.
+			reqch := make(chan []interface{}, s.reqChanSize)
+			go s.doReceive(conn, reqch)
+
+			// handle both socket transmission and callback dispatching
+			go s.handleConnection(conn, reqch)
+
+		} else {
+			if e, ok := err.(*net.OpError); ok && e.Op != "accept" {
+				panic(err)
 			}
-			break loop
-		}
-		select {
-		case reqch <- []interface{}{mtype, flags, opaque, payload}:
-		case <-s.killch:
-			break loop
+			break
 		}
 	}
 }
 
-func makeSender(opaque uint32, respch chan<- []interface{}) ResponseSender {
+//----------------
+// local functions
+//----------------
+
+func (s *Server) newTransport(conn net.Conn) *TransportPacket {
+	s.muTransport.Lock()
+	defer s.muTransport.Unlock()
+	pkt := NewTransportPacket(conn, s.maxPayload, s.log)
+	for flag, encoder := range s.encoders {
+		pkt.SetEncoder(flag.GetEncoding(), encoder)
+	}
+	for flag, zipper := range s.zippers {
+		pkt.SetZipper(flag.GetCompression(), zipper)
+	}
+	return pkt
+}
+
+func makeRespSender(opaque uint32, respch chan<- []interface{}) ResponseSender {
 	return func(mtype uint16, response interface{}, finish bool) {
-		respch <- []interface{}{opaque, mtype, response, finish}
+		respch <- []interface{}{mtype, opaque, response, finish}
 	}
 }

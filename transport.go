@@ -31,55 +31,10 @@
 // * opaque value from 0xFFFF0000 and above are reserved for protocol.
 // * clients that automatically assigns opaque will have to use values
 //   from 1 to 0x7FFFFFFF and start rolling back to 1 after 0x7FFFFFFF.
-//
-// Communication model for a single request session:
-//
-//                          POST-REQUEST
-//            client                              server
-//              |            post-request           |
-//              | --------------------------------> | session closed
-//
-// * opaque value is ignored.
-// * server shall not send back any response or remember the request
-//   and client shall not expect a response from server.
-//
-//
-//                          REQUEST-RESPONSE
-//            client                              server
-//              |            request                |
-//              | --------------------------------> |
-//              |            response               |
-//              | <-------------------------------- | session closed
-//
-//
-//                    SERVER STREAMING RESPONSE
-//            client      (closed by server)      server
-//              |            request                |
-//              | --------------------------------> |
-//              |         response-stream           |
-//              | <-------------------------------- |
-//              |         response-stream           |
-//              | <-------------------------------- |
-//              .                                   .
-//              /         (closed by server)        /
-//              |          StreamEndResponse        |
-//              | <-------------------------------- | after this app will never
-//              .                                   . see a message from client
-//              .                                   . session closed
-//              /         (closed by client)        /
-//              |          EndStreamRequest         |
-//              | --------------------------------> |
-//              |        residue-response           |
-//              | <-------------------------------- |
-//              |               ...                 |
-//              |               ...                 |
-//              |          StreamEndResponse        |
-//              | <-------------------------------- | session closed
 
 package gofast
 
 import "encoding/binary"
-import "errors"
 import "net"
 import "io"
 import "fmt"
@@ -252,7 +207,7 @@ func (pkt *TransportPacket) Send(
 		pkt.bufComp[:pktDataOffset])
 	if n, err := pkt.conn.Write(pkt.bufComp[:pktDataOffset]); err != nil {
 		if err == io.EOF {
-			log.Infof("%v: %v\n", prefix, err)
+			log.Infof("%v: connection dropped %v\n", prefix, err)
 			return err
 		}
 		log.Errorf("%v (flags %x) Send() failed: %v\n", prefix, flags, err)
@@ -267,7 +222,7 @@ func (pkt *TransportPacket) Send(
 	// then send payload
 	if n, err := pkt.conn.Write(buf); err != nil {
 		if err == io.EOF {
-			log.Infof("%v: %v\n", prefix, err)
+			log.Infof("%v: connection dropped %v\n", prefix, err)
 			return err
 		}
 		log.Errorf("%v (flags %x) Send() failed: %v\n", prefix, flags, err)
@@ -300,7 +255,7 @@ func (pkt *TransportPacket) Receive() (
 	// read and de-frame header
 	if err = fullRead(pkt.conn, pkt.bufComp[:pktDataOffset]); err != nil {
 		if err == io.EOF {
-			log.Infof("%v: %v\n", prefix, err)
+			log.Infof("%v: connection dropped %v\n", prefix, err)
 			return
 		}
 		log.Errorf("%v Receive() packet failed: %v\n", prefix, err)
@@ -318,7 +273,7 @@ func (pkt *TransportPacket) Receive() (
 	buf := pkt.bufComp[pktDataOffset : uint32(pktDataOffset)+ln]
 	if err = fullRead(pkt.conn, buf); err != nil {
 		if err == io.EOF {
-			log.Infof("%v: %v\n", prefix, err)
+			log.Infof("%v: connection dropped %v\n", prefix, err)
 			return
 		}
 		log.Errorf("%v Receive() packet failed: %v\n", prefix, err)

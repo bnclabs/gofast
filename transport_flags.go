@@ -14,50 +14,6 @@
 // E    - End-stream, if 1 - denotes end of stream, last message.
 //
 // * R, S, E are always interpreted in the context of opaque.
-//
-// Communicaton models, interpreting flags:
-//
-// +------------+------------------+--------+------------------+------------+
-// |          Client               |  Flags |              Server           |
-// +------------+------------------+--------+------------------+------------+
-// |   Request  | Opaque-handling  | R S E | Opaque-handling  | Response   |
-// +------------+------------------+-------+------------------+------------+
-// |Post request>      ignore      > 1 0 0 >                  >            |
-// |            |                  |       |      ignore      <Nothing     |
-// |------------|------------------|-------|------------------|------------|
-// |Single req. >      wclean      > 1 1 1 >      wclean      >            |
-// |            <      forget      < 0 0 1 <      forget      <Single Resp.|
-// |------------|------------------|-------|------------------|------------|
-// |More msgs   >     remember     > 1 1 0 >     remember     >            |
-// |            <         -        < 0 1 0 <        -         <More msgs   |
-// |            <       forget     < 0 1 1 <      forget      <Last msg    |
-// |------------|------------------|-------|------------------|------------|
-// |More msgs   |     remember     | 1 1 0 |     remember     |            |
-// |            |         -        | 0 1 0 |        -         |More msgs   |
-// |            |       forget     | 0 1 1 |      forget      |Last msg    |
-// |            |         -        | 0 1 0 |      ignore      |Ignore      |
-// |            |       forget     | 0 0 1 |      ignore      |Ignore      |
-// |------------|------------------|-------|------------------|------------|
-// |More msgs   |     remember     | 1 1 0 |     remember     |            |
-// |            |         -        | 0 1 0 |        -         |More msgs   |
-// |            |      forget      | 0 0 1 |      forget      |            |
-// |            |      ignore      | 0 1 0 |      ignore      |More msgs   |
-// |            |      ignore      | 0 1 0 |      ignore      |More msgs   |
-// +------------+------------------+-------+------------------+------------+
-//
-// Request notes,
-// * {R:1} only client can send and only with a new or forgotten opaque value.
-// * {R:1 S:0 E:1} is a post request no response expected from server.
-// * {R:1 S:1 E:1} means req/response protocol.
-// * {R:1 S:1 E:0} new request that can be closed by client.
-// * {R:0 S:1 E:0} new streaming request from client.
-// * {R:0 S:0 E:1} client closing the request.
-// * {R:1 S:0 E:0} is not acceptable for request with a new opaque value.
-//
-// Response notes {R:0},
-// * {S:1 E:0} means streaming response with more to come.
-// * {S:x E:1} means server is closing the stream and request, may be with a
-//   valid payload.
 
 package gofast
 

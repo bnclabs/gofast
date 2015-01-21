@@ -4,20 +4,8 @@ import "net"
 import "sync"
 import "time"
 import "fmt"
-import "errors"
 import "io"
 import "runtime/debug"
-
-// ErrorClosed by client APIs when client instance is already
-// closed, helpful when there is a race between API and Close()
-var ErrorClosed = errors.New("gofast.clientClosed")
-
-// ErrorDuplicateRequest means a request is already in flight with
-// supplied opaque.
-var ErrorDuplicateRequest = errors.New("gofast.duplicateRequest")
-
-// ErrorBadRequest is returned for malformed request.
-var ErrorBadRequest = errors.New("gofast.badRequest")
 
 // Client connects with remote server via a single connection.
 type Client struct {
@@ -30,8 +18,8 @@ type Client struct {
 	laddr       string // actual port at client side of connection.
 	encoders    map[TransportFlag]Encoder
 	zippers     map[TransportFlag]Compressor
-	muxch       chan []interface{}
 	requests    map[uint32]*clientRequest // opaque -> in-flight-request
+	muxch       chan []interface{}
 	finch       chan bool
 	// config params
 	maxPayload     int           // for transport
@@ -46,7 +34,8 @@ type Client struct {
 // to host. Multiple go-routines can share this client and make
 // API calls on this client.
 func NewClient(
-	host string, config map[string]interface{},
+	host string,
+	config map[string]interface{},
 	log Logger) (c *Client, err error) {
 
 	if log == nil {
@@ -60,8 +49,8 @@ func NewClient(
 		currOpaque: uint32(0),
 		encoders:   make(map[TransportFlag]Encoder),
 		zippers:    make(map[TransportFlag]Compressor),
-		muxch:      make(chan []interface{}, muxChanSize),
 		requests:   make(map[uint32]*clientRequest),
+		muxch:      make(chan []interface{}, muxChanSize),
 		finch:      make(chan bool),
 		// config
 		maxPayload:     config["maxPayload"].(int),
@@ -79,9 +68,9 @@ func NewClient(
 	return c, nil
 }
 
-// Start will start tx and rx routines for this client and connection.
-// Shall be called only after all calls to SetEncoder() and
-// SetZipper()
+// Start will start tx and rx routines for this client
+// and its connection, shall be called only after making
+// calls to SetEncoder() and SetZipper()
 func (c *Client) Start() {
 	go c.handleConnection(c.conn, c.muxch)
 	go c.doReceive(c.conn)
@@ -127,21 +116,22 @@ func (c *Client) Close() {
 // Post payload to remote server, don't wait for response.
 // Asynchronous call.
 //
-// `flags` can be set with a supported encoding and compression type.
+// - `flags` can be set with a supported encoding and
+//    compression type.
 func (c *Client) Post(
 	flags TransportFlag, mtype uint16, payload interface{}) error {
 
 	var respch chan []interface{}
 	flags = flags.ClearStream().ClearEndStream().SetRequest()
-	cmd := []interface{}{flags, NoOpaque, mtype, payload, respch}
+	cmd := []interface{}{mtype, flags, NoOpaque, payload, respch}
 	return failsafeOpAsync(c.muxch, cmd, c.finch)
 }
 
 // Request server and wait for a single response from server
 // and return response from server.
-//  `flags` refer to transport spec.
-//  `payload` is actual request.
-//  `mtype` is 16-bit value that can be used to interpret payload.
+// - `flags` refer to transport spec.
+// - `payload` is actual request.
+// - `mtype` is 16-bit value that can be used to interpret payload.
 func (c *Client) Request(
 	flags TransportFlag,
 	mtype uint16,
@@ -149,7 +139,7 @@ func (c *Client) Request(
 
 	flags = flags.SetRequest().SetStream().SetEndStream()
 	respch := make(chan []interface{}, 1)
-	cmd := []interface{}{flags, NoOpaque, mtype, request, respch}
+	cmd := []interface{}{mtype, flags, NoOpaque, request, respch}
 	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
 	if err := opError(err, resp, 1); err != nil {
 		return nil, err
@@ -173,11 +163,10 @@ func (c *Client) addRequest(
 	flags TransportFlag,
 	respch chan<- []interface{}) (*clientRequest, uint32) {
 
-	// Note: Same encoding and compression as that of the initiating
-	// request will be used while transporting a response for
-	// that request.
+	// Note: Request streams cannot switch encoding and
+	// compression after the request is initiated.
 	c.currOpaque++
-	if c.currOpaque > 0x7FFFFFF { // TODO: no magic numbers
+	if c.currOpaque > 0x7FFFFFFF { // TODO: no magic numbers
 		c.currOpaque = 1
 	}
 	tflags := TransportFlag(flags.GetEncoding())
@@ -215,7 +204,7 @@ func (c *Client) handleConnection(conn net.Conn, muxch <-chan []interface{}) {
 	log, prefix := c.log, c.logPrefix
 	tpkt := c.newTransport(conn)
 	log.Debugf("%v handleConnection() ...\n", prefix)
-	txmsg := "%v transmitting %v {%x,%x,%T}\n"
+	txmsg := "%v trasmitting {%v,%x,%x,%T}\n"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -232,8 +221,8 @@ loop:
 	for {
 		err := error(nil)
 		msg := <-muxch
-		flags, opaque := msg[0].(TransportFlag), msg[1].(uint32)
-		mtype := msg[2].(uint16)
+		mtype, flags := msg[0].(uint16), msg[1].(TransportFlag)
+		opaque := msg[2].(uint32)
 		payload, respch := msg[3], msg[4].(chan []interface{})
 		f_r, f_s := flags.IsRequest(), flags.IsStream()
 		f_e := flags.IsEndStream()
@@ -288,12 +277,14 @@ func (c *Client) doReceive(conn net.Conn) {
 loop:
 	for {
 		// Note: receive on connection shall work without timeout.
-		// will exit only when remote fails or server is closed.
+		// will exit only when connection drop or server is closed.
 		mtype, flags, opaque, payload, err := rpkt.Receive()
-		if err != nil {
-			if err != io.EOF {
-				log.Errorf("%v remote exited: %v\n", prefix, err)
-			}
+		if err == io.EOF {
+			log.Infof("%v connection dropped: %v\n", prefix, err)
+			break loop
+
+		} else if err != nil {
+			log.Errorf("%v connection failed: %v\n", prefix, err)
 			break loop
 		}
 		cr, ok := c.getRequest(opaque)

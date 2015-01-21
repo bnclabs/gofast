@@ -20,8 +20,8 @@ func TestEncodingBinary(t *testing.T) {
 	pkt := NewTransportPacket(tc, 1000*1024, NewSystemLog())
 	pkt.SetEncoder(EncodingBinary, nil)
 
-	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
-	payload = []byte("encoding-binary")
+	mtype, opaque := MtypeBinaryPayload, uint32(0xdeadbeaf)
+	payload := []byte("encoding-binary")
 	if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 		t.Fatal(err)
 	}
@@ -45,8 +45,8 @@ func TestCompressions(t *testing.T) {
 	// new transport packet
 	tc := newTestConnection().reset()
 	pkt := NewTransportPacket(tc, 1000*1024, NewSystemLog())
-	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
-	payload = binaryPayload
+	mtype, opaque := MtypeBinaryPayload, uint32(0xdeadbeaf)
+	payload := binaryPayload
 	flags := TransportFlag(0).SetBinary().SetGzip()
 
 	verify := func() {
@@ -105,7 +105,7 @@ func BenchmarkBinaryTx(b *testing.B) {
 	pkt.SetEncoder(EncodingBinary, nil)
 
 	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
-	payload = binaryPayload
+	payload := binaryPayload
 	for i := 0; i < b.N; i++ {
 		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
@@ -125,7 +125,7 @@ func BenchmarkBinaryRx(b *testing.B) {
 	pkt.SetEncoder(EncodingBinary, nil)
 
 	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
-	payload = binaryPayload
+	payload := binaryPayload
 	for i := 0; i < b.N; i++ {
 		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
@@ -149,7 +149,7 @@ func BenchmarkGzipTx(b *testing.B) {
 	pkt.SetZipper(CompressionGzip, nil)
 
 	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
-	payload = binaryPayload
+	payload := binaryPayload
 	for i := 0; i < b.N; i++ {
 		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
@@ -170,7 +170,7 @@ func BenchmarkGzipRx(b *testing.B) {
 	pkt.SetZipper(CompressionGzip, nil)
 
 	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
-	payload = binaryPayload
+	payload := binaryPayload
 	for i := 0; i < b.N; i++ {
 		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
@@ -193,7 +193,7 @@ func BenchmarkLZWTx(b *testing.B) {
 	pkt.SetZipper(CompressionLZW, nil)
 
 	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
-	payload = binaryPayload
+	payload := binaryPayload
 	for i := 0; i < b.N; i++ {
 		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
@@ -214,7 +214,7 @@ func BenchmarkLZWRx(b *testing.B) {
 	pkt.SetZipper(CompressionLZW, nil)
 
 	mtype, opaque := uint16(0x0001), uint32(0xdeadbeaf)
-	payload = binaryPayload
+	payload := binaryPayload
 	for i := 0; i < b.N; i++ {
 		if err := pkt.Send(mtype, flags, opaque, payload); err != nil {
 			b.Fatal(err)
