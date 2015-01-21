@@ -11,7 +11,7 @@
 // ENC  - encoding to be applied on payload after compression
 // R    - Request, if 1 a new request from client, else should always be 0
 // S    - Streaming, if 1 - means receiver can expect more messages.
-// E    - End-stream, if 1 - denotes end of stream, last message
+// E    - End-stream, if 1 - denotes end of stream, last message.
 //
 // * R, S, E are always interpreted in the context of opaque.
 //
@@ -228,7 +228,7 @@ func (flags TransportFlag) ClearRequest() TransportFlag {
 
 // SetRequest will set packet as request.
 func (flags TransportFlag) SetRequest() TransportFlag {
-	return (flags & TransportFlag(0xFEFF)) | TransportFlag(Request)
+	return flags.ClearRequest() | TransportFlag(Request)
 }
 
 // ClearStream will set packet for streaming.
@@ -238,7 +238,7 @@ func (flags TransportFlag) ClearStream() TransportFlag {
 
 // SetStream will set packet for streaming.
 func (flags TransportFlag) SetStream() TransportFlag {
-	return (flags & TransportFlag(0xFDFF)) | TransportFlag(Stream)
+	return flags.ClearStream() | TransportFlag(Stream)
 }
 
 // ClearEndStream will set packet to denote end of current stream.
@@ -248,7 +248,7 @@ func (flags TransportFlag) ClearEndStream() TransportFlag {
 
 // SetEndStream will set packet to denote end of current stream.
 func (flags TransportFlag) SetEndStream() TransportFlag {
-	return (flags & TransportFlag(0xFBFF)) | TransportFlag(EndStream)
+	return flags.ClearEndStream() | TransportFlag(EndStream)
 }
 
 // IsRequest will set packet as request.
