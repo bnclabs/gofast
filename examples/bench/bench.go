@@ -2,7 +2,11 @@ package main
 
 import "log"
 import "time"
+import "os"
+import "fmt"
 import "flag"
+import "encoding/json"
+
 import "github.com/prataprc/gofast"
 
 var options struct {
@@ -27,6 +31,10 @@ func argParse() string {
 		"enable trace level logging")
 	flag.Parse()
 	options.host = ":9999"
+	if len(flag.Args()) == 0 {
+		fmt.Println("command missing, either `post` or `request`")
+		os.Exit(1)
+	}
 	return flag.Args()[0]
 }
 
@@ -53,6 +61,7 @@ func main() {
 	switch command {
 	case "post":
 		benchPost()
+
 	case "request":
 		benchRequest()
 	}
@@ -66,7 +75,7 @@ func benchPost() {
 	}
 	defer server.Close()
 	server.SetEncoder(gofast.EncodingBinary, nil)
-	server.SetPostHandler(func(opaque uint32, request interface{}) {})
+	server.SetPostHandler(func(request interface{}) {})
 
 	flags := gofast.TransportFlag(gofast.EncodingBinary)
 	ch := make(chan bool, options.par)
@@ -74,7 +83,7 @@ func benchPost() {
 		go doPost(flags, clientConfig, options.count, ch)
 	}
 	for i := 0; i < options.par; i++ {
-		log.Println(<-ch)
+		log.Println("post completed", i, <-ch)
 	}
 }
 
@@ -89,10 +98,9 @@ func doPost(
 	client.SetEncoder(gofast.EncodingBinary, nil)
 	client.Start()
 	for i := 0; i < count; i++ {
-		client.Post(flags, []byte("hello world"))
+		client.Post(flags, 1, []byte("hello world"))
 	}
 	ch <- true
-	time.Sleep(1 * time.Millisecond)
 }
 
 func benchRequest() {
@@ -106,19 +114,29 @@ func benchRequest() {
 	flags := gofast.TransportFlag(gofast.EncodingBinary)
 	donech := make(chan bool, options.par)
 	server.SetEncoder(gofast.EncodingBinary, nil)
-	for i := 0; i < options.par; i++ {
-		server.SetRequestHandlerFor(
-			0x80000000+uint32(i),
-			func(opaque uint32, req interface{}, respch chan []interface{}) {
-				go func() {
-					if options.latency > 0 {
-						time.Sleep(time.Duration(options.latency) * time.Millisecond)
-					}
-					respch <- []interface{}{opaque, []byte("response1")}
-					donech <- true
-				}()
-			})
-	}
+	server.SetRequestHandlerFor(
+		1,
+		func(req interface{}, send gofast.ResponseSender) {
+			go func() {
+				var r []interface{}
+				// unmarshal request
+				if err := json.Unmarshal(req.([]byte), &r); err != nil {
+					log.Fatal(err)
+				}
+				// construct response
+				data, err := json.Marshal([]interface{}{r[0], r[1], "response"})
+				if err != nil {
+					log.Fatal(err)
+				}
+				// introduce a delay
+				if options.latency > 0 {
+					time.Sleep(time.Duration(options.latency) * time.Millisecond)
+				}
+				// and send back response
+				send(2, data, true)
+				donech <- true
+			}()
+		})
 
 	client, err := gofast.NewClient(options.host, clientConfig, nil)
 	if err != nil {
@@ -128,10 +146,32 @@ func benchRequest() {
 	client.Start()
 
 	for i := 0; i < options.par; i++ {
-		opaque := 0x80000000 + uint32(i)
 		go func() {
-			for i := 0; i < options.count; i++ {
-				client.RequestWith(opaque, flags, []byte("request1"))
+			k := i
+			for j := 0; j < options.count; j++ {
+				// construct request
+				data, err := json.Marshal([]interface{}{k, j, "request"})
+				if err != nil {
+					log.Fatal(err)
+				}
+				// make request
+				resp, err := client.Request(flags, 1, data)
+				if err != nil {
+					log.Fatal(err)
+				}
+				// construct response
+				var r []interface{}
+				if err := json.Unmarshal(resp.([]byte), &r); err != nil {
+					log.Fatal(err)
+				}
+				// verify
+				if r[0].(float64) != float64(k) {
+					log.Fatalf("expected %v, got %v\n", []interface{}{k, j}, r)
+				} else if r[1].(float64) != float64(j) {
+					log.Fatalf("expected %v, got %v\n", []interface{}{k, j}, r)
+				} else if r[2].(string) != "response" {
+					log.Fatalf("expected %v, got %v\n", []interface{}{k, j}, r)
+				}
 			}
 		}()
 	}
@@ -146,5 +186,6 @@ func benchRequest() {
 			log.Println("Completed ", count)
 		}
 	}
+	log.Println("AllCompleted ", count)
 	client.Close()
 }
