@@ -3,6 +3,7 @@ package main
 import "log"
 import "time"
 import "os"
+import "math/rand"
 import "fmt"
 import "flag"
 import "encoding/json"
@@ -32,7 +33,7 @@ func argParse() string {
 	flag.Parse()
 	options.host = ":9999"
 	if len(flag.Args()) == 0 {
-		fmt.Println("command missing, either `post` or `request`")
+		fmt.Println("command missing, either `post` or `request`, or `stream`")
 		os.Exit(1)
 	}
 	return flag.Args()[0]
@@ -64,6 +65,9 @@ func main() {
 
 	case "request":
 		benchRequest()
+
+	case "stream":
+		benchStream()
 	}
 }
 
@@ -115,7 +119,7 @@ func benchRequest() {
 	donech := make(chan bool, options.par)
 	server.SetEncoder(gofast.EncodingBinary, nil)
 	server.SetRequestHandlerFor(
-		1,
+		1, /*mtype*/
 		func(req interface{}, send gofast.ResponseSender) {
 			go func() {
 				var r []interface{}
@@ -133,7 +137,7 @@ func benchRequest() {
 					time.Sleep(time.Duration(options.latency) * time.Millisecond)
 				}
 				// and send back response
-				send(2, data, true)
+				send(2 /*mtype*/, data, true)
 				donech <- true
 			}()
 		})
@@ -187,5 +191,101 @@ func benchRequest() {
 		}
 	}
 	log.Println("AllCompleted ", count)
+	client.Close()
+}
+
+func benchStream() {
+	// start server
+	server, err := gofast.NewServer(options.host, serverConfig, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer server.Close()
+
+	flags := gofast.TransportFlag(gofast.EncodingBinary)
+	donech := make(chan bool, options.par)
+	server.SetEncoder(gofast.EncodingBinary, nil)
+	server.SetStreamHandlerFor(
+		1, /*mtype*/
+		func(req interface{}, send gofast.ResponseSender) chan [3]interface{} {
+			go func() {
+				var r []interface{}
+				// unmarshal request
+				if err := json.Unmarshal(req.([]byte), &r); err != nil {
+					log.Fatal(err)
+				}
+				// construct response
+				data, err := json.Marshal([]interface{}{r[0], r[1], "response"})
+				if err != nil {
+					log.Fatal(err)
+				}
+				// introduce a delay
+				if options.latency > 0 {
+					time.Sleep(time.Duration(options.latency) * time.Millisecond)
+				}
+				// and send back response
+				respCount := int(r[1].(float64)) + 1
+				for i := 0; i < rand.Intn(respCount); i++ {
+					send(2 /*mtype*/, data, false)
+				}
+				send(2 /*mtype*/, data, true)
+				donech <- true
+			}()
+			return make(chan [3]interface{})
+		})
+
+	client, err := gofast.NewClient(options.host, clientConfig, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	client.SetEncoder(gofast.EncodingBinary, nil)
+	client.Start()
+
+	serverMsgCount := 0
+	for i := 0; i < options.par; i++ {
+		go func() {
+			k := i
+			blockch := make(chan bool, 1)
+			for j := 0; j < options.count; j++ {
+				// construct request
+				data, err := json.Marshal([]interface{}{k, j, "request"})
+				if err != nil {
+					log.Fatal(err)
+				}
+				// make request
+				_, err = client.RequestStream(
+					flags, 1, data,
+					gofast.ResponseReceiver(
+						func(_ uint16, _ uint32, resp interface{}, finish bool) {
+							// construct response
+							var r []interface{}
+							if err := json.Unmarshal(resp.([]byte), &r); err != nil {
+								log.Fatal(err)
+							}
+							serverMsgCount++
+							if finish == true {
+								blockch <- true
+							}
+						}))
+				if err != nil {
+					log.Fatal(err)
+				}
+				<-blockch
+			}
+		}()
+	}
+	count := 0
+	tick := time.Tick(1 * time.Second)
+	for i := options.par * options.count; i > 0; {
+		select {
+		case <-donech:
+			i--
+			count++
+		case <-tick:
+			log.Println("Completed ", count)
+		}
+	}
+	log.Println("AllCompleted ", count)
+	log.Println("Total messages: ", serverMsgCount)
 	client.Close()
 }
