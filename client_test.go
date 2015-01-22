@@ -44,12 +44,12 @@ var tmsgs = []struct {
 	{5, // Par-Request
 		[][]byte{[]byte("par-requests1")},
 		6,
-		[][]byte{[]byte("par-response2")},
+		[][]byte{[]byte("par-response1")},
 	},
 	{7, // Par-Request
-		[][]byte{[]byte("par-requests3")},
+		[][]byte{[]byte("par-requests2")},
 		8,
-		[][]byte{[]byte("par-response4")},
+		[][]byte{[]byte("par-response2")},
 	},
 }
 var testPostReq = 0
@@ -92,9 +92,8 @@ func init() {
 		tmsgs[testParSimpleReq1].mtypeReq,
 		func(req interface{}, fn ResponseSender) {
 			tmsg := tmsgs[testParSimpleReq1]
-			fmt.Println(".", req)
 			if reflect.DeepEqual(req, tmsg.requests[0]) {
-				fn(tmsg.mtypeResp, tmsg.responses[0], true /*finish*/)
+				fn(tmsg.mtypeResp, tmsg.responses[0], true)
 			}
 		})
 	// setup concurrent-request handler
@@ -103,7 +102,7 @@ func init() {
 		func(req interface{}, fn ResponseSender) {
 			tmsg := tmsgs[testParSimpleReq2]
 			if reflect.DeepEqual(req, tmsg.requests[0]) {
-				fn(tmsg.mtypeResp, tmsg.responses[0], true /*finish*/)
+				fn(tmsg.mtypeResp, tmsg.responses[0], true)
 			}
 		})
 }
@@ -152,6 +151,59 @@ func TestRequest(t *testing.T) {
 		}
 	}
 
+	client.Close()
+	time.Sleep(100 * time.Millisecond)
+}
+
+func TestRequestConcur(t *testing.T) {
+	LogIgnore()
+	//SetLogLevel(LogLevelTrace)
+
+	// make client
+	client, err := NewClient(host, clientConfig, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.SetEncoder(EncodingBinary, nil).Start()
+
+	done := make(chan bool, 2)
+
+	go func() {
+		tmsg := tmsgs[testParSimpleReq1]
+		for j := 0; j < 100; j++ {
+			for i, req := range tmsg.requests {
+				response, err := client.Request(flags, tmsg.mtypeReq, req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				resp := tmsg.responses[i]
+				if !reflect.DeepEqual(resp, response) {
+					t.Fatalf("expected %v got %v", resp, response)
+				}
+			}
+		}
+		done <- true
+	}()
+
+	go func() {
+		tmsg := tmsgs[testParSimpleReq2]
+		for j := 0; j < 100; j++ {
+			for i, req := range tmsg.requests {
+				response, err := client.Request(flags, tmsg.mtypeReq, req)
+				if err != nil {
+					t.Fatal(err)
+				}
+				resp := tmsg.responses[i]
+				if !reflect.DeepEqual(resp, response) {
+					t.Fatalf("expected %v got %v", resp, response)
+				}
+			}
+		}
+		done <- true
+	}()
+
+	<-done
+	<-done
 	client.Close()
 	time.Sleep(100 * time.Millisecond)
 }

@@ -48,12 +48,16 @@ type ResponseSender func(mtype uint16, response interface{}, finish bool)
 // Application can stream one or more messages back to
 // client by calling `send` function.
 //
-// []interface{}{mtype, payload, finish} -> streamch
+// [3]interface{}{mtype, payload, finish} -> streamch
 // where,
-//      payload, a single stream message
+//      mytype, describes the payload type.
+//      payload, a single stream message.
 //      finish, indicates that the other side whats to close.
+//
+// Application should always signal end-of-response with
+//      {mtype, response, true}
 type StreamHandler func(
-	request interface{}, send ResponseSender) (streamch chan []interface{})
+	request interface{}, send ResponseSender) (streamch chan [3]interface{})
 
 // Server handles incoming connections.
 type Server struct {
@@ -135,8 +139,6 @@ func (s *Server) Close() (err error) {
 		}
 	}()
 
-	s.closeConnections() // acquires the lock and cleans up connection.
-
 	s.muConn.Lock()
 	defer s.muConn.Unlock()
 	if s.lis != nil {
@@ -144,6 +146,8 @@ func (s *Server) Close() (err error) {
 		s.lis = nil
 		// kill all connection handlers.
 		close(s.killch)
+		s.closeConnections() // acquires the lock and cleans up connection.
+		s.conns = nil
 		s.log.Infof("%v ... stopped\n", s.logPrefix)
 	}
 	return
@@ -291,7 +295,7 @@ type serverRequest struct {
 	opaque   uint32
 	rqst     bool
 	strm     bool
-	streamch chan []interface{}
+	streamch chan [3]interface{}
 }
 
 //--------------------
@@ -309,16 +313,20 @@ func (s *Server) addConn(conn net.Conn) {
 
 // close all active connections, caller should protect it with mutex.
 func (s *Server) closeConnections() {
-	s.muConn.Lock()
-	defer s.muConn.Unlock()
 	closeMsg := "%v close connection with client %v\n"
-	if s.conns != nil {
-		for raddr, conn := range s.conns {
-			s.log.Infof(closeMsg, s.logPrefix, raddr)
-			conn.Close()
-		}
-		s.conns = nil
+	for raddr, conn := range s.conns {
+		s.log.Infof(closeMsg, s.logPrefix, raddr)
+		conn.Close()
 	}
+}
+
+func (s *Server) isClosed() bool {
+	select {
+	case <-s.killch:
+		return true
+	default:
+	}
+	return false
 }
 
 // receive requests from remote, when this function returns
@@ -345,6 +353,10 @@ loop:
 			log.Infof("%v connection %q dropped: %v\n", prefix, raddr, err)
 			break loop
 
+		} else if s.isClosed() {
+			log.Infof("%v server stopped: %v\n", prefix, err)
+			break loop
+
 		} else if err != nil {
 			log.Errorf("%v connection %q failed: %v\n", prefix, raddr, err)
 			break loop
@@ -363,7 +375,7 @@ func (s *Server) handleConnection(conn net.Conn, reqch chan []interface{}) {
 	tpkt := s.newTransport(conn)
 	log.Debugf("%v handleConnection() ...\n", prefix)
 	rxmsg := "%v {%s,%x,%x,%x} <- %q\n"
-	txmsg := "%v {%x,%x,%T} -> %q\n"
+	txmsg := "%v {%x,%x,%x,%T} -> %q\n"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -392,7 +404,7 @@ loop:
 			// flags
 			f_r, f_s := flags.IsRequest(), flags.IsStream()
 			f_e := flags.IsEndStream()
-			_, known := srs.getRequest(opaque)
+			sr, known := srs.getRequest(opaque)
 			if f_r { // new request
 				if f_s == false && f_e == false && known == false {
 					log.Tracef(rxmsg, prefix, "POST", flags, opaque, mtype, raddr)
@@ -404,29 +416,52 @@ loop:
 					log.Tracef(rxmsg, prefix, "RQST", flags, opaque, mtype, raddr)
 					if callb := s.getRequestHandler(mtype); callb != nil {
 						callb(payload, makeRespSender(opaque, respch))
-						sr := srs.addRequest(flags, opaque)
+						sr = srs.addRequest(flags, opaque)
 						sr.rqst = true
+					}
+
+				} else if f_s && f_e == false && known == false {
+					log.Tracef(rxmsg, prefix, "STRM", flags, opaque, mtype, raddr)
+					if callb := s.getStreamHandler(mtype); callb != nil {
+						streamch := callb(payload, makeRespSender(opaque, respch))
+						sr = srs.addRequest(flags, opaque)
+						sr.strm, sr.streamch = true, streamch
 					}
 				}
 
-			} else { // ignore
+			} else if known && sr.strm { // stream-request that we already know
+				if sr.streamch != nil {
+					log.Tracef(rxmsg, prefix, "STRM", flags, opaque, mtype, raddr)
+					if f_e { // this is the last message.
+						sr.streamch <- [3]interface{}{mtype, payload, true}
+						sr.streamch = nil
+					} else {
+						sr.streamch <- [3]interface{}{mtype, payload, false}
+					}
+
+				} else { // incoming stream has already been closed.
+					log.Errorf(rxmsg, prefix, "STRM", flags, opaque, mtype, raddr)
+				}
 			}
 
 		case resp := <-respch:
 			mtype, opaque := resp[0].(uint16), resp[1].(uint32)
-			response, _ /*finish*/ := resp[2], resp[3].(bool)
+			response, finish := resp[2], resp[3].(bool)
 			sr, known := srs.getRequest(opaque)
-			flags := sr.flags
-			if sr.rqst {
-				flags = flags.SetEndStream()
-				srs.delRequest(opaque)
-			}
 			if known { // response is sent back for known requests
-				log.Tracef(txmsg, prefix, flags, opaque, response, raddr)
+				flags := sr.flags
+				log.Tracef(txmsg, prefix, flags, opaque, mtype, response, raddr)
+				if sr.rqst || finish {
+					flags = flags.SetEndStream()
+					srs.delRequest(opaque)
+				}
 				conn.SetWriteDeadline(time.Now().Add(timeoutMs))
 				if err := tpkt.Send(mtype, flags, opaque, response); err != nil {
 					break loop
 				}
+
+			} else {
+				log.Errorf(txmsg, prefix, 0, opaque, mtype, response, raddr)
 			}
 
 		case <-s.killch:

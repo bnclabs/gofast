@@ -7,6 +7,10 @@ import "fmt"
 import "io"
 import "runtime/debug"
 
+// ResponseReceiver is callback-handler from client to application.
+type ResponseReceiver func(
+	mtype uint16, opaque uint32, response interface{}, finish bool)
+
 // Client connects with remote server via a single connection.
 type Client struct {
 	host string // remote address
@@ -121,30 +125,89 @@ func (c *Client) Close() {
 func (c *Client) Post(
 	flags TransportFlag, mtype uint16, payload interface{}) error {
 
-	var respch chan []interface{}
+	respch := make(chan []interface{}, 1)
 	flags = flags.ClearStream().ClearEndStream().SetRequest()
-	cmd := []interface{}{mtype, flags, NoOpaque, payload, respch}
-	return failsafeOpAsync(c.muxch, cmd, c.finch)
+	cmd := []interface{}{
+		mtype, flags, NoOpaque, payload, ResponseReceiver(nil), respch}
+	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
+	if err := opError(err, resp, 1); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Request server and wait for a single response from server
 // and return response from server.
 // - `flags` refer to transport spec.
-// - `payload` is actual request.
+// - `request` is actual request.
 // - `mtype` is 16-bit value that can be used to interpret payload.
 func (c *Client) Request(
 	flags TransportFlag,
 	mtype uint16,
 	request interface{}) (response interface{}, err error) {
 
-	flags = flags.SetRequest().SetStream().SetEndStream()
 	respch := make(chan []interface{}, 1)
-	cmd := []interface{}{mtype, flags, NoOpaque, request, respch}
+	callbch := make(chan interface{}, 1)
+	callb := func(_ uint16, _ uint32, response interface{}, _ bool) {
+		callbch <- response
+	}
+	flags = flags.SetRequest().SetStream().SetEndStream()
+	cmd := []interface{}{
+		mtype, flags, NoOpaque, request, ResponseReceiver(callb), respch}
 	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
 	if err := opError(err, resp, 1); err != nil {
 		return nil, err
 	}
-	return resp[0], nil
+	response = <-callbch
+	return response, nil
+}
+
+// RequestStream server for bi-directional streaming with
+// server
+// - `flags` refer to transport spec. same encoding and
+//    compression will be used on all subsequent messages.
+// - `mtype` is 16-bit value that can be used to interpret payload.
+// - `request` is actual request.
+// - `callb` is callback from client to application to handle
+//   incoming response messages.
+//
+// with no error, return the opaque-id that can be used
+// used for subsequent calls on the stream.
+func (c *Client) RequestStream(
+	flags TransportFlag,
+	mtype uint16,
+	request interface{},
+	callb ResponseReceiver) (opaque uint32, err error) {
+
+	respch := make(chan []interface{}, 1)
+	flags = flags.SetRequest().SetStream().SetEndStream()
+	cmd := []interface{}{mtype, flags, NoOpaque, request, callb, respch}
+	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
+	if err := opError(err, resp, 1); err != nil {
+		return NoOpaque, err
+	}
+	return resp[0].(uint32), nil
+}
+
+// Stream message associated to an original request
+// identified by `opaque`.
+//
+// - `finish` will end the streaming from the client side.
+func (c *Client) Stream(
+	opaque uint32, mtype uint16, msg interface{}, finish bool) error {
+
+	respch := make(chan []interface{}, 1)
+	flags := TransportFlag(0)
+	if finish {
+		flags = flags.SetEndStream()
+	}
+	cmd := []interface{}{
+		mtype, flags, opaque, msg, ResponseReceiver(nil), respch}
+	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
+	if err := opError(err, resp, 1); err != nil {
+		return err
+	}
+	return nil
 }
 
 //-----------------
@@ -156,12 +219,11 @@ type clientRequest struct {
 	opaque uint32
 	rqst   bool
 	strm   bool
-	respch chan<- []interface{}
+	callb  ResponseReceiver
 }
 
 func (c *Client) addRequest(
-	flags TransportFlag,
-	respch chan<- []interface{}) (*clientRequest, uint32) {
+	flags TransportFlag, callb ResponseReceiver) (*clientRequest, uint32) {
 
 	// Note: Request streams cannot switch encoding and
 	// compression after the request is initiated.
@@ -171,7 +233,7 @@ func (c *Client) addRequest(
 	}
 	tflags := TransportFlag(flags.GetEncoding())
 	tflags.SetCompression(flags.GetCompression())
-	cr := &clientRequest{flags: tflags, opaque: c.currOpaque, respch: respch}
+	cr := &clientRequest{flags: tflags, opaque: c.currOpaque, callb: callb}
 	c.setRequest(c.currOpaque, cr)
 	return cr, c.currOpaque
 }
@@ -204,7 +266,7 @@ func (c *Client) handleConnection(conn net.Conn, muxch <-chan []interface{}) {
 	log, prefix := c.log, c.logPrefix
 	tpkt := c.newTransport(conn)
 	log.Debugf("%v handleConnection() ...\n", prefix)
-	txmsg := "%v trasmitting {%v,%x,%x,%T}\n"
+	txmsg := "%v transmitting {%v,%x,%x,%T}\n"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -221,20 +283,34 @@ loop:
 	for {
 		err := error(nil)
 		msg := <-muxch
-		mtype, flags := msg[0].(uint16), msg[1].(TransportFlag)
-		opaque := msg[2].(uint32)
-		payload, respch := msg[3], msg[4].(chan []interface{})
-		f_r, f_s := flags.IsRequest(), flags.IsStream()
-		f_e := flags.IsEndStream()
+		mtype, flags, opaque, payload, callb, respch := d(msg)
 		cr, known := c.getRequest(opaque)
-		if f_r { // new request
+		if known && cr.strm { // streaming message
+			if flags.IsEndStream() {
+				log.Tracef(txmsg, prefix, "ENDS", flags, opaque, payload)
+				flags = cr.flags.SetEndStream()
+			} else {
+				log.Tracef(txmsg, prefix, "STRM", flags, opaque, payload)
+				flags = cr.flags
+			}
+
+		} else if f_r := flags.IsRequest(); f_r { // new request
+			f_s, f_e := flags.IsStream(), flags.IsEndStream()
 			if f_s == false && f_e == false && known == false {
 				log.Tracef(txmsg, prefix, "POST", flags, opaque, payload)
+				respch <- []interface{}{nil, nil}
 
 			} else if f_s && f_e && known == false {
-				cr, opaque = c.addRequest(flags, respch)
-				cr.rqst = true
 				log.Tracef(txmsg, prefix, "RQST", flags, opaque, payload)
+				cr, opaque = c.addRequest(flags, callb)
+				cr.rqst = true
+				respch <- []interface{}{nil, nil}
+
+			} else if f_s && f_e == false && known == false {
+				log.Tracef(txmsg, prefix, "STRM", flags, opaque, payload)
+				cr, opaque = c.addRequest(flags, callb)
+				cr.strm = true
+				respch <- []interface{}{nil, nil}
 
 			} else if known {
 				err = ErrorDuplicateRequest
@@ -248,7 +324,10 @@ loop:
 			}
 
 		} else { // streaming request
+			err = ErrorUnknownStream
+			log.Errorf(txmsg, prefix, "UNKN", flags, opaque, payload)
 		}
+
 		if err == nil {
 			conn.SetWriteDeadline(time.Now().Add(timeoutMs))
 			if err := tpkt.Send(mtype, flags, opaque, payload); err != nil {
@@ -263,7 +342,7 @@ func (c *Client) doReceive(conn net.Conn) {
 	log, prefix := c.log, c.logPrefix
 	rpkt := c.newTransport(conn)
 	log.Debugf("%v doReceive() ...\n", prefix)
-	rxmsg := "%v receiving {%x,%x,%x}\n"
+	rxmsg := "%v receiving {%v,%x,%x,%x}\n"
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -289,12 +368,22 @@ loop:
 		}
 		cr, ok := c.getRequest(opaque)
 		if ok {
-			log.Tracef(rxmsg, prefix, flags, opaque, mtype)
+			finish := flags.IsEndStream()
 			if cr.rqst {
+				log.Tracef(rxmsg, prefix, "RQST", flags, opaque, mtype)
+				cr.callb(mtype, opaque, payload, finish)
+			} else if cr.strm {
+				log.Tracef(rxmsg, prefix, "STRM", flags, opaque, mtype)
+				cr.callb(mtype, opaque, payload, finish)
+			} else {
+				log.Errorf(rxmsg, prefix, "BADT", flags, opaque, mtype)
+			}
+			if finish {
 				c.delRequest(opaque)
 			}
-			cr.respch <- []interface{}{payload, nil}
+
 		} else { // ignore reponses if opaque not found.
+			log.Errorf(rxmsg, prefix, "BADO", flags, opaque, mtype)
 		}
 	}
 }
@@ -310,4 +399,15 @@ func (c *Client) newTransport(conn net.Conn) *TransportPacket {
 		pkt.SetZipper(flag.GetCompression(), zipper)
 	}
 	return pkt
+}
+
+func d(msg []interface{}) (
+	uint16, TransportFlag, uint32, interface{}, ResponseReceiver,
+	chan []interface{}) {
+	var respch chan []interface{}
+	mtype, flags := msg[0].(uint16), msg[1].(TransportFlag)
+	opaque := msg[2].(uint32)
+	payload, callb := msg[3], msg[4].(ResponseReceiver)
+	respch = msg[5].(chan []interface{})
+	return mtype, flags, opaque, payload, callb, respch
 }
