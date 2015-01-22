@@ -36,6 +36,9 @@ var ErrorBadRequest = errors.New("gofast.badRequest")
 // ErrorBadPayload is returned for malformed payload type.
 var ErrorBadPayload = errors.New("gofast.badPayload")
 
+// ErrorUnknownStream is returned by client.
+var ErrorUnknownStream = errors.New("gofast.unknownStream")
+
 // reserved message-types.
 const (
 	MtypeBinaryPayload uint16 = 0xF000

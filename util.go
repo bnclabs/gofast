@@ -1,5 +1,7 @@
 package gofast
 
+import _ "fmt"
+
 // failsafeOp can be used by gen-server implementors to avoid infinitely
 // blocked API calls.
 func failsafeOp(
