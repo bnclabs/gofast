@@ -45,16 +45,15 @@ type ResponseSender func(mtype uint16, response interface{}, finish bool)
 // for same request (aka opaque) will posted on `streamch`
 // returned by the callback.
 //
-// Application can stream one or more messages back to
-// client by calling `send` function.
-//
 // [3]interface{}{mtype, payload, finish} -> streamch
 // where,
 //      mytype, describes the payload type.
 //      payload, a single stream message.
 //      finish, indicates that the other side whats to close.
 //
-// Application should always signal end-of-response with
+// - Application can stream one or more messages back to
+//   client by calling `send` function.
+// - Application should always signal end-of-response with
 //      {mtype, response, true}
 type StreamHandler func(
 	request interface{}, send ResponseSender) (streamch chan [3]interface{})
@@ -415,33 +414,38 @@ loop:
 				} else if f_s && f_e && known == false {
 					log.Tracef(rxmsg, prefix, "RQST", flags, opaque, mtype, raddr)
 					if callb := s.getRequestHandler(mtype); callb != nil {
-						callb(payload, makeRespSender(opaque, respch))
 						sr = srs.addRequest(flags, opaque)
 						sr.rqst = true
+						callb(payload, makeRespSender(opaque, respch))
 					}
 
 				} else if f_s && f_e == false && known == false {
 					log.Tracef(rxmsg, prefix, "STRM", flags, opaque, mtype, raddr)
 					if callb := s.getStreamHandler(mtype); callb != nil {
-						streamch := callb(payload, makeRespSender(opaque, respch))
 						sr = srs.addRequest(flags, opaque)
-						sr.strm, sr.streamch = true, streamch
+						sr.strm = true
+						sr.streamch = callb(payload, makeRespSender(opaque, respch))
 					}
 				}
 
 			} else if known && sr.strm { // stream-request that we already know
 				if sr.streamch != nil {
-					log.Tracef(rxmsg, prefix, "STRM", flags, opaque, mtype, raddr)
 					if f_e { // this is the last message.
+						log.Tracef(rxmsg, prefix, "ENDS", flags, opaque, mtype, raddr)
 						sr.streamch <- [3]interface{}{mtype, payload, true}
 						sr.streamch = nil
+
 					} else {
+						log.Tracef(rxmsg, prefix, "STRM", flags, opaque, mtype, raddr)
 						sr.streamch <- [3]interface{}{mtype, payload, false}
 					}
 
 				} else { // incoming stream has already been closed.
 					log.Errorf(rxmsg, prefix, "STRM", flags, opaque, mtype, raddr)
 				}
+
+			} else {
+				log.Errorf(rxmsg, prefix, "UNKN", flags, opaque, mtype, raddr)
 			}
 
 		case resp := <-respch:
@@ -450,11 +454,13 @@ loop:
 			sr, known := srs.getRequest(opaque)
 			if known { // response is sent back for known requests
 				flags := sr.flags
-				log.Tracef(txmsg, prefix, flags, opaque, mtype, response, raddr)
 				if sr.rqst || finish {
 					flags = flags.SetEndStream()
 					srs.delRequest(opaque)
+				} else if sr.strm {
+					flags = flags.SetStream()
 				}
+				log.Tracef(txmsg, prefix, flags, opaque, mtype, response, raddr)
 				conn.SetWriteDeadline(time.Now().Add(timeoutMs))
 				if err := tpkt.Send(mtype, flags, opaque, response); err != nil {
 					break loop

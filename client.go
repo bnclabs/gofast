@@ -180,7 +180,7 @@ func (c *Client) RequestStream(
 	callb ResponseReceiver) (opaque uint32, err error) {
 
 	respch := make(chan []interface{}, 1)
-	flags = flags.SetRequest().SetStream().SetEndStream()
+	flags = flags.SetRequest().SetStream()
 	cmd := []interface{}{mtype, flags, NoOpaque, request, callb, respch}
 	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
 	if err := opError(err, resp, 1); err != nil {
@@ -189,9 +189,8 @@ func (c *Client) RequestStream(
 	return resp[0].(uint32), nil
 }
 
-// Stream message associated to an original request
+// Stream a message associated to an original request
 // identified by `opaque`.
-//
 // - `finish` will end the streaming from the client side.
 func (c *Client) Stream(
 	opaque uint32, mtype uint16, msg interface{}, finish bool) error {
@@ -203,6 +202,20 @@ func (c *Client) Stream(
 	}
 	cmd := []interface{}{
 		mtype, flags, opaque, msg, ResponseReceiver(nil), respch}
+	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
+	if err := opError(err, resp, 1); err != nil {
+		return err
+	}
+	return nil
+}
+
+// StreamClose will close a stream on client side. Alternately stream
+// can also be closed via Stream() call by setting the `finish` flag.
+func (c *Client) StreamClose(opaque uint32) error {
+	respch := make(chan []interface{}, 1)
+	flags := TransportFlag(0).SetEndStream()
+	cmd := []interface{}{
+		MtypeEmpty, flags, opaque, nil, ResponseReceiver(nil), respch}
 	resp, err := failsafeOp(c.muxch, respch, cmd, c.finch)
 	if err := opError(err, resp, 1); err != nil {
 		return err
@@ -287,12 +300,13 @@ loop:
 		cr, known := c.getRequest(opaque)
 		if known && cr.strm { // streaming message
 			if flags.IsEndStream() {
-				log.Tracef(txmsg, prefix, "ENDS", flags, opaque, payload)
 				flags = cr.flags.SetEndStream()
+				log.Tracef(txmsg, prefix, "ENDS", flags, opaque, payload)
 			} else {
+				flags = cr.flags.SetStream()
 				log.Tracef(txmsg, prefix, "STRM", flags, opaque, payload)
-				flags = cr.flags
 			}
+			respch <- []interface{}{nil, nil}
 
 		} else if f_r := flags.IsRequest(); f_r { // new request
 			f_s, f_e := flags.IsStream(), flags.IsEndStream()
@@ -307,10 +321,10 @@ loop:
 				respch <- []interface{}{nil, nil}
 
 			} else if f_s && f_e == false && known == false {
-				log.Tracef(txmsg, prefix, "STRM", flags, opaque, payload)
 				cr, opaque = c.addRequest(flags, callb)
+				log.Tracef(txmsg, prefix, "STRM", flags, opaque, payload)
 				cr.strm = true
-				respch <- []interface{}{nil, nil}
+				respch <- []interface{}{opaque, nil}
 
 			} else if known {
 				err = ErrorDuplicateRequest
