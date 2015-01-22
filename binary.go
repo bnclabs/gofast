@@ -13,6 +13,9 @@ func (codec *BinaryEncoder) Encode(
 	flags TransportFlag, opaque uint32,
 	payload interface{}, out []byte) (data []byte, err error) {
 
+	if payload == nil {
+		return []byte{}, nil
+	}
 	s, ok := payload.([]byte)
 	if !ok {
 		return nil, ErrorBadPayload
@@ -29,5 +32,4 @@ func (codec *BinaryEncoder) Decode(
 	out := make([]byte, len(data))
 	copy(out, data)
 	return out, nil
-	return nil, ErrorInvalidMtype
 }
