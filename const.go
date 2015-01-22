@@ -42,7 +42,8 @@ var ErrorUnknownStream = errors.New("gofast.unknownStream")
 // reserved message-types.
 const (
 	MtypeBinaryPayload uint16 = 0xF000
-	MtypeFlowControl   uint16 = 0xFFFF
+	MtypeFlowControl   uint16 = 0xFFFE
+	MtypeEmpty         uint16 = 0xFFFF
 )
 
 // reserved opaque values.
