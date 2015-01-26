@@ -228,17 +228,18 @@ func TestRequest(t *testing.T) {
 
 	tmsg := tmsgs[testSimpleReq]
 	for i, req := range tmsg.requests {
-		response, err := client.Request(flags, tmsg.mtypeReq, req)
+		r, err := client.Request(flags, tmsg.mtypeReq, req)
 		if err != nil {
 			t.Fatal(err)
 		}
+		response := string(r.([]byte))
 		if resp := tmsg.responses[i]; !reflect.DeepEqual(resp, response) {
 			t.Fatalf("expected %v got %v", resp, response)
 		}
 	}
 
-	client.Close()
 	time.Sleep(100 * time.Millisecond)
+	client.Close()
 }
 
 func TestRequestConcur(t *testing.T) {
@@ -258,11 +259,11 @@ func TestRequestConcur(t *testing.T) {
 		tmsg := tmsgs[testParSimpleReq1]
 		for j := 0; j < 100; j++ {
 			for i, req := range tmsg.requests {
-				response, err := client.Request(flags, tmsg.mtypeReq, req)
+				r, err := client.Request(flags, tmsg.mtypeReq, req)
 				if err != nil {
 					t.Fatal(err)
 				}
-				resp := tmsg.responses[i]
+				resp, response := tmsg.responses[i], string(r.([]byte))
 				if !reflect.DeepEqual(resp, response) {
 					t.Fatalf("expected %v got %v", resp, response)
 				}
@@ -275,11 +276,11 @@ func TestRequestConcur(t *testing.T) {
 		tmsg := tmsgs[testParSimpleReq2]
 		for j := 0; j < 100; j++ {
 			for i, req := range tmsg.requests {
-				response, err := client.Request(flags, tmsg.mtypeReq, req)
+				r, err := client.Request(flags, tmsg.mtypeReq, req)
 				if err != nil {
 					t.Fatal(err)
 				}
-				resp := tmsg.responses[i]
+				resp, response := tmsg.responses[i], string(r.([]byte))
 				if !reflect.DeepEqual(resp, response) {
 					t.Fatalf("expected %v got %v", resp, response)
 				}
