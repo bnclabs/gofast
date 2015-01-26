@@ -12,8 +12,8 @@ applications with following features,
    when latency is higher.
 6. custom encoding and compression can be used,
 
-   - out of the box, gzip and lzw compression are supplied.
-   - will soon be adding support for JSON and BSON encoding.
+   - out of the box, ``gzip`` and ``lzw`` compression are supplied.
+   - will soon be adding support for ``JSON`` and ``BSON`` encoding.
 
 **Protocol framing**
 
@@ -42,14 +42,14 @@ Simple protocol framing.
        0| COMP. |  ENC. |R S E          |
         +-------+-------+---------------+
 
-- mtype-field states the type of `payload` carried by the packet.
+- mtype-field states the type of ``payload`` carried by the packet.
 - flags-field:
 
-  * `ENC` encoding format.
-  * `COMP` compression type.
-  * `R` packet starts a new request.
-  * `S` packet denotes current message part of a stream.
-  * `E` end of stream.
-  * `R`, `S`, `E` are always interpreted in the context of opaque.
+  * ``ENC`` encoding format.
+  * ``COMP`` compression type.
+  * ``R`` packet starts a new request.
+  * ``S`` packet denotes current message part of a stream.
+  * ``E`` end of stream.
+  * ``R``, ``S``, ``E`` are always interpreted in the context of opaque.
 
 - opaque value used for concurrent requests on the same connection.
