@@ -1,5 +1,7 @@
 package gofast
 
+import _ "fmt"
+
 // BinaryEncoder implement default handlers for EncodingBinary.
 type BinaryEncoder struct{}
 
@@ -11,17 +13,24 @@ func NewBinaryEncoder() *BinaryEncoder {
 // Encode implements Encoder{} interface.
 func (codec *BinaryEncoder) Encode(
 	flags TransportFlag, opaque uint32,
-	payload interface{}, out []byte) (data []byte, err error) {
+	payload interface{}, out []byte) ([]byte, error) {
 
 	if payload == nil {
 		return []byte{}, nil
 	}
-	s, ok := payload.([]byte)
-	if !ok {
+
+	var data []byte
+
+	switch bs := payload.(type) {
+	case string:
+		data = []byte(bs)
+	case []byte:
+		data = bs
+	default:
 		return nil, ErrorBadPayload
 	}
-	copy(out, s)
-	return out[:len(s)], nil
+	copy(out, data)
+	return out[:len(data)], nil
 }
 
 // Decode implements Encoder{} interface.
