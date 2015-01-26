@@ -21,6 +21,15 @@
 //   * value 0xFFFF used to advertise receiver's buffer size to transmitter.
 //
 // flags-field:
+//
+//           +---------------+---------------+
+//       byte|       0       |       1       |
+//           +---------------+---------------+
+//       bits|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+//           +-------+-------+---------------+
+//          0| COMP. |  ENC. |R S E          |
+//           +-------+-------+---------------+
+//
 //   * ENC  encoding format
 //   * COMP compression type
 //   * R    packet is request (client to server) or response (server to client).

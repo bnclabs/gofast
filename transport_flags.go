@@ -1,22 +1,5 @@
 //  Copyright (c) 2014 Couchbase, Inc.
 
-// flags:
-//           +---------------+---------------+
-//       byte|       0       |       1       |
-//           +---------------+---------------+
-//       bits|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-//           +-------+-------+---------------+
-//          0| COMP. |  ENC. |R S E          |
-//           +-------+-------+---------------+
-//
-// COMP - compression algorithm to be applied on the payload
-// ENC  - encoding to be applied on payload after compression
-// R    - Request, if 1 a new request from client, else should always be 0
-// S    - Streaming, if 1 - means receiver can expect more messages.
-// E    - End-stream, if 1 - denotes end of stream, last message.
-//
-// * R, S, E are always interpreted in the context of opaque.
-
 package gofast
 
 // TransportFlag tell packet encoding and compression formats.
