@@ -195,7 +195,7 @@ func init() {
 
 func TestPost(t *testing.T) {
 	LogIgnore()
-	//SetLogLevel(LogLevelTrace)
+	//SetLogLevel(logLevelTrace)
 
 	// make client
 	client, err := NewClient(host, clientConfig, nil)
@@ -244,7 +244,7 @@ func TestRequest(t *testing.T) {
 
 func TestRequestConcur(t *testing.T) {
 	LogIgnore()
-	//SetLogLevel(LogLevelTrace)
+	//SetLogLevel(logLevelTrace)
 
 	// make client
 	client, err := NewClient(host, clientConfig, nil)
@@ -297,7 +297,7 @@ func TestRequestConcur(t *testing.T) {
 
 func TestStreaming(t *testing.T) {
 	LogIgnore()
-	//SetLogLevel(LogLevelTrace)
+	//SetLogLevel(logLevelTrace)
 
 	// make client
 	client, err := NewClient(host, clientConfig, nil)

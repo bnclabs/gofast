@@ -118,10 +118,8 @@ func (c *Client) Close() {
 }
 
 // Post payload to remote server, don't wait for response.
-// Asynchronous call.
-//
-// - `flags` can be set with a supported encoding and
-//    compression type.
+// Asynchronous call. `flags` can be set with a supported
+// encoding and compression type.
 func (c *Client) Post(
 	flags TransportFlag, mtype uint16, payload interface{}) error {
 
@@ -137,10 +135,9 @@ func (c *Client) Post(
 }
 
 // Request server and wait for a single response from server
-// and return response from server.
-// - `flags` refer to transport spec.
-// - `request` is actual request.
-// - `mtype` is 16-bit value that can be used to interpret payload.
+// and return response from server. `request` is actual request,
+// `mtype` is 16-bit value that can be used to interpret payload,
+// for `flags` refer to transport spec.
 func (c *Client) Request(
 	flags TransportFlag,
 	mtype uint16,
@@ -163,15 +160,13 @@ func (c *Client) Request(
 }
 
 // RequestStream server for bi-directional streaming with
-// server
-// - `flags` refer to transport spec. same encoding and
-//    compression will be used on all subsequent messages.
-// - `mtype` is 16-bit value that can be used to interpret payload.
-// - `request` is actual request.
-// - `callb` is callback from client to application to handle
-//   incoming response messages.
+// server.  `mtype` is 16-bit value that can be used to interpret
+// payload, `request` is actual request, `callb` is callback from
+// client to application to handle incoming response messages,
+// for `flags` refer to transport spec. same encoding and
+// compression will be used on all subsequent messages.
 //
-// with no error, return the opaque-id that can be used
+// when no error, return the opaque-id that can be used
 // used for subsequent calls on the stream.
 func (c *Client) RequestStream(
 	flags TransportFlag,
@@ -190,8 +185,8 @@ func (c *Client) RequestStream(
 }
 
 // Stream a message associated to an original request
-// identified by `opaque`.
-// - `finish` will end the streaming from the client side.
+// identified by `opaque`. `finish` will end the streaming
+// from the client side.
 func (c *Client) Stream(
 	opaque uint32, mtype uint16, msg interface{}, finish bool) error {
 

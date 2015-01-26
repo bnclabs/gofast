@@ -10,7 +10,7 @@ var binaryPayload, _ = ioutil.ReadFile("./transport.go")
 
 func TestEncodingBinary(t *testing.T) {
 	LogIgnore()
-	//SetLogLevel(logLevelTrace)
+	//SetLogLevel(LogLevelTrace)
 
 	flags := TransportFlag(EncodingBinary)
 	flags = flags.SetRequest().SetStream().SetEndStream()
@@ -40,7 +40,7 @@ func TestEncodingBinary(t *testing.T) {
 
 func TestCompressions(t *testing.T) {
 	LogIgnore()
-	//SetLogLevel(logLevelTrace)
+	//SetLogLevel(LogLevelTrace)
 
 	// new transport packet
 	tc := newTestConnection().reset()

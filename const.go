@@ -39,14 +39,19 @@ var ErrorBadPayload = errors.New("gofast.badPayload")
 // ErrorUnknownStream is returned by client.
 var ErrorUnknownStream = errors.New("gofast.unknownStream")
 
-// reserved message-types.
 const (
+	// MtypeBinaryPayload message type reserved for binary payload.
 	MtypeBinaryPayload uint16 = 0xF000
-	MtypeFlowControl   uint16 = 0xFFFE
-	MtypeEmpty         uint16 = 0xFFFF
+
+	// MtypeFlowControl message type reserved for flow control.
+	// TODO: per-request Flow-control is not yet implemented.
+	MtypeFlowControl uint16 = 0xFFFE
+
+	// MtypeEmpty denotes an empty message payload.
+	MtypeEmpty uint16 = 0xFFFF
 )
 
-// reserved opaque values.
 const (
+	// NoOpaque means no-opaque value is created for a request.
 	NoOpaque uint32 = 0x00000000
 )

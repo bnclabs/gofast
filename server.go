@@ -42,19 +42,17 @@ type ResponseSender func(mtype uint16, response interface{}, finish bool)
 // StreamHandler is callback from server to application
 // to start a bi-directional stream of messages between
 // client and server. All subsequent message from client
-// for same request (aka opaque) will posted on `streamch`
+// for same request (aka opaque) will be posted on `streamch`
 // returned by the callback.
 //
-// [3]interface{}{mtype, payload, finish} -> streamch
-// where,
+// [3]interface{}{mtype, payload, finish} -> streamch where,
 //      mytype, describes the payload type.
 //      payload, a single stream message.
 //      finish, indicates that the other side whats to close.
 //
-// - Application can stream one or more messages back to
-//   client by calling `send` function.
-// - Application should always signal end-of-response with
-//      {mtype, response, true}
+// Application can stream one or more messages back to
+// client by calling `send` function. Application should always
+// signal end-of-response with {mtype, response, true}
 type StreamHandler func(
 	request interface{}, send ResponseSender) (streamch chan [3]interface{})
 

@@ -8,13 +8,20 @@ import (
 	"strings"
 )
 
-// Error, Warning, Fatal are always logged
+// Implements default logger for gofast. Error, Warning, Fatal
+// are always logged
+
 const (
-	// LogLevelInfo log messages for info
+	// LogLevelInfo log messages for info messages
+	// used by default-logger.
 	LogLevelInfo int = iota + 1
-	// LogLevelDebug log messages for info and debug
+
+	// LogLevelDebug log messages for info and debug messages,
+	// used by default-logger.
 	LogLevelDebug
-	// LogLevelTrace log messages info, debug and trace
+
+	// LogLevelTrace log messages info, debug and trace messages,
+	// used by default-logger.
 	LogLevelTrace
 )
 
@@ -23,26 +30,21 @@ var logFile io.Writer = os.Stdout
 var logger *log.Logger
 
 // Logger interface for sub-components to do logging.
+//
+// Errorf, Fatalf can be used to log error or fatal
+// messages respectively.
+//
+// Warnf, Infof, Debugf, Tracef can be used to log warning,
+// informational, debug, or trace messages respectively.
+//
+// StackTrace parse string `s` and log it as error message.
 type Logger interface {
-	// Warnf to log message and warning messages will be logged.
-	Warnf(format string, v ...interface{})
-
-	// Errorf to log message and warning messages will be logged.
 	Errorf(format string, v ...interface{})
-
-	// Fatalf to log message and warning messages will be logged.
 	Fatalf(format string, v ...interface{})
-
-	// Infof to log message at info level.
+	Warnf(format string, v ...interface{})
 	Infof(format string, v ...interface{})
-
-	// Debugf to log message at info level.
 	Debugf(format string, v ...interface{})
-
-	// Tracef to log message at info level.
 	Tracef(format string, v ...interface{})
-
-	// StackTrace parse string `s` and log it as error message.
 	StackTrace(s string)
 }
 

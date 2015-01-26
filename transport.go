@@ -1,4 +1,5 @@
-// High performance symmetric protocol for on the wire data transport.
+// Package gofast implements a high performance symmetric protocol
+// for on the wire data transport.
 //
 //    0               8               16              24            31
 //    +---------------+---------------+---------------+---------------+
@@ -12,26 +13,25 @@
 //    +---------------+---------------+---------------+---------------+
 //
 // mtype-field:
-// * field states the type of `payload` carried by the packet.
-// * values shall always start from 1.
-// * values from 0xF000 onwards are reserved by protocol.
-// * value 0xFFFF used to advertise receiver's buffer size to transmitter.
+//   * field states the type of `payload` carried by the packet.
+//   * values shall always start from 1.
+//   * values from 0xF000 onwards are reserved by protocol.
+//   * value 0xFFFF used to advertise receiver's buffer size to transmitter.
 //
 // flags-field:
-// * ENC  encoding format
-// * COMP compression type
-// * R    packet is request (client to server) or response (server to client).
-//        every request initiates a new session.
-// * S    packet is part of streaming messages.
-// * E    end of session
+//   * ENC  encoding format
+//   * COMP compression type
+//   * R    packet is request (client to server) or response (server to client).
+//          every request initiates a new session.
+//   * S    packet is part of streaming messages.
+//   * E    end of session
 //
 // opaque:
-// * opaque value of 0x80000000 and above is reserved for specific
-//   applications.
-// * opaque value from 0xFFFF0000 and above are reserved for protocol.
-// * clients that automatically assigns opaque will have to use values
-//   from 1 to 0x7FFFFFFF and start rolling back to 1 after 0x7FFFFFFF.
-
+//   * opaque value of 0x80000000 and above is reserved for specific
+//     applications.
+//   * opaque value from 0xFFFF0000 and above are reserved for protocol.
+//   * clients that automatically assigns opaque will have to use values
+//     from 1 to 0x7FFFFFFF and start rolling back to 1 after 0x7FFFFFFF.
 package gofast
 
 import "encoding/binary"
@@ -50,18 +50,18 @@ type Transporter interface { // facilitates unit testing
 
 // Encoder interface to Encode()/Decode() payload object to
 // raw bytes.
+//
+// Encode callback for Send() packet. Encoder can use `out`
+// buffer to convert the payload, either case it shall return
+// a valid output slice. Return buffer as byte-slice, may be
+// a reference into `out` array, with exact length.
+//
+// Decode callback while Receive() packet.
 type Encoder interface {
-	// Encode callback for Send() packet. Encoder can use `out`
-	// buffer to convert the payload, either case it shall return
-	// a valid output slice.
-	//
-	// return buffer as byte-slice, may be a reference into `out`
-	// array, with exact length.
 	Encode(
 		flags TransportFlag, opaque uint32, payload interface{},
 		out []byte) (data []byte, err error)
 
-	// Decode callback while Receive() packet.
 	Decode(
 		mtype uint16, flags TransportFlag, opaque uint32,
 		data []byte) (payload interface{}, err error)
@@ -69,20 +69,18 @@ type Encoder interface {
 
 // Compressor interface inflate and deflate raw bytes before
 // sending on wire.
+//
+// Zip callback for Send() packet. Zip can use `out`
+// buffer to send back compressed data, in either case it shall
+// return a valid output slice. Return buffer as byte-slice,
+// may be a reference into `out` array, with exact length.
+//
+// Unzip callback while Receive() packet. Unzip can use `out`
+// buffer to send back compressed data. Returns buffer as
+// byte-slice, may be a reference into `out` array, with exact
+// length.
 type Compressor interface {
-	// Zip callback for Send() packet. Zip can use `out`
-	// buffer to send back compressed data, either case it shall
-	// return a valid output slice.
-	//
-	// return buffer as byte-slice, may be a reference into `out`
-	// array, with exact length.
 	Zip(in, out []byte) (data []byte, err error)
-
-	// Unzip callback while Receive() packet. Unzip can use `out`
-	// buffer to send back compressed data.
-	//
-	// Returns buffer as byte-slice, may be a reference into `out`
-	// array, with exact length.
 	Unzip(in, out []byte) (data []byte, err error)
 }
 
@@ -103,10 +101,9 @@ type TransportPacket struct {
 // NewTransportPacket creates a new transporter on a single connection
 // to frame, encode and compress payload before sending it to remote and
 // deframe, decompress, decode while receiving payload from remote.
-//
-// - if `log` argument is nil, builtin logger will be used.
-// - `buflen` defines the maximum size of the packet, decompressed
-//   payload shall not exceed this size.
+//   - if `log` argument is nil, builtin logger will be used.
+//   - `buflen` defines the maximum size of the packet, decompressed
+//     payload shall not exceed this size.
 func NewTransportPacket(
 	conn Transporter, buflen int, log Logger) *TransportPacket {
 
@@ -163,10 +160,9 @@ func (pkt *TransportPacket) SetZipper(typ TransportFlag, zipper Compressor) {
 }
 
 // Send payload to the other end. Payload is defined by,
-//      {message-type (mtype), flags, opaque}
-//
-// - flags specify encoding, compression and streaming semantics.
-// - opaque can be used for concurrent requests on same connection.
+// {message-type (mtype), flags, opaque}
+//   - flags specify encoding, compression and streaming semantics.
+//   - opaque can be used for concurrent requests on same connection.
 //
 // caller can check return error for io.EOF to detect connection
 // drops.
@@ -238,11 +234,10 @@ func (pkt *TransportPacket) Send(
 	return nil
 }
 
-// Recieve payload from remote. Payload is defined by,
-//      {message-type (mtype), flags, opaque}
-//
-// - flags specify encoding, compression and streaming semantics.
-// - opaque can be used for concurrent requests on same connection.
+// Receive payload from remote. Payload is defined by,
+// {message-type (mtype), flags, opaque}
+//   - flags specify encoding, compression and streaming semantics.
+//   - opaque can be used for concurrent requests on same connection.
 //
 // caller can check return error for io.EOF to detect connection
 // drops.
