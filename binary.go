@@ -1,3 +1,5 @@
+//  Copyright (c) 2014 Couchbase, Inc.
+
 package gofast
 
 import _ "fmt"

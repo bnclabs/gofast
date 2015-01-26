@@ -1,3 +1,5 @@
+//  Copyright (c) 2014 Couchbase, Inc.
+
 // Package gofast implements a high performance symmetric protocol
 // for on the wire data transport.
 //

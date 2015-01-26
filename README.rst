@@ -15,6 +15,8 @@ applications with following features,
    - out of the box, ``gzip`` and ``lzw`` compression are supplied.
    - will soon be adding support for ``JSON`` and ``BSON`` encoding.
 
+7. Apache license.
+
 **Protocol framing**
 
 Simple protocol framing.

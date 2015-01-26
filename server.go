@@ -1,20 +1,4 @@
-// concurrency model:
-//
-//                       NewServer()
-//
-//                         (spawn)
-//
-//                        listener() <---- new-connection request
-//
-//               (spawn)          (spawn)
-//
-//              doReceive     handleConnection()
-//                                   |
-//    Close()                        *-- PostHandler() ------- Application ---->
-//                                   |
-//                                   *-- RequestHandler() ---- Application ---->
-//                                   |                              |
-//                                   *<------- ResponseSender() ----*
+//  Copyright (c) 2014 Couchbase, Inc.
 
 package gofast
 

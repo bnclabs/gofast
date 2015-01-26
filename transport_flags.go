@@ -1,3 +1,5 @@
+//  Copyright (c) 2014 Couchbase, Inc.
+
 // flags:
 //           +---------------+---------------+
 //       byte|       0       |       1       |
