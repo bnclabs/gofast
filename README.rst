@@ -47,10 +47,9 @@ Simple protocol framing.
 
   * `ENC` encoding format.
   * `COMP` compression type.
-  * `R` packet is request (client to server) or response (server to client).
-    every request initiates a new session.
-  * `S` packet is part of streaming messages.
-  * `E` end of session.
+  * `R` packet starts a new request.
+  * `S` packet denotes current message part of a stream.
+  * `E` end of stream.
   * `R`, `S`, `E` are always interpreted in the context of opaque.
 
 - opaque value used for concurrent requests on the same connection.
