@@ -18,9 +18,8 @@ type PostHandler func(request interface{})
 // which application can post by calling `send` function.
 type RequestHandler func(request interface{}, send ResponseSender)
 
-// ResponseSender is callback-handler from server to application
-// passed via RequestHandler. Application can use this
-// function to post response message on the wire.
+// ResponseSender is callback-handler from application to server
+// to post response back to the client.
 type ResponseSender func(mtype uint16, response interface{}, finish bool)
 
 // StreamHandler is callback from server to application
