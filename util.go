@@ -1,52 +1,24 @@
-//  Copyright (c) 2014 Couchbase, Inc.
+//  Copyright (c) 2015 Couchbase, Inc.
 
 package gofast
 
-import _ "fmt"
+import "reflect"
+import "unsafe"
 
-// failsafeOp can be used by gen-server implementors to avoid infinitely
-// blocked API calls.
-func failsafeOp(
-	muxch, respch chan []interface{}, cmd []interface{},
-	finch chan bool) ([]interface{}, error) {
-
-	select {
-	case muxch <- cmd:
-		if respch != nil {
-			select {
-			case resp := <-respch:
-				return resp, nil
-			case <-finch:
-				return nil, ErrorClosed
-			}
-		}
-	case <-finch:
-		return nil, ErrorClosed
+func bytes2str(bytes []byte) string {
+	if bytes == nil {
+		return ""
 	}
-	return nil, nil
+	sl := (*reflect.SliceHeader)(unsafe.Pointer(&bytes))
+	st := &reflect.StringHeader{Data: sl.Data, Len: sl.Len}
+	return *(*string)(unsafe.Pointer(st))
 }
 
-// failsafeOpAsync is same as FailsafeOp that can be used for
-// asynchronous operation, that is, caller does not wait for response.
-func failsafeOpAsync(
-	muxch chan []interface{}, cmd []interface{}, finch chan bool) error {
-
-	select {
-	case muxch <- cmd:
-	case <-finch:
-		return ErrorClosed
-	}
-	return nil
-}
-
-// opError suppliments FailsafeOp used by gen-servers.
-func opError(err error, vals []interface{}, idx int) error {
-	if err != nil {
-		return err
-	} else if vals[idx] == nil {
+func str2bytes(str string) []byte {
+	if str == "" {
 		return nil
-	} else if err, ok := vals[idx].(error); ok {
-		return err
 	}
-	return nil
+	st := (*reflect.StringHeader)(unsafe.Pointer(&str))
+	sl := &reflect.SliceHeader{Data: st.Data, Len: st.Len, Cap: st.Len}
+	return *(*[]byte)(unsafe.Pointer(sl))
 }
