@@ -155,8 +155,8 @@ const (
 	// Request packet will set direction as request, client->server.
 	Request TransportFlag = 0x0100
 
-	// Stream sets packet for streaming
-	Stream = 0x0200
+	// TStream sets packet for streaming
+	TStream = 0x0200
 
 	// EndStream denotes last packet in a stream.
 	EndStream = 0x0400
@@ -179,7 +179,7 @@ func (flags TransportFlag) ClearStream() TransportFlag {
 
 // SetStream will set packet for streaming.
 func (flags TransportFlag) SetStream() TransportFlag {
-	return flags.ClearStream() | TransportFlag(Stream)
+	return flags.ClearStream() | TransportFlag(TStream)
 }
 
 // ClearEndStream will set packet to denote end of current stream.
@@ -199,7 +199,7 @@ func (flags TransportFlag) IsRequest() bool {
 
 // IsStream will set packet for streaming.
 func (flags TransportFlag) IsStream() bool {
-	return (flags & TransportFlag(0x0200)) == Stream
+	return (flags & TransportFlag(0x0200)) == TStream
 }
 
 // IsEndStream will set packet to denote end of current stream.

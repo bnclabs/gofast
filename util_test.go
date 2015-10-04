@@ -4,8 +4,6 @@ package gofast
 
 import "testing"
 import "encoding/json"
-import "sort"
-import "reflect"
 import "fmt"
 
 var _ = fmt.Sprintf("dummy")
@@ -19,6 +17,24 @@ func TestBytes2Str(t *testing.T) {
 func TestStr2Bytes(t *testing.T) {
 	if str2bytes("") != nil {
 		t.Errorf(`fail str2bytes("")`)
+	}
+}
+
+func TestCborMap2Golang(t *testing.T) {
+	var value interface{}
+
+	ref := `{"a":10,"b":[true,false,null]}`
+	cborcode := make([]byte, 1024)
+	config := NewDefaultConfig()
+	json.Unmarshal([]byte(ref), &value)
+	n := config.ValueToCbor(GolangMap2cborMap(value), cborcode)
+	value1, _ := config.CborToValue(cborcode[:n])
+	data, err := json.Marshal(CborMap2golangMap(value1))
+	if err != nil {
+		t.Fatalf("json parsing: %v\n	%v", value1, err)
+	}
+	if s := string(data); s != ref {
+		t.Errorf("expected %q, got %q", ref, s)
 	}
 }
 

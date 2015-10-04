@@ -1,5 +1,7 @@
 //  Copyright (c) 2014 Couchbase, Inc.
 
+// +build ignore
+
 package gofast
 
 import "testing"
