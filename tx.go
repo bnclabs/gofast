@@ -50,13 +50,11 @@ func (t *Transport) request(msg Message) (respmsg Message, err error) {
 }
 
 // | 0xd9f7 | 0x9f | packet1 |
-func (t *Transport) start(
-	msg Message, rxch chan Message) (stream *Stream, err error) {
-
+func (t *Transport) start(msg Message, ch chan Message) (stream *Stream, err error) {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 
-	stream = t.getstream(rxch)
+	stream = t.getstream(ch)
 	defer func() {
 		if err != nil {
 			t.putstream(stream)
@@ -195,10 +193,11 @@ func (t *Transport) doTx() {
 		batch = batch[:0]
 	}
 
+loop:
 	for {
 		arg, ok := <-t.txch
 		if ok == false {
-			break
+			break loop
 		}
 		batch = append(batch, arg)
 		buflen += len(arg.packet)

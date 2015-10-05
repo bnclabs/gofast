@@ -73,6 +73,7 @@ type Transporter interface { // facilitates unit testing
 	Write(b []byte) (n int, err error)
 	LocalAddr() net.Addr
 	RemoteAddr() net.Addr
+	Close() error
 }
 
 type Transport struct {
@@ -87,9 +88,10 @@ type Transport struct {
 	verfunc   func(interface{}) Version
 	blueprint map[uint64]interface{} // message-tags -> value
 
-	conn Transporter
-	txch chan *txproto
-	rxch chan interface{}
+	conn   Transporter
+	txch   chan *txproto
+	rxch   chan interface{}
+	killch chan bool
 
 	pktpool *sync.Pool
 
@@ -104,6 +106,8 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 	buflen := config["buflen"].(int)
 	opqstart := config["opaque.start"].(int)
 	opqend := config["opaque.end"].(int)
+	chansize := config["chansize"].(int)
+	setLogger(nil, config)
 
 	t := &Transport{
 		name:      name,
@@ -117,7 +121,8 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 		blueprint: make(map[uint64]interface{}),
 
 		conn: conn,
-		txch: make(chan *txproto, 1024),
+		txch: make(chan *txproto, chansize),
+		rxch: make(chan interface{}, chansize),
 
 		config: config,
 		tags:   make(map[uint64]bool),
@@ -133,6 +138,7 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 
 	t.SubscribeMessages([]Message{&Whoami{}, &Ping{}, &Heartbeat{}})
 	go t.doTx()
+	go t.syncRx()
 
 	t.Ping("handshake")
 	t.Whoami()
@@ -171,6 +177,11 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 	return t
 }
 
+func (t *Transport) SetLogger(logger Logger) *Transport {
+	setLogger(logger, t.config)
+	return t
+}
+
 func (t *Transport) VersionHandler(fn func(value interface{}) Version) *Transport {
 	t.verfunc = fn
 	return t
@@ -181,6 +192,14 @@ func (t *Transport) SubscribeMessages(messages []Message) *Transport {
 		t.messages[msg.Id()] = msg
 	}
 	return t
+}
+
+func (t *Transport) Close() error {
+	defer func() { recover() }()
+	t.pktpool = nil
+	t.rxch <- "close"
+	close(t.killch)
+	return t.conn.Close()
 }
 
 //---- maintenance APIs

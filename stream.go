@@ -12,9 +12,9 @@ func (t *Transport) newstream(opaque uint64) *Stream {
 	return &Stream{transport: t, opaque: opaque}
 }
 
-func (t *Transport) getstream(rxch chan Message) *Stream {
+func (t *Transport) getstream(ch chan Message) *Stream {
 	stream := <-t.streams
-	stream.Rxch = rxch
+	stream.Rxch = ch
 	t.rxch <- stream
 	return stream
 }
@@ -35,6 +35,10 @@ func (s *Stream) SendAndClose(msg Message) error {
 		return err
 	}
 	return s.transport.finish(s)
+}
+
+func (s *Stream) Transport() *Transport {
+	return s.transport
 }
 
 func (s *Stream) Close() error {

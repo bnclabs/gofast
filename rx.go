@@ -12,11 +12,12 @@ type rxpacket struct {
 	opaque uint64
 }
 
-func (t *Transport) syncrx() {
+func (t *Transport) syncRx() {
+	chansize := t.config["chansize"].(int)
 	tagrunners := make(map[uint64]chan interface{})
 	tagrunners[tagMsg] = t.rxch
 	for tag := range t.tags {
-		inch := make(chan interface{}, 0)
+		inch := make(chan interface{}, chansize)
 		tagrunners[tag] = inch
 		go func(tag uint64, inch chan interface{}) { // this is the tagrunner
 			for {
@@ -26,13 +27,13 @@ func (t *Transport) syncrx() {
 					defer t.pktpool.Put(rxpkt.packet)
 
 					packet := t.pktpool.Get().([]byte)
-					ln := t.tagdec[tag](rxpkt.packet, packet)
-					packet = packet[:ln]
+					n := t.tagdec[tag](rxpkt.packet, packet)
+					packet = packet[:n]
 
 					ntag, n := cbor2tag(packet)
 					_, m := cborItemLength(packet[n:])
 					n += m
-					n = copy(packet, packet[n:])
+					n = copy(packet, packet[n:]) // overwrite tag,len
 					rxpkt.packet = packet[:n]
 					tagrunners[ntag.(uint64)] <- rxpkt
 				}()
@@ -40,29 +41,45 @@ func (t *Transport) syncrx() {
 		}(tag, inch)
 	}
 
-	streams := make(map[uint64]*Stream)
+	go t.doRx(tagrunners)
+
+	livestreams := make(map[uint64]*Stream)
+loop:
 	for {
-		arg := <-t.rxch
-		switch val := arg.(type) {
-		case *Stream:
-			_, ok := streams[val.opaque]
-			if val.Rxch == nil && ok {
-				delete(streams, val.opaque)
-			} else {
-				streams[val.opaque] = val
+		select {
+		case arg := <-t.rxch:
+			switch val := arg.(type) {
+			case *Stream:
+				_, ok := livestreams[val.opaque]
+				if val.Rxch == nil && ok {
+					delete(livestreams, val.opaque)
+				} else {
+					livestreams[val.opaque] = val
+				}
+
+			case *rxpacket:
+				msg := t.unmessage(val.packet)
+				livestreams[val.opaque].Rxch <- msg
+				t.pktpool.Put(val.packet)
+				rxpool.Put(val)
+
+			case string:
+				if val == "close" {
+					for _, stream := range livestreams {
+						stream.Close()
+					}
+					close(t.txch)
+				}
 			}
 
-		case *rxpacket:
-			msg := t.unmessage(val.packet)
-			streams[val.opaque].Rxch <- msg
-			t.pktpool.Put(val.packet)
-			rxpool.Put(val)
+		case <-t.killch:
+			break loop
 		}
 	}
 }
 
 func (t *Transport) doRx(tagrunners map[uint64]chan interface{}) {
-	// TODO: defer func() { go t.Close() }()
+	defer func() { go t.Close() }()
 
 	downstream := func(packet []byte) error {
 		if n, err := io.ReadFull(t.conn, packet); err != nil {
@@ -78,11 +95,11 @@ func (t *Transport) doRx(tagrunners map[uint64]chan interface{}) {
 		n += m
 		_, m = cborItemLength(packet[n:])
 		n += m
-		n = copy(packet, packet[n:])
-		tagrunners[tag.(uint64)] <- &rxpacket{
-			opaque: opaque,
-			packet: packet[:n],
-		}
+		n = copy(packet, packet[n:]) // overwrite opaque,len,tag,len
+		rxpkt := rxpool.Get().(*rxpacket)
+		rxpkt.opaque = opaque
+		rxpkt.packet = packet[:n]
+		tagrunners[tag.(uint64)] <- rxpkt
 		return nil
 	}
 
