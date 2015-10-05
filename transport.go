@@ -60,6 +60,7 @@
 package gofast
 
 import "sync"
+import "sync/atomic"
 import "fmt"
 import "strings"
 import "net"
@@ -89,6 +90,7 @@ type Transport struct {
 	blueprint map[uint64]interface{} // message-tags -> value
 
 	conn   Transporter
+	liveat int64
 	txch   chan *txproto
 	rxch   chan interface{}
 	killch chan bool
@@ -225,6 +227,10 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 			count++
 		}
 	}()
+}
+
+func (t *Transport) Liveat() int64 {
+	return atomic.LoadInt64(&t.liveat)
 }
 
 func (t *Transport) LocalAddr() net.Addr {

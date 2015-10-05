@@ -3,6 +3,8 @@ package gofast
 import "sync"
 import "io"
 import "fmt"
+import "sync/atomic"
+import "time"
 import "reflect"
 
 var rxpool = sync.Pool{New: func() interface{} { return &rxpacket{} }}
@@ -59,7 +61,20 @@ loop:
 
 			case *rxpacket:
 				msg := t.unmessage(val.packet)
-				livestreams[val.opaque].Rxch <- msg
+				switch knownmsg := msg.(type) {
+				case *Heartbeat:
+					atomic.StoreInt64(&t.liveat, time.Now().UnixNano())
+				case *Ping:
+					if _, err := t.Ping(knownmsg.echo); err != nil {
+						log.Errorf("ping error: %v", err)
+					}
+				case *Whoami:
+					if _, err := t.Whoami(); err != nil {
+						log.Errorf("whoami error: %v", err)
+					}
+				default:
+					livestreams[val.opaque].Rxch <- msg
+				}
 				t.pktpool.Put(val.packet)
 				rxpool.Put(val)
 
