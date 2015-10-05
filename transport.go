@@ -152,7 +152,15 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 		t.tagdec[tag] = dec
 		t.blueprint[tag] = nil
 	}
-
+	// since blue-print is modified, reinitialize the blue-prints.
+	streams := make([]*Stream, 0, len(t.streams))
+	for stream := range t.streams {
+		stream.blueprint = t.cloneblueprint()
+		streams = append(streams, stream)
+	}
+	for _, stream := range streams {
+		t.streams <- stream
+	}
 	return t
 }
 
@@ -237,7 +245,9 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	}
 	t.streams = make(chan *streams, end-start+1) // inclusive
 	for opaque := start; opaque <= end; opaque++ {
-		t.streams <- t.newstream(uint64(opaque))
+		stream := t.newstream(uint64(opaque))
+		stream = t.cloneblueprint()
+		t.streams <- stream
 	}
 }
 

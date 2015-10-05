@@ -2,39 +2,39 @@ package gofast
 
 // | 0xd9f7 | packet |
 func (t *Transport) post(msg Message, out []byte) error {
-	stream := <-t.streams
+	stream := t.get(nil)
 
 	n := tag2cbor(tagCborPrefix, out)
 	n += frame(stream, msg, out[n:])
 	err := t.tx(out[:n], false)
-	t.streams <- stream
+	t.put(stream)
 	return err
 }
 
 // | 0xd9f7 | 0x9f | packet | 0xff |
 func (t *Transport) request(msg Message, out []byte) (*Stream, error) {
-	stream := <-t.streams
+	stream := t.get(make(chan Message, 1))
 
 	n := tag2cbor(tagCborPrefix, out)
 	n += arrayStart(out[n:])
 	n += frame(stream, msg, out[n:])
 	n += breakStop(out[n:])
 	if err := t.tx(out[:n], false); err != nil {
-		t.streams <- stream
+		t.put(stream)
 		return nil, err
 	}
 	return stream, nil
 }
 
 // | 0xd9f7 | 0x9f | packet1 |
-func (t *Transport) start(msg Message, out []byte) (*Stream, error) {
-	stream := <-t.streams
+func (t *Transport) start(msg Message, out []byte, rxch chan Message) (*Stream, error) {
+	stream := t.get(rxch)
 
 	n := tag2cbor(tagCborPrefix, out)
 	n += arrayStart(out[n:])
 	n += frame(stream, msg, out[n:])
 	if err := t.tx(out[:n], false); err != nil {
-		t.streams <- stream
+		t.put(stream)
 		return nil, err
 	}
 	return stream, nil
@@ -46,7 +46,7 @@ func (t *Transport) stream(stream *Stream, msg Message, out []byte) error {
 	n += frame(stream, msg, out[n:])
 	err := t.tx(out[:n], false)
 	if err != nil {
-		t.streams <- stream
+		t.put(stream)
 		return err
 	}
 	return nil
@@ -57,7 +57,7 @@ func (t *Transport) finish(stream *Stream, out []byte) error {
 	n := tag2cbor(tagCborPrefix, out)
 	n += breakStop(out[n:])
 	err := t.tx(out[:n], false)
-	t.streams <- stream
+	t.put(stream)
 	return err
 }
 

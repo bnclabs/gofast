@@ -12,9 +12,6 @@ import "strings"
 // Logger interface for gofast logging, applications can
 // supply a logger object implementing this interface or
 // gofast will fall back to the defaul logger.
-//
-// * default log file is os.Stdout
-// * default level is LogLevelInfo
 type Logger interface {
 	Fatalf(format string, v ...interface{})
 	Errorf(format string, v ...interface{})
@@ -25,9 +22,11 @@ type Logger interface {
 	Tracef(format string, v ...interface{})
 }
 
+// * default log file is os.Stdout
+// * default level is LogLevelInfo
 type DefaultLogger struct {
-	level logLevelInfo
-	file  io.Writer
+	level  logLevelInfo
+	output io.Writer
 }
 
 type logLevel int
@@ -51,10 +50,18 @@ func setLogger(logger Logger, config map[string]interface{}) Logger {
 		return
 	}
 
-	fd := os.OpenFile(config["log.file"].(string), os.O_RDWR|os.O_APPEND, 0660)
+	level := logLevelInfo
+	if val, ok := config["log.level"]; ok {
+		level = string2logLevel(val.(string))
+	}
+	logfd := os.Stdout
+	if val, ok := config["log.file"]; ok {
+		logfile = val.(string)
+		logfd = os.OpenFile(logfile, os.O_RDWR|os.O_APPEND, 0660)
+	}
 	log = DefaultLogger{
-		level: string2logLevel(config["log.level"].(string)),
-		file:  fd,
+		level:  string2logLevel(config["log.level"].(string)),
+		output: logfd,
 	}
 	return log
 }
