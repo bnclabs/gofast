@@ -6,15 +6,11 @@ import "compress/lzw"
 import "bytes"
 import "io"
 
-func make_lzw(t *Transport, config map[string]interface{}) (tagfn, tagfn) {
-	if hasString("lzw", t.tags) == false {
-		return nil, nil
-	}
-
+func make_lzw(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn) {
 	enc := func(in, out []byte) int {
 		wbuf := bytes.NewBuffer(out[:])
 		writer := lzw.NewWriter(wbuf, lzw.LSB, 8 /*litWidth*/)
-		_, err := writer.Writer(in)
+		_, err := writer.Write(in)
 		if err != nil {
 			panic(err)
 		}
@@ -29,8 +25,9 @@ func make_lzw(t *Transport, config map[string]interface{}) (tagfn, tagfn) {
 		}
 		return n
 	}
+	return tagLzw, enc, dec
 }
 
 func init() {
-	tag_factory = make_lzw
+	tag_factory["lzw"] = make_lzw
 }

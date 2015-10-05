@@ -15,6 +15,11 @@ type cborBreakStop byte
 // will be wrapped with a unique prefix before sending out.
 type cborPrefix []byte
 
+// cbor tagged-type, a byte-string of cbor data-item.
+type cborCbor []byte
+
+const cborMaxSmallInt = 23
+
 const ( // major types.
 	cborType0 byte = iota << 5 // unsigned integer
 	cborType1                  // negative integer

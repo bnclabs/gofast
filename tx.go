@@ -1,5 +1,8 @@
 package gofast
 
+import "sync"
+import "fmt"
+
 // | 0xd9f7 | packet |
 func (t *Transport) post(msg Message) error {
 	out := t.pktpool.Get().([]byte)
@@ -8,8 +11,8 @@ func (t *Transport) post(msg Message) error {
 	stream := t.getstream(nil)
 	defer t.putstream(stream)
 
-	n := tag2cbor(tagCborPrefix, out) // prefix
-	m := frame(stream, msg, out[n:])  // packet
+	n := tag2cbor(tagCborPrefix, out)  // prefix
+	m := t.frame(stream, msg, out[n:]) // packet
 	n += m
 	if m > 0 {
 		return t.tx(out[:n], false)
@@ -22,16 +25,16 @@ func (t *Transport) request(msg Message) (respmsg Message, err error) {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 
-	stream = t.getstream(make(chan Message, 1))
+	stream := t.getstream(make(chan Message, 1))
 	defer func() {
 		if err != nil {
 			t.putstream(stream)
 		}
 	}()
 
-	n := tag2cbor(tagCborPrefix, out) // prefix
-	n += arrayStart(out[n:])          // 0x9f
-	m := frame(stream, msg, out[n:])  // packet
+	n := tag2cbor(tagCborPrefix, out)  // prefix
+	n += arrayStart(out[n:])           // 0x9f
+	m := t.frame(stream, msg, out[n:]) // packet
 	if m > 0 {
 		n += m
 		n += breakStop(out[n:]) // 0xff
@@ -39,7 +42,7 @@ func (t *Transport) request(msg Message) (respmsg Message, err error) {
 			t.putstream(stream)
 			return nil, err
 		}
-		respmsg <- stream.Rxch
+		respmsg = <-stream.Rxch
 		return respmsg, nil
 	}
 	err = fmt.Errorf("empty packet")
@@ -60,9 +63,9 @@ func (t *Transport) start(
 		}
 	}()
 
-	n := tag2cbor(tagCborPrefix, out) // prefix
-	n += arrayStart(out[n:])          // 0x9f
-	m := frame(stream, msg, out[n:])  // packet
+	n := tag2cbor(tagCborPrefix, out)  // prefix
+	n += arrayStart(out[n:])           // 0x9f
+	m := t.frame(stream, msg, out[n:]) // packet
 	if m > 0 {
 		n += m
 		if err = t.tx(out[:n], false); err != nil {
@@ -86,8 +89,8 @@ func (t *Transport) stream(stream *Stream, msg Message) (err error) {
 		}
 	}()
 
-	n := tag2cbor(tagCborPrefix, out) // prefix
-	m := frame(stream, msg, out[n:])  // packet
+	n := tag2cbor(tagCborPrefix, out)  // prefix
+	m := t.frame(stream, msg, out[n:]) // packet
 	if m > 0 {
 		n += m
 		if err = t.tx(out[:n], false); err != nil {
@@ -135,7 +138,7 @@ func (t *Transport) frame(stream *Stream, msg Message, out []byte) (n int) {
 
 	m := tag2cbor(tagMsg, packet) // roll up tagMsg
 	m += value2cbor(out[:n], packet[m:])
-	for _, tag := range t.tags { // roll up tags
+	for tag := range t.tags { // roll up tags
 		if doenc, ok := t.tagok[tag]; ok && doenc { // if requested by peer
 			if fn, ok := t.tagenc[tag]; ok {
 				n = fn(packet[:m], out)
@@ -150,7 +153,7 @@ func (t *Transport) frame(stream *Stream, msg Message, out []byte) (n int) {
 	return n
 }
 
-var txpool = sync.Pool{New: func() interface{} { return &txreq{} }}
+var txpool = sync.Pool{New: func() interface{} { return &txproto{} }}
 
 type txproto struct {
 	packet []byte // request
@@ -160,21 +163,24 @@ type txproto struct {
 	respch chan *txproto
 }
 
-func (t *Transport) tx(packet []byte, flush bool) (n int, err error) {
+func (t *Transport) tx(packet []byte, flush bool) (err error) {
 	arg := txpool.Get().(*txproto)
 	defer txpool.Put(arg)
 
 	arg.packet, arg.flush, arg.respch = packet, flush, make(chan *txproto, 1)
 	t.txch <- arg
 	resp := <-arg.respch
-	n, err = resp.count, resp.err
-	return n, err
+	n, err := resp.count, resp.err
+	if err == nil && n != len(packet) {
+		err = fmt.Errorf("all bytes not written")
+	}
+	return err
 }
 
 func (t *Transport) doTx() {
 	batchlen := t.config["batchlen"].(int)
 	buflen := t.config["buflen"].(int)
-	batch, buflen, bufcap = make([]*txproto, 0, batchlen), 0, buflen
+	batch, buflen, bufcap := make([]*txproto, 0, batchlen), 0, buflen
 	drainbuffers := func() {
 		for _, arg := range batch {
 			arg.count, arg.err = 0, nil

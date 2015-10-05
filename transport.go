@@ -59,6 +59,12 @@
 // symmetrical.
 package gofast
 
+import "sync"
+import "fmt"
+import "strings"
+import "net"
+import "time"
+
 type tagfn func(in, out []byte) int
 
 // Transporter interface to send and receive packets.
@@ -70,16 +76,15 @@ type Transporter interface { // facilitates unit testing
 }
 
 type Transport struct {
-	cbor      *Config
 	name      string
 	version   Version
 	peerver   Version
 	tagenc    map[uint64]tagfn // tagid -> func
 	tagdec    map[uint64]tagfn // tagid -> func
 	tagok     map[uint64]bool  // tagid -> bool, requested while handshake
-	streams   chan *stream
+	streams   chan *Stream
 	messages  map[uint64]Message // msgid -> message
-	verfunc   func(value, interface{}) Version
+	verfunc   func(interface{}) Version
 	blueprint map[uint64]interface{} // message-tags -> value
 
 	conn Transporter
@@ -89,7 +94,7 @@ type Transport struct {
 	pktpool *sync.Pool
 
 	config map[string]interface{}
-	tags   []string
+	tags   map[uint64]bool
 }
 
 //---- transport initialization APIs
@@ -99,10 +104,8 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 	buflen := config["buflen"].(int)
 	opqstart := config["opaque.start"].(int)
 	opqend := config["opaque.end"].(int)
-	_ := config["batchlen"].(int)
 
-	t := Transport{
-		cbor:      NewDefaultConfig(),
+	t := &Transport{
 		name:      name,
 		version:   version,
 		tagenc:    make(map[uint64]tagfn),
@@ -117,39 +120,41 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 		txch: make(chan *txproto, 1024),
 
 		config: config,
-		tags:   make([]string, 0, 8),
+		tags:   make(map[uint64]bool),
 	}
-	t.pktpool = sync.Pool{
+	t.pktpool = &sync.Pool{
 		New: func() interface{} { return make([]byte, buflen) },
-	}
-	// parse tag list, tags will be applied in the specified order
-	// do this before invoking tag-factory
-	if tagcsv, ok := config["tags"]; ok {
-		for _, tag := range strings.Split(tagcsv, ",") {
-			if strings.Trim(tag) != "" {
-				t.tags = append(t.tags, tag)
-			}
-		}
 	}
 	// pre-initialize blueprint
 	t.blueprint[tagId] = nil
 	t.blueprint[tagData] = nil
 
-	t.setOpaqueRange(opqstart, opqend) // precise sequence
+	t.setOpaqueRange(uint64(opqstart), uint64(opqend)) // precise sequence
 
 	t.SubscribeMessages([]Message{&Whoami{}, &Ping{}, &Heartbeat{}})
-	go doTx()
+	go t.doTx()
 
 	t.Ping("handshake")
 	t.Whoami()
 
+	// parse tag list, tags will be applied in the specified order
+	// do this before invoking tag-factory
+	tagmap := map[string]bool{}
+	if tagcsv, ok := config["tags"].(string); ok {
+		for _, tagname := range strings.Split(tagcsv, ",") {
+			if strings.Trim(tagname, " \n\t\r") != "" {
+				tagmap[tagname] = true
+			}
+		}
+	}
 	// initialize blueprint and tag-wrapping
 	t.blueprint[tagVersion] = t.peerver.Value()
-	for tag, factory := range tag_factory {
-		enc, dec := factory(t, config)
-		if enc == nil || dec == nil {
+	for tagname, factory := range tag_factory {
+		if _, ok := tagmap[tagname]; !ok {
 			continue
 		}
+		tag, enc, dec := factory(t, config)
+		t.tags[tag] = true
 		t.tagenc[tag] = enc
 		t.tagdec[tag] = dec
 		t.blueprint[tag] = nil
@@ -191,7 +196,7 @@ func (t *Transport) FlushPeriod(ms time.Duration) {
 }
 
 func (t *Transport) SendHeartbeat(ms time.Duration) {
-	count, tick := 0, time.Tick(ms)
+	count, tick := uint64(0), time.Tick(ms)
 	go func() {
 		for {
 			<-tick
@@ -213,22 +218,36 @@ func (t *Transport) RemoteAddr() net.Addr {
 
 //---- transport APIs
 
-func (t *Transport) Whoami() *Whoami {
-	msg := NewWhoami()
-	resp := t.Request(msg).(*Whoami)
-	msg.Free()
-	return resp.(*Whoami)
+func (t *Transport) Whoami() (*Whoami, error) {
+	msg := NewWhoami(t)
+	defer msg.Free()
+	resp, err := t.Request(msg)
+	if err != nil {
+		return nil, err
+	}
+	return resp.(*Whoami), nil
 }
 
-func (t *Transport) Ping(echo string) *Ping {
-	msg := NewPing()
-	resp := t.Request(msg)
-	msg.Free()
-	return resp.(*Ping)
+func (t *Transport) Ping(echo string) (*Ping, error) {
+	msg := NewPing(echo)
+	defer msg.Free()
+	resp, err := t.Request(msg)
+	if err != nil {
+		return nil, err
+	}
+	return resp.(*Ping), nil
 }
 
-func (t *Transport) Post(msg Message) {
-	t.post(msg, out)
+func (t *Transport) Post(msg Message) error {
+	return t.post(msg)
+}
+
+func (t *Transport) Request(msg Message) (Message, error) {
+	return t.request(msg)
+}
+
+func (t *Transport) Stream(msg Message, ch chan Message) (*Stream, error) {
+	return t.start(msg, ch)
 }
 
 //---- local APIs
@@ -241,10 +260,10 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	} else if end > tagOpaqueEnd {
 		panic(err)
 	}
-	t.streams = make(chan *streams, end-start+1) // inclusive
+	t.streams = make(chan *Stream, end-start+1) // inclusive
 	for opaque := start; opaque <= end; opaque++ {
 		stream := t.newstream(uint64(opaque))
-		stream = t.cloneblueprint()
+		stream.blueprint = t.cloneblueprint()
 		t.streams <- stream
 	}
 }
@@ -264,4 +283,4 @@ func (t *Transport) cloneblueprint() map[uint64]interface{} {
 	return blueprint
 }
 
-var tag_factory = make(map[uint64]func(*Transport, map[string]interface{}) (tagfn, tagfn))
+var tag_factory = make(map[string]func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn))

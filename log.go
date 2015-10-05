@@ -3,9 +3,8 @@
 package gofast
 
 import "io"
-import "io/ioutil"
-import "log"
 import "os"
+import "fmt"
 import "time"
 import "strings"
 
@@ -25,7 +24,7 @@ type Logger interface {
 // * default log file is os.Stdout
 // * default level is LogLevelInfo
 type DefaultLogger struct {
-	level  logLevelInfo
+	level  logLevel
 	output io.Writer
 }
 
@@ -47,22 +46,23 @@ var log Logger // object used by gofast component for logging.
 func setLogger(logger Logger, config map[string]interface{}) Logger {
 	if logger != nil {
 		log = logger
-		return
+		return log
 	}
 
+	var err error
 	level := logLevelInfo
 	if val, ok := config["log.level"]; ok {
 		level = string2logLevel(val.(string))
 	}
 	logfd := os.Stdout
 	if val, ok := config["log.file"]; ok {
-		logfile = val.(string)
-		logfd = os.OpenFile(logfile, os.O_RDWR|os.O_APPEND, 0660)
+		logfile := val.(string)
+		logfd, err = os.OpenFile(logfile, os.O_RDWR|os.O_APPEND, 0660)
+		if err != nil {
+			panic(err)
+		}
 	}
-	log = DefaultLogger{
-		level:  string2logLevel(config["log.level"].(string)),
-		output: logfd,
-	}
+	log = &DefaultLogger{level: level, output: logfd}
 	return log
 }
 
@@ -97,7 +97,7 @@ func (l *DefaultLogger) Tracef(format string, v ...interface{}) {
 func (l *DefaultLogger) printf(level logLevel, format string, v ...interface{}) {
 	if l.canlog(level) {
 		ts := time.Now().Format("2006-01-02T15:04:05.999Z-07:00")
-		fmt.Fprintf(l.w, ts+" ["+l.level.String()+"] "+format, v...)
+		fmt.Fprintf(l.output, ts+" ["+l.level.String()+"] "+format, v...)
 	}
 }
 

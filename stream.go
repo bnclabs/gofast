@@ -1,21 +1,19 @@
 package gofast
 
-import "sync"
-
 // not thread safe
 type Stream struct {
-	t         *Transport
+	transport *Transport
 	Rxch      chan Message
 	opaque    uint64
 	blueprint map[uint64]interface{}
 }
 
 func (t *Transport) newstream(opaque uint64) *Stream {
-	return &Stream{t: t, opaque: opaque}
+	return &Stream{transport: t, opaque: opaque}
 }
 
 func (t *Transport) getstream(rxch chan Message) *Stream {
-	stream <- t.streams
+	stream := <-t.streams
 	stream.Rxch = rxch
 	t.rxch <- stream
 	return stream
@@ -28,11 +26,17 @@ func (t *Transport) putstream(stream *Stream) {
 	t.streams <- stream
 }
 
-func (s *Stream) Send(msg Message) {
+func (s *Stream) Send(msg Message) error {
+	return s.transport.stream(s, msg)
 }
 
-func (s *Stream) SendAndClose(msg Message) {
+func (s *Stream) SendAndClose(msg Message) error {
+	if err := s.transport.stream(s, msg); err != nil {
+		return err
+	}
+	return s.transport.finish(s)
 }
 
-func (s *Stream) Close() {
+func (s *Stream) Close() error {
+	return s.transport.finish(s)
 }

@@ -3,25 +3,23 @@
 package gofast
 
 import "compress/gzip"
-import "compress/flate"
 import "bytes"
 
-func make_gzip(t *Transport, config map[string]interface{}) (tagfn, tagfn) {
-	if hasString("gzip", t.tags) == false {
-		return nil, nil
-	}
-
+func make_gzip(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn) {
 	buflen := config["buflen"].(int)
-	level := config["gzip.level"].(flate.Compression)
+	level := config["gzip.level"].(int)
 	wbuf := bytes.NewBuffer(make([]byte, 0, buflen))
-	writer := gzip.NewWriterLevel(wbuf, level)
+	writer, err := gzip.NewWriterLevel(wbuf, level)
+	if err != nil {
+		panic(err)
+	}
 	reader, err := gzip.NewReader(bytes.NewReader([]byte{}))
 	if err != nil {
 		panic(err)
 	}
 	enc := func(in, out []byte) int {
 		wbuf.Reset()
-		writer.Reset(&wbuf)
+		writer.Reset(wbuf)
 		_, err := writer.Write(in)
 		if err != nil {
 			panic(err)
@@ -38,9 +36,9 @@ func make_gzip(t *Transport, config map[string]interface{}) (tagfn, tagfn) {
 		}
 		return n
 	}
-	return enc, dec
+	return tagGzip, enc, dec
 }
 
 func init() {
-	tag_factory = make_lzw
+	tag_factory["gzip"] = make_lzw
 }

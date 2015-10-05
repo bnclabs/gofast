@@ -6,11 +6,10 @@ type Ping struct {
 	echo string
 }
 
-func (msg *Ping) NewPing(t *Transport, echo string) *Ping {
+func NewPing(echo string) *Ping {
 	val := pingpool.Get()
 	msg := val.(*Ping)
 	msg.echo = echo
-	msg.transport = t
 	return msg
 }
 
@@ -20,14 +19,14 @@ func (msg *Ping) Id() uint64 {
 
 func (msg *Ping) Encode(out []byte) int {
 	n := arrayStart(out)
-	n += valtext2cbor(msg.echo, out[n:], msg.transport.cbor)
+	n += valtext2cbor(msg.echo, out[n:])
 	n += breakStop(out[n:])
 	return n
 }
 
 func (msg *Ping) Decode(in []byte) {
 	// echo
-	val, n := cbor2value(in, msg.transport.cbor)
+	val, n := cbor2value(in)
 	if echo, ok := val.(string); ok {
 		msg.echo = echo
 	}
@@ -43,5 +42,5 @@ func (msg *Ping) Free() {
 var pingpool *sync.Pool
 
 func init() {
-	pingpool = &sync.Pool{New: func() interface{} { &Ping{} }}
+	pingpool = &sync.Pool{New: func() interface{} { return &Ping{} }}
 }

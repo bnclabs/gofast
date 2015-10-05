@@ -1,5 +1,10 @@
 package gofast
 
+import "sync"
+import "io"
+import "fmt"
+import "reflect"
+
 var rxpool = sync.Pool{New: func() interface{} { return &rxpacket{} }}
 
 type rxpacket struct {
@@ -8,19 +13,20 @@ type rxpacket struct {
 }
 
 func (t *Transport) syncrx() {
-	tagrunners := make(map[uint64]chan []byte)
-	tagrunners[typMsg] = rxch
-	for _, tag := range t.tags {
-		inch := make(chan *rxpacket, 0)
+	tagrunners := make(map[uint64]chan interface{})
+	tagrunners[tagMsg] = t.rxch
+	for tag := range t.tags {
+		inch := make(chan interface{}, 0)
 		tagrunners[tag] = inch
-		go func(tag uint64, inch chan []byte) { // this is the tagrunner
+		go func(tag uint64, inch chan interface{}) { // this is the tagrunner
 			for {
 				func() {
-					rxpkt := <-inch
+					arg := <-inch
+					rxpkt := arg.(*rxpacket)
 					defer t.pktpool.Put(rxpkt.packet)
 
-					packet = t.pktpool.Get().([]byte)
-					ln = t.tagdec[tag](rxpkt.packet, packet)
+					packet := t.pktpool.Get().([]byte)
+					ln := t.tagdec[tag](rxpkt.packet, packet)
 					packet = packet[:ln]
 
 					ntag, n := cbor2tag(packet)
@@ -31,12 +37,12 @@ func (t *Transport) syncrx() {
 					tagrunners[ntag.(uint64)] <- rxpkt
 				}()
 			}
-		}()
+		}(tag, inch)
 	}
 
 	streams := make(map[uint64]*Stream)
 	for {
-		arg := <-rxch
+		arg := <-t.rxch
 		switch val := arg.(type) {
 		case *Stream:
 			_, ok := streams[val.opaque]
@@ -46,23 +52,23 @@ func (t *Transport) syncrx() {
 				streams[val.opaque] = val
 			}
 
-		case *rxpkt:
-			msg := t.unmessage(rxpkt.packet)
-			streams[opaque].Rxch <- msg
-			t.pktpool.Put(rxpkt.packet)
-			rxpool.Put(rxpkt)
+		case *rxpacket:
+			msg := t.unmessage(val.packet)
+			streams[val.opaque].Rxch <- msg
+			t.pktpool.Put(val.packet)
+			rxpool.Put(val)
 		}
 	}
 }
 
-func (t *Transport) doRx(tagrunners) {
-	var scratch [9]byte
+func (t *Transport) doRx(tagrunners map[uint64]chan interface{}) {
+	// TODO: defer func() { go t.Close() }()
 
 	downstream := func(packet []byte) error {
 		if n, err := io.ReadFull(t.conn, packet); err != nil {
 			return err
-		} else if n < size {
-			return err // TODO: create some valid error
+		} else if n < len(packet) {
+			return fmt.Errorf("partial write (%v)", n)
 		}
 		tag, n := cbor2tag(packet)
 		opaque := tag.(uint64)
@@ -70,7 +76,7 @@ func (t *Transport) doRx(tagrunners) {
 		n += m
 		tag, m = cbor2tag(packet[n:])
 		n += m
-		_, m := cborItemLength(packet[n:])
+		_, m = cborItemLength(packet[n:])
 		n += m
 		n = copy(packet, packet[n:])
 		tagrunners[tag.(uint64)] <- &rxpacket{
@@ -80,47 +86,82 @@ func (t *Transport) doRx(tagrunners) {
 		return nil
 	}
 
+	var pad [9]byte
 	for {
-		n, err := io.ReadFull(t.conn, scratch[:3]) // TODO: handle err
+		if n, err := io.ReadFull(t.conn, pad[:3]); err != nil || n != 3 {
+			log.Errorf("reading prefix: %v,%v", n, err)
+			break
+		}
 		packet := t.pktpool.Get().([]byte)
-		if scratch[0] != 0xf7 || scratch[1] != 0xd9 { // check cbor-prefix
-			// TODO: handle err
-		} else if scratch[2] == 0xff {
+		if pad[0] != 0xf7 || pad[1] != 0xd9 { // check cbor-prefix
+			log.Errorf("wrong prefix")
+			break
+		} else if pad[2] == 0xff {
 			// TODO: handle end of stream
-		} else if info := cborInfo(scratch[2]); info < cborInfo24 {
-			err := downstream(packet[:info]) // TODO: handle err
+		} else if info := cborInfo(pad[2]); info < cborInfo24 {
+			if err := downstream(packet[:info]); err != nil {
+				log.Errorf("reading small packet: %v", err)
+				break
+			}
 		} else if info == cborInfo24 {
-			n, err := io.ReadFull(scratch[:1])
-			size, _ := cbor2valt0info24(scratch[:1])
-			err := downstream(packet[:size]) // TODO: handle err
+			if n, err := io.ReadFull(t.conn, pad[:1]); n != 1 || err != nil {
+				log.Errorf("reading cborInfo24: %v,%v", n, err)
+				break
+			}
+			size, _ := cbor2valt0info24(pad[:1])
+			if err := downstream(packet[:size.(uint64)]); err != nil {
+				log.Errorf("reading typical packet: %v", err)
+				break
+			}
 		} else if info == cborInfo25 {
-			n, err := io.ReadFull(scratch[:2])
-			size, _ := cbor2valt0info25(scratch[:2])
-			err := downstream(packetx[:size]) // TODO: handle err
+			if n, err := io.ReadFull(t.conn, pad[:2]); n != 2 || err != nil {
+				log.Errorf("reading cborInfo25: %v,%v", n, err)
+				break
+			}
+			size, _ := cbor2valt0info25(pad[:2])
+			if err := downstream(packet[:size.(uint64)]); err != nil {
+				log.Errorf("reading medium packet: %v", err)
+				break
+			}
 		} else if info == cborInfo26 {
-			n, err := io.ReadFull(scratch[:4])
-			size, _ := cbor2valt0info26(scratch[:4])
-			err := downstream(packet[:size]) // TODO: handle err
+			if n, err := io.ReadFull(t.conn, pad[:4]); n != 4 || err != nil {
+				log.Errorf("reading cborInfo26: %v,%v", n, err)
+				break
+			}
+			size, _ := cbor2valt0info26(pad[:4])
+			if err := downstream(packet[:size.(uint64)]); err != nil {
+				log.Errorf("reading large packet: %v", err)
+				break
+			}
 		} else if info == cborInfo27 {
-			n, err := io.ReadFull(scratch[:8])
-			size, _ := cbor2valt0info27(scratch[:8])
-			err := downstream(packet[:size]) // TODO: handle err
+			if n, err := io.ReadFull(t.conn, pad[:8]); n != 8 || err != nil {
+				log.Errorf("reading cborInfo27: %v,%v", n, err)
+				break
+			}
+			size, _ := cbor2valt0info27(pad[:8])
+			if err := downstream(packet[:size.(uint64)]); err != nil {
+				log.Errorf("reading very-large packet: %v", err)
+				break
+			}
 		} else {
-			// TODO: handle err
+			log.Errorf("unknown packet len")
+			break
 		}
 	}
 }
 
-func (t *Transport) unmessage(msg []byte) Message {
-	if msg[n] != 0xbf {
+func (t *Transport) unmessage(msgdata []byte) Message {
+	n := 0
+	if msgdata[n] != 0xbf {
 		panic("expected a cbor map for message")
 	}
 	n++
 
-	typ, data := uint64(0), nil
-	for msg[n] != 0xff {
-		key, n1 := cbor2value(msg[n:], c)
-		value, n2 := cbor2value(msg[n+n1:], c)
+	var typ uint64
+	var data []byte
+	for msgdata[n] != 0xff {
+		key, n1 := cbor2value(msgdata[n:])
+		value, n2 := cbor2value(msgdata[n+n1:])
 		tag := key.(uint64)
 		switch tag {
 		case tagId:
@@ -130,10 +171,10 @@ func (t *Transport) unmessage(msg []byte) Message {
 		case tagData:
 			data = value.([]byte)
 		default:
-			if hasString(tag, t.tags) == false {
-				log.Warnf("unknown tag requested %v\n", tag)
+			if b, ok := t.tags[tag]; ok {
+				t.tagok[tag] = b
 			} else {
-				t.tagok[tag] = true
+				log.Warnf("unknown tag requested %v\n", tag)
 			}
 		}
 		n += n1 + n2
@@ -144,7 +185,7 @@ func (t *Transport) unmessage(msg []byte) Message {
 		return nil
 	}
 	typeOfMsg := reflect.ValueOf(t.messages[typ]).Elem().Type()
-	msg = reflect.New(typeOfMsg).Interface().(Message)
+	msg := reflect.New(typeOfMsg).Interface().(Message)
 	msg.Decode(data)
 	return msg
 }
