@@ -25,6 +25,7 @@
 //    * payload shall always be encoded as CBOR byte array.
 //	  * tags are uint64 numbers that will either be prefixed
 //      to payload or msg.
+//    * packets are encoded as cbor-bytes.
 //
 //    In the above example:
 //
@@ -75,6 +76,7 @@ type Transport struct {
 	peerver   Version
 	tagenc    map[uint64]tagfn // tagid -> func
 	tagdec    map[uint64]tagfn // tagid -> func
+	tagok     map[uint64]bool  // tagid -> bool, requested while handshake
 	streams   chan *stream
 	messages  map[uint64]Message // msgid -> message
 	verfunc   func(value, interface{}) Version
@@ -82,12 +84,12 @@ type Transport struct {
 
 	conn Transporter
 	txch chan *txproto
+	rxch chan interface{}
 
 	pktpool *sync.Pool
 
 	config map[string]interface{}
 	tags   []string
-	buflen int // configurations
 }
 
 //---- transport initialization APIs
@@ -104,6 +106,7 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 		name:      name,
 		version:   version,
 		tagenc:    make(map[uint64]tagfn),
+		tagok:     make(map[uint64]bool),
 		tagdec:    make(map[uint64]tagfn),
 		streams:   nil, // shall be initialized after SetOpaqueRange() call
 		messages:  make(map[uint64]Message),
@@ -115,7 +118,6 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 
 		config: config,
 		tags:   make([]string, 0, 8),
-		buflen: buflen, // default maximum buffer length
 	}
 	t.pktpool = sync.Pool{
 		New: func() interface{} { return make([]byte, buflen) },
@@ -148,7 +150,7 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 		if enc == nil || dec == nil {
 			continue
 		}
-		// t.tagenc[tag] = enc => should added only when remote ask for it.
+		t.tagenc[tag] = enc
 		t.tagdec[tag] = dec
 		t.blueprint[tag] = nil
 	}
@@ -226,10 +228,6 @@ func (t *Transport) Ping(echo string) *Ping {
 }
 
 func (t *Transport) Post(msg Message) {
-	pkt := t.pktpool.Get()
-	defer t.pktpool.Put(pkt)
-
-	out := pkt.([]byte)
 	t.post(msg, out)
 }
 

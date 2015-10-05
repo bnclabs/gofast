@@ -1,108 +1,155 @@
 package gofast
 
 // | 0xd9f7 | packet |
-func (t *Transport) post(msg Message, out []byte) error {
-	stream := t.get(nil)
+func (t *Transport) post(msg Message) error {
+	out := t.pktpool.Get().([]byte)
+	defer t.pktpool.Put(out)
 
-	n := tag2cbor(tagCborPrefix, out)
-	n += frame(stream, msg, out[n:])
-	err := t.tx(out[:n], false)
-	t.put(stream)
-	return err
+	stream := t.getstream(nil)
+	defer t.putstream(stream)
+
+	n := tag2cbor(tagCborPrefix, out) // prefix
+	m := frame(stream, msg, out[n:])  // packet
+	n += m
+	if m > 0 {
+		return t.tx(out[:n], false)
+	}
+	return fmt.Errorf("empty packet")
 }
 
 // | 0xd9f7 | 0x9f | packet | 0xff |
-func (t *Transport) request(msg Message, out []byte) (*Stream, error) {
-	stream := t.get(make(chan Message, 1))
+func (t *Transport) request(msg Message) (stream *Stream, err error) {
+	out := t.pktpool.Get().([]byte)
+	defer t.pktpool.Put(out)
 
-	n := tag2cbor(tagCborPrefix, out)
-	n += arrayStart(out[n:])
-	n += frame(stream, msg, out[n:])
-	n += breakStop(out[n:])
-	if err := t.tx(out[:n], false); err != nil {
-		t.put(stream)
-		return nil, err
+	stream = t.getstream(make(chan Message, 1))
+	defer func() {
+		if err != nil {
+			t.putstream(stream)
+		}
+	}()
+
+	n := tag2cbor(tagCborPrefix, out) // prefix
+	n += arrayStart(out[n:])          // 0x9f
+	m := frame(stream, msg, out[n:])  // packet
+	if m > 0 {
+		n += m
+		n += breakStop(out[n:]) // 0xff
+		if err = t.tx(out[:n], false); err != nil {
+			t.putstream(stream)
+			return nil, err
+		}
+		return
 	}
-	return stream, nil
+	err = fmt.Errorf("empty packet")
+	return nil, err
 }
 
 // | 0xd9f7 | 0x9f | packet1 |
-func (t *Transport) start(msg Message, out []byte, rxch chan Message) (*Stream, error) {
-	stream := t.get(rxch)
+func (t *Transport) start(
+	msg Message, rxch chan Message) (stream *Stream, err error) {
 
-	n := tag2cbor(tagCborPrefix, out)
-	n += arrayStart(out[n:])
-	n += frame(stream, msg, out[n:])
-	if err := t.tx(out[:n], false); err != nil {
-		t.put(stream)
-		return nil, err
+	out := t.pktpool.Get().([]byte)
+	defer t.pktpool.Put(out)
+
+	stream = t.getstream(rxch)
+	defer func() {
+		if err != nil {
+			t.putstream(stream)
+		}
+	}()
+
+	n := tag2cbor(tagCborPrefix, out) // prefix
+	n += arrayStart(out[n:])          // 0x9f
+	m := frame(stream, msg, out[n:])  // packet
+	if m > 0 {
+		n += m
+		if err = t.tx(out[:n], false); err != nil {
+			t.putstream(stream)
+			return nil, err
+		}
+		return
 	}
-	return stream, nil
+	err = fmt.Errorf("empty packet")
+	return nil, err
 }
 
 // | 0xd9f7 | packet2 |
-func (t *Transport) stream(stream *Stream, msg Message, out []byte) error {
-	n := tag2cbor(tagCborPrefix, out)
-	n += frame(stream, msg, out[n:])
-	err := t.tx(out[:n], false)
-	if err != nil {
-		t.put(stream)
-		return err
+func (t *Transport) stream(stream *Stream, msg Message) (err error) {
+	out := t.pktpool.Get().([]byte)
+	defer t.pktpool.Put(out)
+
+	defer func() {
+		if err != nil {
+			t.putstream(stream)
+		}
+	}()
+
+	n := tag2cbor(tagCborPrefix, out) // prefix
+	m := frame(stream, msg, out[n:])  // packet
+	if m > 0 {
+		n += m
+		if err = t.tx(out[:n], false); err != nil {
+			t.putstream(stream)
+			return err
+		}
+		return
 	}
-	return nil
+	err = fmt.Errorf("empty packet")
+	return err
 }
 
 // | 0xd9f7 | packetN | 0xff |
-func (t *Transport) finish(stream *Stream, out []byte) error {
-	n := tag2cbor(tagCborPrefix, out)
-	n += breakStop(out[n:])
+func (t *Transport) finish(stream *Stream) error {
+	out := t.pktpool.Get().([]byte)
+	defer t.pktpool.Put(out)
+
+	n := tag2cbor(tagCborPrefix, out) // prefix
+	n += breakStop(out[n:])           // 0xff
 	err := t.tx(out[:n], false)
-	t.put(stream)
+	t.putstream(stream)
 	return err
 }
 
 func (t *Transport) frame(stream *Stream, msg Message, out []byte) (n int) {
+	// compose message
+	data := t.pktpool.Get().([]byte)
+	defer t.pktpool.Put(data)
+	if p := msg.Encode(data); p == 0 {
+		return 0
+	} else {
+		stream.blueprint[tagId] = msg.Id()
+		stream.blueprint[tagData] = data[:p]
+	}
 	n += mapStart(out[n:])
-	for key, value := range t.message(stream, msg) {
+	for key, value := range stream.blueprint {
 		n += value2cbor(key, out[n:])
 		n += value2cbor(value, out[n:])
 	}
 	n += breakStop(out[n:])
 
 	// create another buffer and rotate with `out` buffer and roll up the tags
-	packeti = c.pktpool.Get()
-	defer c.pktpool.Put(packeti)
-	packet := packeti.([]byte)
+	packet := t.pktpool.Get().([]byte)
+	defer t.pktpool.Put(packet)
 
 	m := tag2cbor(tagMsg, packet) // roll up tagMsg
-	m += copy(packet[m:], out[:n])
-
+	m += value2cbor(out[:n], packet[m:])
 	for _, tag := range t.tags { // roll up tags
-		if fn, ok := t.tagenc[tag]; ok { // only if requested by peer
-			n = fn(packet[:m], out)
-			m = tag2cbor(tag, packet)
-			m += copy(packet[m:], out[:n])
+		if doenc, ok := t.tagok[tag]; ok && doenc { // if requested by peer
+			if fn, ok := t.tagenc[tag]; ok {
+				n = fn(packet[:m], out)
+				m = tag2cbor(tag, packet)
+				m += value2cbor(out[:n], packet[m:])
+			}
 		}
 	}
-
 	// finally roll up tagOpaqueStart-tagOpaqueEnd
 	n = tag2cbor(stream.opaque, out)
-	n += copy(out[:m], packet[:m])
+	n += value2cbor(packet[:m], out[n:])
 	return n
 }
 
-func (t *Transport) message(stream *Stream, msg Message) map[string]interface{} {
-	datai := t.pktpool.Get()
-	defer t.pktpool.Put(datai)
-	data := datai.([]byte)
-
-	stream.blueprint[tagId] = msg.Id()
-	p := msg.Encode(data)
-	stream.blueprint[tagData] = data[:p]
-	return stream.blueprint
-}
-
-var txprotopool = sync.Pool{New: func() interface{} { return &txreq{} }}
+var txpool = sync.Pool{New: func() interface{} { return &txreq{} }}
 
 type txproto struct {
 	packet []byte // request
@@ -113,8 +160,8 @@ type txproto struct {
 }
 
 func (t *Transport) tx(packet []byte, flush bool) (n int, err error) {
-	arg := txprotopool.Get().(*txproto)
-	defer txprotopool.Put(arg)
+	arg := txpool.Get().(*txproto)
+	defer txpool.Put(arg)
 
 	arg.packet, arg.flush, arg.respch = packet, flush, make(chan *txproto, 1)
 	t.txch <- arg

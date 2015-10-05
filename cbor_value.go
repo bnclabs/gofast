@@ -9,7 +9,7 @@ import "time"
 import "encoding/binary"
 import "fmt"
 
-func value2cbor(item interface{}, out []byte, config *Config) int {
+func value2cbor(item interface{}, out []byte) int {
 	n := 0
 	switch v := item.(type) {
 	case nil:
@@ -49,15 +49,15 @@ func value2cbor(item interface{}, out []byte, config *Config) int {
 	case string:
 		n += valtext2cbor(v, out)
 	case []interface{}:
-		n += valarray2cbor(v, out, config)
+		n += valarray2cbor(v, out)
 	case [][2]interface{}:
-		n += valmap2cbor(v, out, config)
+		n += valmap2cbor(v, out)
 	case map[string]interface{}:
 		var item [2]interface{}
 		n += mapStart(out[n:])
 		for key, value := range v {
 			item[0], item[1] = key, value
-			n += mapitem2cbor(item, out[n:], config)
+			n += mapitem2cbor(item, out[n:])
 		}
 		n += breakStop(out[n:])
 	// simple types
@@ -65,13 +65,13 @@ func value2cbor(item interface{}, out []byte, config *Config) int {
 		n += valundefined2cbor(out)
 	// tagged encoding
 	case time.Time: // tag-0
-		n += valtime2cbor(v, out, config)
+		n += valtime2cbor(v, out)
 	case CborEpoch: // tag-1
-		n += valtime2cbor(v, out, config)
+		n += valtime2cbor(v, out)
 	case CborEpochMicro: // tag-1
-		n += valtime2cbor(v, out, config)
+		n += valtime2cbor(v, out)
 	case *big.Int: // tag-2 (positive) or tag-3 (negative)
-		n += valbignum2cbor(v, out, config)
+		n += valbignum2cbor(v, out)
 	case CborDecimalFraction: // tag-4
 		n += valdecimal2cbor(v, out)
 	case CborBigFloat: // tag-5
@@ -88,14 +88,14 @@ func value2cbor(item interface{}, out []byte, config *Config) int {
 	return n
 }
 
-func cbor2value(buf []byte, config *Config) (interface{}, int) {
-	item, n := cbor2valueM[buf[0]](buf, config)
+func cbor2value(buf []byte) (interface{}, int) {
+	item, n := cbor2valueM[buf[0]](buf)
 	if _, ok := item.(CborIndefinite); ok {
 		switch cborMajor(buf[0]) {
 		case cborType4:
 			arr := make([]interface{}, 0, 2)
 			for buf[n] != brkstp {
-				item, n1 := cbor2value(buf[n:], config)
+				item, n1 := cbor2value(buf[n:])
 				arr = append(arr, item)
 				n += n1
 			}
@@ -104,8 +104,8 @@ func cbor2value(buf []byte, config *Config) (interface{}, int) {
 		case cborType5:
 			mapv := make(map[string]interface{})
 			for buf[n] != brkstp {
-				key, n1 := cbor2value(buf[n:], config)
-				value, n2 := cbor2value(buf[n+n1:], config)
+				key, n1 := cbor2value(buf[n:])
+				value, n2 := cbor2value(buf[n+n1:])
 				mapv[key.(string)] = value
 				n = n + n1 + n2
 			}
@@ -121,48 +121,48 @@ func tag2cbor(tag uint64, buf []byte) int {
 	return n
 }
 
-func cbor2tag(buf []byte, config *Config) (interface{}, int) {
+func cbor2tag(buf []byte) (interface{}, int) {
 	byt := (buf[0] & 0x1f) | cborType0 // fix as positive num
-	item, n := cbor2valueM[byt](buf, config)
+	item, n := cbor2valueM[byt](buf)
 	switch item.(uint64) {
 	case tagDateTime:
-		item, m := cbor2dtval(buf[n:], config)
+		item, m := cbor2dtval(buf[n:])
 		return item, n + m
 
 	case tagEpoch:
-		item, m := cbor2epochval(buf[n:], config)
+		item, m := cbor2epochval(buf[n:])
 		return item, n + m
 
 	case tagPosBignum:
-		item, m := cbor2bignumval(buf[n:], config)
+		item, m := cbor2bignumval(buf[n:])
 		return item, n + m
 
 	case tagNegBignum:
-		item, m := cbor2bignumval(buf[n:], config)
+		item, m := cbor2bignumval(buf[n:])
 		return big.NewInt(0).Mul(item.(*big.Int), big.NewInt(-1)), n + m
 
 	case tagDecimalFraction:
-		item, m := cbor2decimalval(buf[n:], config)
+		item, m := cbor2decimalval(buf[n:])
 		return item, n + m
 
 	case tagBigFloat:
-		item, m := cbor2bigfloatval(buf[n:], config)
+		item, m := cbor2bigfloatval(buf[n:])
 		return item, n + m
 
 	case tagCborEnc:
-		item, m := cbor2cborval(buf[n:], config)
+		item, m := cbor2cborval(buf[n:])
 		return item, n + m
 
 	case tagRegexp:
-		item, m := cbor2regexpval(buf[n:], config)
+		item, m := cbor2regexpval(buf[n:])
 		return item, n + m
 
 	case tagCborPrefix:
-		item, m := cbor2cborprefixval(buf[n:], config)
+		item, m := cbor2cborprefixval(buf[n:])
 		return item, n + m
 	}
 	// skip tags
-	item, m := cbor2value(buf[n:], config)
+	item, m := cbor2value(buf[n:])
 	return item, n + m
 }
 
@@ -376,24 +376,18 @@ func textStart(buf []byte) int {
 	return 1
 }
 
-func valarray2cbor(items []interface{}, buf []byte, config *Config) int {
-	if config.ct == LengthPrefix {
-		n := valuint642cbor(uint64(len(items)), buf)
-		buf[0] = (buf[0] & 0x1f) | cborType4 // fix the type from type0->type4
-		n += arrayitems2cbor(items, buf[n:], config)
-		return n
-	}
+func valarray2cbor(items []interface{}, buf []byte) int {
 	// Stream encoding
 	n := arrayStart(buf)
-	n += arrayitems2cbor(items, buf[n:], config)
+	n += arrayitems2cbor(items, buf[n:])
 	n += breakStop(buf[n:])
 	return n
 }
 
-func arrayitems2cbor(items []interface{}, buf []byte, config *Config) int {
+func arrayitems2cbor(items []interface{}, buf []byte) int {
 	n := 0
 	for _, item := range items {
-		n += value2cbor(item, buf[n:], config)
+		n += value2cbor(item, buf[n:])
 	}
 	return n
 }
@@ -404,33 +398,27 @@ func arrayStart(buf []byte) int {
 	return 1
 }
 
-func valmap2cbor(items [][2]interface{}, buf []byte, config *Config) int {
-	if config.ct == LengthPrefix {
-		n := valuint642cbor(uint64(len(items)), buf)
-		buf[0] = (buf[0] & 0x1f) | cborType5 // fix the type from type0->type5
-		n += mapl2cbor(items, buf[n:], config)
-		return n
-	}
+func valmap2cbor(items [][2]interface{}, buf []byte) int {
 	// Stream encoding
 	n := mapStart(buf)
-	n += mapl2cbor(items, buf[n:], config)
+	n += mapl2cbor(items, buf[n:])
 	n += breakStop(buf[n:])
 	return n
 }
 
-func mapl2cbor(items [][2]interface{}, buf []byte, config *Config) int {
+func mapl2cbor(items [][2]interface{}, buf []byte) int {
 	n := 0
 	for _, item := range items {
-		n += value2cbor(item[0], buf[n:], config)
-		n += value2cbor(item[1], buf[n:], config)
+		n += value2cbor(item[0], buf[n:])
+		n += value2cbor(item[1], buf[n:])
 	}
 	return n
 }
 
-func mapitem2cbor(item [2]interface{}, buf []byte, config *Config) int {
+func mapitem2cbor(item [2]interface{}, buf []byte) int {
 	n := 0
-	n += value2cbor(item[0], buf[n:], config)
-	n += value2cbor(item[1], buf[n:], config)
+	n += value2cbor(item[0], buf[n:])
+	n += value2cbor(item[1], buf[n:])
 	return n
 }
 
@@ -463,24 +451,24 @@ func simpletypeToCbor(typcode byte, buf []byte) int {
 
 //---- encode tags
 
-func valtime2cbor(dt interface{}, buf []byte, config *Config) int {
+func valtime2cbor(dt interface{}, buf []byte) int {
 	n := 0
 	switch v := dt.(type) {
 	case time.Time: // rfc3339, as refined by section 3.3 rfc4287
 		n += tag2cbor(tagDateTime, buf)
 		// TODO: make rfc3339 as config.
-		n += value2cbor(v.Format(time.RFC3339), buf[n:], config)
+		n += value2cbor(v.Format(time.RFC3339), buf[n:])
 	case CborEpoch:
 		n += tag2cbor(tagEpoch, buf)
-		n += value2cbor(int64(v), buf[n:], config)
+		n += value2cbor(int64(v), buf[n:])
 	case CborEpochMicro:
 		n += tag2cbor(tagEpoch, buf)
-		n += value2cbor(float64(v), buf[n:], config)
+		n += value2cbor(float64(v), buf[n:])
 	}
 	return n
 }
 
-func valbignum2cbor(num *big.Int, buf []byte, config *Config) int {
+func valbignum2cbor(num *big.Int, buf []byte) int {
 	n := 0
 	bytes := num.Bytes()
 	if num.Sign() < 0 {
@@ -488,7 +476,7 @@ func valbignum2cbor(num *big.Int, buf []byte, config *Config) int {
 	} else {
 		n += tag2cbor(tagPosBignum, buf)
 	}
-	n += value2cbor(bytes, buf[n:], config)
+	n += value2cbor(bytes, buf[n:])
 	return n
 }
 
@@ -528,75 +516,75 @@ func valcborprefix2cbor(item, buf []byte) int {
 
 //---- decode basic data types
 
-var cbor2valueM = make(map[byte]func([]byte, *Config) (interface{}, int))
+var cbor2valueM = make(map[byte]func([]byte) (interface{}, int))
 
-func cbor2valnull(buf []byte, config *Config) (interface{}, int) {
+func cbor2valnull(buf []byte) (interface{}, int) {
 	return nil, 1
 }
 
-func cbor2valfalse(buf []byte, config *Config) (interface{}, int) {
+func cbor2valfalse(buf []byte) (interface{}, int) {
 	return false, 1
 }
 
-func cbor2valtrue(buf []byte, config *Config) (interface{}, int) {
+func cbor2valtrue(buf []byte) (interface{}, int) {
 	return true, 1
 }
 
-func cbor2stbyte(buf []byte, config *Config) (interface{}, int) {
+func cbor2stbyte(buf []byte) (interface{}, int) {
 	return buf[1], 2
 }
 
-func cbor2valfloat16(buf []byte, config *Config) (interface{}, int) {
+func cbor2valfloat16(buf []byte) (interface{}, int) {
 	panic("cbor2valfloat16 not supported")
 }
 
-func cbor2valfloat32(buf []byte, config *Config) (interface{}, int) {
+func cbor2valfloat32(buf []byte) (interface{}, int) {
 	item, n := binary.BigEndian.Uint32(buf[1:]), 5
 	return math.Float32frombits(item), n
 }
 
-func cbor2valfloat64(buf []byte, config *Config) (interface{}, int) {
+func cbor2valfloat64(buf []byte) (interface{}, int) {
 	item, n := binary.BigEndian.Uint64(buf[1:]), 9
 	return math.Float64frombits(item), n
 }
 
-func cbor2valt0smallint(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt0smallint(buf []byte) (interface{}, int) {
 	return uint64(cborInfo(buf[0])), 1
 }
 
-func cbor2valt1smallint(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt1smallint(buf []byte) (interface{}, int) {
 	return -int64(cborInfo(buf[0]) + 1), 1
 }
 
-func cbor2valt0info24(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt0info24(buf []byte) (interface{}, int) {
 	return uint64(buf[1]), 2
 }
 
-func cbor2valt1info24(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt1info24(buf []byte) (interface{}, int) {
 	return -int64(buf[1] + 1), 2
 }
 
-func cbor2valt0info25(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt0info25(buf []byte) (interface{}, int) {
 	return uint64(binary.BigEndian.Uint16(buf[1:])), 3
 }
 
-func cbor2valt1info25(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt1info25(buf []byte) (interface{}, int) {
 	return -int64(binary.BigEndian.Uint16(buf[1:]) + 1), 3
 }
 
-func cbor2valt0info26(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt0info26(buf []byte) (interface{}, int) {
 	return uint64(binary.BigEndian.Uint32(buf[1:])), 5
 }
 
-func cbor2valt1info26(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt1info26(buf []byte) (interface{}, int) {
 	return -int64(binary.BigEndian.Uint32(buf[1:]) + 1), 5
 }
 
-func cbor2valt0info27(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt0info27(buf []byte) (interface{}, int) {
 	return uint64(binary.BigEndian.Uint64(buf[1:])), 9
 }
 
-func cbor2valt1info27(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt1info27(buf []byte) (interface{}, int) {
 	x := uint64(binary.BigEndian.Uint64(buf[1:]))
 	if x > 9223372036854775807 {
 		panic("cbor decoding integer exceeds int64")
@@ -617,70 +605,70 @@ func cborItemLength(buf []byte) (int, int) {
 	return int(binary.BigEndian.Uint64(buf[1:])), 9 // info27
 }
 
-func cbor2valt2(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt2(buf []byte) (interface{}, int) {
 	ln, n := cborItemLength(buf)
 	dst := make([]byte, ln)
 	copy(dst, buf[n:n+ln])
 	return dst, n + ln
 }
 
-func cbor2valt2indefinite(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt2indefinite(buf []byte) (interface{}, int) {
 	return CborIndefinite(buf[0]), 1
 }
 
-func cbor2valt3(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt3(buf []byte) (interface{}, int) {
 	ln, n := cborItemLength(buf)
 	dst := make([]byte, ln)
 	copy(dst, buf[n:n+ln])
 	return bytes2str(dst), n + ln
 }
 
-func cbor2valt3indefinite(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt3indefinite(buf []byte) (interface{}, int) {
 	return CborIndefinite(buf[0]), 1
 }
 
-func cbor2valt4(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt4(buf []byte) (interface{}, int) {
 	ln, n := cborItemLength(buf)
 	arr := make([]interface{}, ln)
 	for i := 0; i < ln; i++ {
-		item, n1 := cbor2value(buf[n:], config)
+		item, n1 := cbor2value(buf[n:])
 		arr[i], n = item, n+n1
 	}
 	return arr, n
 }
 
-func cbor2valt4indefinite(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt4indefinite(buf []byte) (interface{}, int) {
 	return CborIndefinite(buf[0]), 1
 }
 
-func cbor2valt5(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt5(buf []byte) (interface{}, int) {
 	ln, n := cborItemLength(buf)
 	mapv := make(map[string]interface{})
 	for i := 0; i < ln; i++ {
-		key, n1 := cbor2value(buf[n:], config)
-		value, n2 := cbor2value(buf[n+n1:], config)
+		key, n1 := cbor2value(buf[n:])
+		value, n2 := cbor2value(buf[n+n1:])
 		mapv[key.(string)] = value
 		n = n + n1 + n2
 	}
 	return mapv, n
 }
 
-func cbor2valt5indefinite(buf []byte, config *Config) (interface{}, int) {
+func cbor2valt5indefinite(buf []byte) (interface{}, int) {
 	return CborIndefinite(buf[0]), 1
 }
 
-func cbor2valbreakcode(buf []byte, config *Config) (interface{}, int) {
+func cbor2valbreakcode(buf []byte) (interface{}, int) {
 	return CborBreakStop(buf[0]), 1
 }
 
-func cbor2valundefined(buf []byte, config *Config) (interface{}, int) {
+func cbor2valundefined(buf []byte) (interface{}, int) {
 	return CborUndefined(cborSimpleUndefined), 1
 }
 
 //---- decode tags
 
-func cbor2dtval(buf []byte, config *Config) (interface{}, int) {
-	item, n := cbor2value(buf, config)
+func cbor2dtval(buf []byte) (interface{}, int) {
+	item, n := cbor2value(buf)
 	item, err := time.Parse(time.RFC3339, item.(string))
 	if err != nil {
 		panic("cbor2dtval(): malformed time.RFC3339")
@@ -688,8 +676,8 @@ func cbor2dtval(buf []byte, config *Config) (interface{}, int) {
 	return item, n
 }
 
-func cbor2epochval(buf []byte, config *Config) (interface{}, int) {
-	item, n := cbor2value(buf, config)
+func cbor2epochval(buf []byte) (interface{}, int) {
+	item, n := cbor2value(buf)
 	switch v := item.(type) {
 	case int64:
 		return CborEpoch(v), n
@@ -702,15 +690,15 @@ func cbor2epochval(buf []byte, config *Config) (interface{}, int) {
 	panic(fmt.Errorf(fmsg, item))
 }
 
-func cbor2bignumval(buf []byte, config *Config) (interface{}, int) {
-	item, n := cbor2value(buf, config)
+func cbor2bignumval(buf []byte) (interface{}, int) {
+	item, n := cbor2value(buf)
 	num := big.NewInt(0).SetBytes(item.([]byte))
 	return num, n
 }
 
-func cbor2decimalval(buf []byte, config *Config) (interface{}, int) {
-	e, x := cbor2value(buf, config)
-	m, y := cbor2value(buf[x:], config)
+func cbor2decimalval(buf []byte) (interface{}, int) {
+	e, x := cbor2value(buf)
+	m, y := cbor2value(buf[x:])
 	if a, ok := e.(uint64); ok {
 		if b, ok := m.(uint64); ok {
 			return CborDecimalFraction([2]int64{int64(a), int64(b)}), x + y
@@ -723,9 +711,9 @@ func cbor2decimalval(buf []byte, config *Config) (interface{}, int) {
 	return CborDecimalFraction([2]int64{e.(int64), m.(int64)}), x + y
 }
 
-func cbor2bigfloatval(buf []byte, config *Config) (interface{}, int) {
-	e, x := cbor2value(buf, config)
-	m, y := cbor2value(buf[x:], config)
+func cbor2bigfloatval(buf []byte) (interface{}, int) {
+	e, x := cbor2value(buf)
+	m, y := cbor2value(buf[x:])
 	if a, ok := e.(uint64); ok {
 		if b, ok := m.(uint64); ok {
 			return CborBigFloat([2]interface{}{int64(a), int64(b)}), x + y
@@ -738,13 +726,13 @@ func cbor2bigfloatval(buf []byte, config *Config) (interface{}, int) {
 	return CborBigFloat([2]interface{}{e.(int64), m.(int64)}), x + y
 }
 
-func cbor2cborval(buf []byte, config *Config) (interface{}, int) {
-	item, n := cbor2value(buf, config)
+func cbor2cborval(buf []byte) (interface{}, int) {
+	item, n := cbor2value(buf)
 	return Cbor(item.([]uint8)), n
 }
 
-func cbor2regexpval(buf []byte, config *Config) (interface{}, int) {
-	item, n := cbor2value(buf, config)
+func cbor2regexpval(buf []byte) (interface{}, int) {
+	item, n := cbor2value(buf)
 	s := item.(string)
 	re, err := regexp.Compile(s)
 	if err != nil {
@@ -753,14 +741,14 @@ func cbor2regexpval(buf []byte, config *Config) (interface{}, int) {
 	return re, n
 }
 
-func cbor2cborprefixval(buf []byte, config *Config) (interface{}, int) {
-	item, n := cbor2value(buf, config)
+func cbor2cborprefixval(buf []byte) (interface{}, int) {
+	item, n := cbor2value(buf)
 	return CborPrefix(item.([]byte)), n
 }
 
 func init() {
-	makePanic := func(msg string) func([]byte, *Config) (interface{}, int) {
-		return func(_ []byte, _ *Config) (interface{}, int) { panic(msg) }
+	makePanic := func(msg string) func([]byte) (interface{}, int) {
+		return func(_ []byte) (interface{}, int) { panic(msg) }
 	}
 	//-- type0                  (unsigned integer)
 	// 1st-byte 0..23
@@ -869,8 +857,8 @@ func init() {
 	// 1st-byte 0..19
 	for i := byte(0); i < 20; i++ {
 		cbor2valueM[cborHdr(cborType7, i)] =
-			func(i byte) func([]byte, *Config) (interface{}, int) {
-				return func(buf []byte, _ *Config) (interface{}, int) {
+			func(i byte) func([]byte) (interface{}, int) {
+				return func(buf []byte) (interface{}, int) {
 					return i, 1
 				}
 			}(i)
