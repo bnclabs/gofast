@@ -18,7 +18,7 @@ func (t *Transport) post(msg Message) error {
 }
 
 // | 0xd9f7 | 0x9f | packet | 0xff |
-func (t *Transport) request(msg Message) (stream *Stream, err error) {
+func (t *Transport) request(msg Message) (respmsg Message, err error) {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 
@@ -39,7 +39,8 @@ func (t *Transport) request(msg Message) (stream *Stream, err error) {
 			t.putstream(stream)
 			return nil, err
 		}
-		return
+		respmsg <- stream.Rxch
+		return respmsg, nil
 	}
 	err = fmt.Errorf("empty packet")
 	return nil, err
