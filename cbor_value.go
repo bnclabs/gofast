@@ -61,7 +61,7 @@ func value2cbor(item interface{}, out []byte) int {
 		}
 		n += breakStop(out[n:])
 	// simple types
-	case CborUndefined:
+	case cborUndefined:
 		n += valundefined2cbor(out)
 	// tagged encoding
 	case time.Time: // tag-0
@@ -80,7 +80,7 @@ func value2cbor(item interface{}, out []byte) int {
 		n += valcbor2cbor(v, out)
 	case *regexp.Regexp: // tag-35
 		n += valregexp2cbor(v, out)
-	case CborPrefix: // tag-55799
+	case cborPrefix: // tag-55799
 		n += valcborprefix2cbor(v, out)
 	default:
 		panic(fmt.Errorf("cbor encode unknownType %T", v))
@@ -90,7 +90,7 @@ func value2cbor(item interface{}, out []byte) int {
 
 func cbor2value(buf []byte) (interface{}, int) {
 	item, n := cbor2valueM[buf[0]](buf)
-	if _, ok := item.(CborIndefinite); ok {
+	if _, ok := item.(cborIndefinite); ok {
 		switch cborMajor(buf[0]) {
 		case cborType4:
 			arr := make([]interface{}, 0, 2)
@@ -613,7 +613,7 @@ func cbor2valt2(buf []byte) (interface{}, int) {
 }
 
 func cbor2valt2indefinite(buf []byte) (interface{}, int) {
-	return CborIndefinite(buf[0]), 1
+	return cborIndefinite(buf[0]), 1
 }
 
 func cbor2valt3(buf []byte) (interface{}, int) {
@@ -624,7 +624,7 @@ func cbor2valt3(buf []byte) (interface{}, int) {
 }
 
 func cbor2valt3indefinite(buf []byte) (interface{}, int) {
-	return CborIndefinite(buf[0]), 1
+	return cborIndefinite(buf[0]), 1
 }
 
 func cbor2valt4(buf []byte) (interface{}, int) {
@@ -638,7 +638,7 @@ func cbor2valt4(buf []byte) (interface{}, int) {
 }
 
 func cbor2valt4indefinite(buf []byte) (interface{}, int) {
-	return CborIndefinite(buf[0]), 1
+	return cborIndefinite(buf[0]), 1
 }
 
 func cbor2valt5(buf []byte) (interface{}, int) {
@@ -654,15 +654,15 @@ func cbor2valt5(buf []byte) (interface{}, int) {
 }
 
 func cbor2valt5indefinite(buf []byte) (interface{}, int) {
-	return CborIndefinite(buf[0]), 1
+	return cborIndefinite(buf[0]), 1
 }
 
 func cbor2valbreakcode(buf []byte) (interface{}, int) {
-	return CborBreakStop(buf[0]), 1
+	return cborBreakStop(buf[0]), 1
 }
 
 func cbor2valundefined(buf []byte) (interface{}, int) {
-	return CborUndefined(cborSimpleUndefined), 1
+	return cborUndefined(cborSimpleUndefined), 1
 }
 
 //---- decode tags
@@ -743,7 +743,7 @@ func cbor2regexpval(buf []byte) (interface{}, int) {
 
 func cbor2cborprefixval(buf []byte) (interface{}, int) {
 	item, n := cbor2value(buf)
-	return CborPrefix(item.([]byte)), n
+	return cborPrefix(item.([]byte)), n
 }
 
 func init() {

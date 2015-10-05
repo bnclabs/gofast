@@ -1,5 +1,7 @@
 //  Copyright (c) 2015 Couchbase, Inc.
 
+// +build ignore
+
 package gofast
 
 import "testing"
@@ -265,7 +267,7 @@ func TestCborBytes(t *testing.T) {
 		t.Errorf("fail code bytes-start len: %v wanted 1", n)
 	} else if val, m := cbor2value(buf, config); m != n {
 		t.Errorf("fail code bytes-start size: %v wanted %v", m, n)
-	} else if !reflect.DeepEqual(val, CborIndefinite(0x5f)) {
+	} else if !reflect.DeepEqual(val, cborIndefinite(0x5f)) {
 		t.Errorf("fail code bytes-start: %v wanted 0x5f", buf[0])
 	}
 }
@@ -284,7 +286,7 @@ func TestCborText(t *testing.T) {
 		t.Errorf("fail code text-start len: %v wanted 1", n)
 	} else if val, m := cbor2value(buf, config); m != n {
 		t.Errorf("fail code text-start size: %v wanted %v", m, n)
-	} else if !reflect.DeepEqual(val, CborIndefinite(0x7f)) {
+	} else if !reflect.DeepEqual(val, cborIndefinite(0x7f)) {
 		t.Errorf("fail code text-start: %x wanted 0x7f", buf[0])
 	}
 }
@@ -363,7 +365,7 @@ func TestCborBreakStop(t *testing.T) {
 		t.Errorf("fail code text-start len: %v wanted 1", n)
 	} else if val, m := cbor2value(buf, config); m != n {
 		t.Errorf("fail code text-start: %v wanted %v", m, n)
-	} else if !reflect.DeepEqual(val, CborBreakStop(0xff)) {
+	} else if !reflect.DeepEqual(val, cborBreakStop(0xff)) {
 		t.Errorf("fail code text-start: %x wanted 0xff", buf[0])
 	}
 }
@@ -375,7 +377,7 @@ func TestCborUndefined(t *testing.T) {
 		t.Errorf("fail value2cbor undefined: %v want 1", n)
 	} else if item, m := cbor2value(buf, config); m != 1 {
 		t.Errorf("fail cbor2value on undefined len: %v want 1", m)
-	} else if item.(CborUndefined) != CborUndefined(cborSimpleUndefined) {
+	} else if item.(cborUndefined) != cborUndefined(cborSimpleUndefined) {
 		t.Errorf("fail cbor2value on undefined: %T %v", item, item)
 	}
 }
@@ -586,7 +588,7 @@ func TestRegexp(t *testing.T) {
 func TestCborPrefix(t *testing.T) {
 	buf := make([]byte, 64)
 	config := NewDefaultConfig()
-	ref := CborPrefix([]byte("hello world"))
+	ref := cborPrefix([]byte("hello world"))
 	n := config.ValueToCbor(ref, buf)
 	item, m := config.CborToValue(buf[:n])
 	if n != 15 || n != m {

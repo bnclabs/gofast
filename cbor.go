@@ -2,37 +2,18 @@
 
 package gofast
 
-// CborUndefined type as part of simple-type codepoint-23.
-type CborUndefined byte
+// cborUndefined type as part of simple-type codepoint-23.
+type cborUndefined byte
 
-// CborIndefinite code, first-byte of stream encoded data items.
-type CborIndefinite byte
+// cborIndefinite code, first-byte of stream encoded data items.
+type cborIndefinite byte
 
-// CborBreakStop code, last-byte of stream encoded the data items.
-type CborBreakStop byte
+// cborBreakStop code, last-byte of stream encoded the data items.
+type cborBreakStop byte
 
-// Cbor tagged-type, a byte-string of cbor data-item.
-type Cbor []byte
-
-// CborPrefix tagged-type, a byte-string of cbor data-item that
+// cborPrefix tagged-type, a byte-string of cbor data-item that
 // will be wrapped with a unique prefix before sending out.
-type CborPrefix []byte
-
-// CborEpoch tagged-type, seconds since 1970-01-01T00:00Z
-// in UTC time.
-type CborEpoch int64
-
-// CborEpochMicro tagged-type, float64 since 1970-01-01T00:00Z
-// in UTC time.
-type CborEpochMicro float64
-
-// CborDecimalFraction tagged-type, combine an integer mantissa
-// with a base-10 scaling factor m*(10**e), presented as [2]int64{e,m}.
-type CborDecimalFraction [2]int64
-
-// CborBigFloat tagged-type, combine an integer mantissa with a base-2
-// scaling factor m*(2**e) - presented as int64{e,m}.
-type CborBigFloat [2]interface{}
+type cborPrefix []byte
 
 const ( // major types.
 	cborType0 byte = iota << 5 // unsigned integer
@@ -68,10 +49,6 @@ const ( // simple types for type7
 	// 28..30 reserved
 	cborItemBreak = 31 // stop-code for indefinite-length items
 )
-
-// CborMaxSmallInt is the maximum integer value that can be
-// stored as associative value in CBOR.
-const CborMaxSmallInt = 23
 
 func cborMajor(b byte) byte {
 	return b & 0xe0

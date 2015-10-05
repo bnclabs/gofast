@@ -12,3 +12,10 @@ const (
 	MsgWhoami    uint64 = 0xFFFFFFFFFFFFFFFE
 	MsgHeartbeat        = 0x1
 )
+
+type Version interface {
+	Less() bool
+	Equal() bool
+	String() string
+	Value() interface{}
+}
