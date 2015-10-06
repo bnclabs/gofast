@@ -87,6 +87,7 @@ type Transport struct {
 	streams   chan *Stream
 	messages  map[uint64]Message // msgid -> message
 	verfunc   func(interface{}) Version
+	handler   func(*Stream, Message)
 	blueprint map[uint64]interface{} // message-tags -> value
 
 	conn   Transporter
@@ -193,6 +194,11 @@ func (t *Transport) SubscribeMessages(messages []Message) *Transport {
 	for _, msg := range messages {
 		t.messages[msg.Id()] = msg
 	}
+	return t
+}
+
+func (t *Transport) RequestHandler(fn func(*Stream, Message)) *Transport {
+	t.handler = fn
 	return t
 }
 
