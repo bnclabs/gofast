@@ -189,7 +189,7 @@ func (t *Transport) unmessage(msgdata []byte) Message {
 	}
 	n++
 
-	var typ uint64
+	var id uint64
 	var data []byte
 	for msgdata[n] != 0xff {
 		key, n1 := cbor2value(msgdata[n:])
@@ -197,7 +197,7 @@ func (t *Transport) unmessage(msgdata []byte) Message {
 		tag := key.(uint64)
 		switch tag {
 		case tagId:
-			typ = tag
+			id = tag
 		case tagVersion:
 			t.peerver = t.verfunc(value)
 		case tagData:
@@ -211,12 +211,12 @@ func (t *Transport) unmessage(msgdata []byte) Message {
 		}
 		n += n1 + n2
 	}
-	// check whether type, data is present
-	if typ == 0 || data == nil {
+	// check whether id, data is present
+	if id == 0 || data == nil {
 		log.Errorf("rx invalid message packet")
 		return nil
 	}
-	typeOfMsg := reflect.ValueOf(t.messages[typ]).Elem().Type()
+	typeOfMsg := reflect.ValueOf(t.messages[id]).Elem().Type()
 	msg := reflect.New(typeOfMsg).Interface().(Message)
 	msg.Decode(data)
 	return msg
