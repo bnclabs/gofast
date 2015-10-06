@@ -194,7 +194,7 @@ func (t *Transport) VersionHandler(fn func(value interface{}) Version) *Transpor
 
 func (t *Transport) SubscribeMessages(messages []Message) *Transport {
 	factory := func(msg Message) func() interface{} {
-		return func() {
+		return func() interface{} {
 			typeOfMsg := reflect.ValueOf(msg).Elem().Type()
 			return reflect.New(typeOfMsg).Interface()
 		}
@@ -257,7 +257,7 @@ func (t *Transport) RemoteAddr() net.Addr {
 }
 
 func (t *Transport) Free(msg Message) {
-	t.msgpool[msg.Id()].Put(msg)
+	t.msgpools[msg.Id()].Put(msg)
 }
 
 //---- transport APIs
