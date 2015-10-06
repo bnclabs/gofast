@@ -4,7 +4,6 @@ type Message interface {
 	Id() uint64
 	Encode(out []byte) int
 	Decode(in []byte)
-	Free()
 }
 
 const (

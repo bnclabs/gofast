@@ -5,7 +5,6 @@ import "io"
 import "fmt"
 import "sync/atomic"
 import "time"
-import "reflect"
 
 var rxpool = sync.Pool{New: func() interface{} { return &rxpacket{} }}
 
@@ -216,8 +215,7 @@ func (t *Transport) unmessage(msgdata []byte) Message {
 		log.Errorf("rx invalid message packet")
 		return nil
 	}
-	typeOfMsg := reflect.ValueOf(t.messages[id]).Elem().Type()
-	msg := reflect.New(typeOfMsg).Interface().(Message)
+	msg := t.msgpools[id].Get().(Message)
 	msg.Decode(data)
 	return msg
 }

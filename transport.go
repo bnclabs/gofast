@@ -64,6 +64,7 @@ import "sync/atomic"
 import "fmt"
 import "strings"
 import "net"
+import "reflect"
 import "time"
 
 type tagfn func(in, out []byte) int
@@ -96,7 +97,8 @@ type Transport struct {
 	rxch   chan interface{}
 	killch chan bool
 
-	pktpool *sync.Pool
+	pktpool  *sync.Pool
+	msgpools map[uint64]*sync.Pool
 
 	config map[string]interface{}
 	tags   map[uint64]bool
@@ -191,8 +193,15 @@ func (t *Transport) VersionHandler(fn func(value interface{}) Version) *Transpor
 }
 
 func (t *Transport) SubscribeMessages(messages []Message) *Transport {
+	factory := func(msg Message) func() interface{} {
+		return func() {
+			typeOfMsg := reflect.ValueOf(msg).Elem().Type()
+			return reflect.New(typeOfMsg).Interface()
+		}
+	}
 	for _, msg := range messages {
 		t.messages[msg.Id()] = msg
+		t.msgpools[msg.Id()] = &sync.Pool{New: factory(msg)}
 	}
 	return t
 }
@@ -245,6 +254,10 @@ func (t *Transport) LocalAddr() net.Addr {
 
 func (t *Transport) RemoteAddr() net.Addr {
 	return t.conn.RemoteAddr()
+}
+
+func (t *Transport) Free(msg Message) {
+	t.msgpool[msg.Id()].Put(msg)
 }
 
 //---- transport APIs
