@@ -35,8 +35,12 @@ func (msg *Ping) Decode(in []byte) {
 	}
 }
 
-func (msg *Ping) Free() {
-	pingpool.Put(msg)
+func (msg *Ping) String() string {
+	return "Ping"
+}
+
+func (msg *Ping) Repr() string {
+	return msg.echo
 }
 
 var pingpool *sync.Pool

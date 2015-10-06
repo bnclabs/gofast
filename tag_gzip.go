@@ -6,9 +6,9 @@ import "compress/gzip"
 import "bytes"
 
 func make_gzip(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn) {
-	buflen := config["buflen"].(int)
+	buffersize := config["buffersize"].(int)
 	level := config["gzip.level"].(int)
-	wbuf := bytes.NewBuffer(make([]byte, 0, buflen))
+	wbuf := bytes.NewBuffer(make([]byte, 0, buffersize))
 	writer, err := gzip.NewWriterLevel(wbuf, level)
 	if err != nil {
 		panic(err)

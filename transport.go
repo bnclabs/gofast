@@ -57,6 +57,20 @@
 //
 // except of post-request, the exchange between client and server is always
 // symmetrical.
+//
+// configurations:
+//
+//	"name"		   - give a name for the transport.
+//	"buffersize"   - maximum size that a packet can needs.
+//	"chansize"     - channel size to use for internal go-routines.
+//	"batchsize"    - number of packets to batch before writting to socket.
+//  "tags"		   - comma separated list of tags to apply, in specified order.
+//	"opaque.start" - starting opaque range, inclusive.
+//	"opaque.end"   - ending opaque range, inclusive.
+//  "log.level"    - log level to use for DefaultLogger
+//  "log.file"     - log file to use for DefaultLogger, if empty stdout is used.
+//  "gzip.file"    - gzip compression level.
+//
 package gofast
 
 import "sync"
@@ -78,6 +92,7 @@ type Transporter interface { // facilitates unit testing
 	Close() error
 }
 
+// Transport is a peer-to-peer transport enabler.
 type Transport struct {
 	name      string
 	version   Version
@@ -100,19 +115,26 @@ type Transport struct {
 	pktpool  *sync.Pool
 	msgpools map[uint64]*sync.Pool
 
-	config map[string]interface{}
-	tags   map[uint64]bool
+	config    map[string]interface{}
+	tags      map[uint64]bool
+	logprefix string
 }
 
 //---- transport initialization APIs
 
-func NewTransport(conn Transporter, version Version, config map[string]interface{}) *Transport {
+// NewTransport creates a new transport over a connection,
+// one connection one transport.
+func NewTransport(
+	conn Transporter,
+	version Version,
+	logg Logger,
+	config map[string]interface{}) (*Transport, error) {
+
 	name := config["name"].(string)
-	buflen := config["buflen"].(int)
+	buffersize := config["buffersize"].(int)
 	opqstart := config["opaque.start"].(int)
 	opqend := config["opaque.end"].(int)
 	chansize := config["chansize"].(int)
-	setLogger(nil, config)
 
 	t := &Transport{
 		name:      name,
@@ -132,9 +154,15 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 		config: config,
 		tags:   make(map[uint64]bool),
 	}
+
+	setLogger(logg, t.config)
+
+	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
+	t.logprefix = fmt.Sprintf("GFST [%v<->%v]", laddr, raddr)
 	t.pktpool = &sync.Pool{
-		New: func() interface{} { return make([]byte, buflen) },
+		New: func() interface{} { return make([]byte, buffersize) },
 	}
+
 	// pre-initialize blueprint
 	t.blueprint[tagId] = nil
 	t.blueprint[tagData] = nil
@@ -142,11 +170,19 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 	t.setOpaqueRange(uint64(opqstart), uint64(opqend)) // precise sequence
 
 	t.SubscribeMessages([]Message{&Whoami{}, &Ping{}, &Heartbeat{}})
+	log.Verbosef("%v pre-initialized ...\n", t.logprefix)
+
 	go t.doTx()
 	go t.syncRx()
 
-	t.Ping("handshake")
-	t.Whoami()
+	if _, err := t.Ping("handshake"); err != nil {
+		return nil, err
+	} else if msg, err := t.Whoami(); err != nil {
+		return nil, err
+	} else {
+		fmsg := "%v handshake completed peer: %v / %v ...\n"
+		log.Verbosef(fmsg, t.logprefix, t.PeerVersion(), msg.Repr())
+	}
 
 	// parse tag list, tags will be applied in the specified order
 	// do this before invoking tag-factory
@@ -179,19 +215,18 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 	for _, stream := range streams {
 		t.streams <- stream
 	}
-	return t
+	log.Infof("%v started ...\n", t.logprefix)
+	return t, nil
 }
 
-func (t *Transport) SetLogger(logger Logger) *Transport {
-	setLogger(logger, t.config)
-	return t
-}
-
+// VersionHandler callback to convert peer version to Version interface.
 func (t *Transport) VersionHandler(fn func(value interface{}) Version) *Transport {
 	t.verfunc = fn
 	return t
 }
 
+// SubscribeMessages that shall be exchanged via this transport. Only
+// subscribed messages can be exchanged.
 func (t *Transport) SubscribeMessages(messages []Message) *Transport {
 	factory := func(msg Message) func() interface{} {
 		return func() interface{} {
@@ -199,28 +234,36 @@ func (t *Transport) SubscribeMessages(messages []Message) *Transport {
 			return reflect.New(typeOfMsg).Interface()
 		}
 	}
+	msgstr := []string{}
 	for _, msg := range messages {
 		t.messages[msg.Id()] = msg
 		t.msgpools[msg.Id()] = &sync.Pool{New: factory(msg)}
+		msgstr = append(msgstr, msg.String())
 	}
+	s := strings.Join(msgstr, ",")
+	log.Verbosef("%v subscribed %v\n", t.logprefix, s)
 	return t
 }
 
+// RequestHandler callback to handle incoming request from peer.
 func (t *Transport) RequestHandler(fn func(*Stream, Message)) *Transport {
 	t.handler = fn
 	return t
 }
 
+// Close this tranport, connection will be closed as well.
 func (t *Transport) Close() error {
 	defer func() { recover() }()
 	t.pktpool = nil
 	t.rxch <- "close"
 	close(t.killch)
+	log.Infof("%v ... closed\n", t.logprefix)
 	return t.conn.Close()
 }
 
 //---- maintenance APIs
 
+// FlushPeriod to periodically flush batched packets.
 func (t *Transport) FlushPeriod(ms time.Duration) {
 	tick := time.Tick(ms)
 	go func() {
@@ -231,6 +274,7 @@ func (t *Transport) FlushPeriod(ms time.Duration) {
 	}()
 }
 
+// SendHeartbeat to periodically send keep-alive message.
 func (t *Transport) SendHeartbeat(ms time.Duration) {
 	count, tick := uint64(0), time.Tick(ms)
 	go func() {
@@ -238,33 +282,46 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 			<-tick
 			msg := NewHeartbeat(t, count)
 			t.Post(msg)
-			msg.Free()
+			t.Free(msg)
 			count++
 		}
 	}()
 }
 
+// Liveat returns the timestamp of last heartbeat message received
+// from peer.
 func (t *Transport) Liveat() int64 {
 	return atomic.LoadInt64(&t.liveat)
 }
 
+// LocalAddr of this connection.
 func (t *Transport) LocalAddr() net.Addr {
 	return t.conn.LocalAddr()
 }
 
+// RemoteAddr of this connection.
 func (t *Transport) RemoteAddr() net.Addr {
 	return t.conn.RemoteAddr()
 }
 
+// PeerVersion from peer node.
+func (t *Transport) PeerVersion() Version {
+	return t.peerver
+}
+
+// Free will return the message back to the pool, should be
+// called on messages received via RequestHandler callback and
+// via Stream.Rxch.
 func (t *Transport) Free(msg Message) {
 	t.msgpools[msg.Id()].Put(msg)
 }
 
 //---- transport APIs
 
+// Whoami will return remote information.
 func (t *Transport) Whoami() (*Whoami, error) {
 	msg := NewWhoami(t)
-	defer msg.Free()
+	defer t.Free(msg)
 	resp, err := t.Request(msg)
 	if err != nil {
 		return nil, err
@@ -272,9 +329,10 @@ func (t *Transport) Whoami() (*Whoami, error) {
 	return resp.(*Whoami), nil
 }
 
+// Ping pong with peer.
 func (t *Transport) Ping(echo string) (*Ping, error) {
 	msg := NewPing(echo)
-	defer msg.Free()
+	defer t.Free(msg)
 	resp, err := t.Request(msg)
 	if err != nil {
 		return nil, err
@@ -282,14 +340,17 @@ func (t *Transport) Ping(echo string) (*Ping, error) {
 	return resp.(*Ping), nil
 }
 
+// Post request to peer.
 func (t *Transport) Post(msg Message) error {
 	return t.post(msg)
 }
 
+// Request a response from peer.
 func (t *Transport) Request(msg Message) (Message, error) {
 	return t.request(msg)
 }
 
+// Request a bi-directional with peer.
 func (t *Transport) Stream(msg Message, ch chan Message) (*Stream, error) {
 	return t.start(msg, ch)
 }

@@ -1,6 +1,6 @@
 package gofast
 
-// not thread safe
+// Stream for every stream started on the transport.
 type Stream struct {
 	transport *Transport
 	Rxch      chan Message
@@ -26,10 +26,12 @@ func (t *Transport) putstream(stream *Stream) {
 	t.streams <- stream
 }
 
+// Send a message on the stream.
 func (s *Stream) Send(msg Message) error {
 	return s.transport.stream(s, msg)
 }
 
+// Send the last message on the stream and close the stream.
 func (s *Stream) SendAndClose(msg Message) error {
 	if err := s.transport.stream(s, msg); err != nil {
 		return err
@@ -37,10 +39,12 @@ func (s *Stream) SendAndClose(msg Message) error {
 	return s.transport.finish(s)
 }
 
-func (s *Stream) Transport() *Transport {
-	return s.transport
-}
-
+// Close the stream.
 func (s *Stream) Close() error {
 	return s.transport.finish(s)
+}
+
+// Transport carrying this stream.
+func (s *Stream) Transport() *Transport {
+	return s.transport
 }

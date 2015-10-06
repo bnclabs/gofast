@@ -1,6 +1,7 @@
 package gofast
 
 import "sync"
+import "strconv"
 
 type Heartbeat struct {
 	count uint64
@@ -35,8 +36,12 @@ func (msg *Heartbeat) Decode(in []byte) {
 	}
 }
 
-func (msg *Heartbeat) Free() {
-	hbpool.Put(msg)
+func (msg *Heartbeat) String() string {
+	return "Heartbeat"
+}
+
+func (msg *Heartbeat) Repr() string {
+	return strconv.Itoa(int(msg.count))
 }
 
 var hbpool *sync.Pool

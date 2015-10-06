@@ -12,12 +12,8 @@ func (t *Transport) post(msg Message) error {
 	defer t.putstream(stream)
 
 	n := tag2cbor(tagCborPrefix, out)  // prefix
-	m := t.frame(stream, msg, out[n:]) // packet
-	n += m
-	if m > 0 {
-		return t.tx(out[:n], false)
-	}
-	return fmt.Errorf("empty packet")
+	n += t.frame(stream, msg, out[n:]) // packet
+	return t.tx(out[:n], false)
 }
 
 // | 0xd9f7 | 0x9f | packet | 0xff |
@@ -34,19 +30,14 @@ func (t *Transport) request(msg Message) (respmsg Message, err error) {
 
 	n := tag2cbor(tagCborPrefix, out)  // prefix
 	n += arrayStart(out[n:])           // 0x9f
-	m := t.frame(stream, msg, out[n:]) // packet
-	if m > 0 {
-		n += m
-		n += breakStop(out[n:]) // 0xff
-		if err = t.tx(out[:n], false); err != nil {
-			t.putstream(stream)
-			return nil, err
-		}
-		respmsg = <-stream.Rxch
-		return respmsg, nil
+	n += t.frame(stream, msg, out[n:]) // packet
+	n += breakStop(out[n:])            // 0xff
+	if err = t.tx(out[:n], false); err != nil {
+		t.putstream(stream)
+		return nil, err
 	}
-	err = fmt.Errorf("empty packet")
-	return nil, err
+	respmsg = <-stream.Rxch
+	return respmsg, nil
 }
 
 // | 0xd9f7 | 0x9f | packet1 |
@@ -63,17 +54,14 @@ func (t *Transport) start(msg Message, ch chan Message) (stream *Stream, err err
 
 	n := tag2cbor(tagCborPrefix, out)  // prefix
 	n += arrayStart(out[n:])           // 0x9f
-	m := t.frame(stream, msg, out[n:]) // packet
-	if m > 0 {
-		n += m
-		if err = t.tx(out[:n], false); err != nil {
-			t.putstream(stream)
-			return nil, err
-		}
-		return
+	n += t.frame(stream, msg, out[n:]) // packet
+	if err = t.tx(out[:n], false); err != nil {
+		t.putstream(stream)
+		return nil, err
 	}
-	err = fmt.Errorf("empty packet")
-	return nil, err
+	fmsg := "%v stream ##%x started ...\n"
+	log.Debugf(fmsg, t.logprefix, stream.opaque)
+	return stream, nil
 }
 
 // | 0xd9f7 | packet2 |
@@ -88,17 +76,12 @@ func (t *Transport) stream(stream *Stream, msg Message) (err error) {
 	}()
 
 	n := tag2cbor(tagCborPrefix, out)  // prefix
-	m := t.frame(stream, msg, out[n:]) // packet
-	if m > 0 {
-		n += m
-		if err = t.tx(out[:n], false); err != nil {
-			t.putstream(stream)
-			return err
-		}
-		return
+	n += t.frame(stream, msg, out[n:]) // packet
+	if err = t.tx(out[:n], false); err != nil {
+		t.putstream(stream)
+		return err
 	}
-	err = fmt.Errorf("empty packet")
-	return err
+	return nil
 }
 
 // | 0xd9f7 | packetN | 0xff |
@@ -106,10 +89,13 @@ func (t *Transport) finish(stream *Stream) error {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 
-	n := tag2cbor(tagCborPrefix, out) // prefix
-	n += breakStop(out[n:])           // 0xff
+	n := tag2cbor(tagCborPrefix, out)  // prefix
+	n += t.frame(stream, nil, out[n:]) // packet
+	n += breakStop(out[n:])            // 0xff
 	err := t.tx(out[:n], false)
 	t.putstream(stream)
+	fmsg := "%v stream ##%x closed ...\n"
+	log.Debugf(fmsg, t.logprefix, stream.opaque)
 	return err
 }
 
@@ -117,12 +103,17 @@ func (t *Transport) frame(stream *Stream, msg Message, out []byte) (n int) {
 	// compose message
 	data := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(data)
-	if p := msg.Encode(data); p == 0 {
-		return 0
-	} else {
-		stream.blueprint[tagId] = msg.Id()
-		stream.blueprint[tagData] = data[:p]
+	// create another buffer and rotate with `out` buffer
+	// and roll up the tags
+	packet := t.pktpool.Get().([]byte)
+	defer t.pktpool.Put(packet)
+
+	p, m := 0, 0
+	if msg != nil {
+		p = msg.Encode(data)
 	}
+	stream.blueprint[tagId] = msg.Id()
+	stream.blueprint[tagData] = data[:p]
 	n += mapStart(out[n:])
 	for key, value := range stream.blueprint {
 		n += value2cbor(key, out[n:])
@@ -130,11 +121,7 @@ func (t *Transport) frame(stream *Stream, msg Message, out []byte) (n int) {
 	}
 	n += breakStop(out[n:])
 
-	// create another buffer and rotate with `out` buffer and roll up the tags
-	packet := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(packet)
-
-	m := tag2cbor(tagMsg, packet) // roll up tagMsg
+	m = tag2cbor(tagMsg, packet) // roll up tagMsg
 	m += value2cbor(out[:n], packet[m:])
 	for tag := range t.tags { // roll up tags
 		if doenc, ok := t.tagok[tag]; ok && doenc { // if requested by peer
@@ -145,6 +132,7 @@ func (t *Transport) frame(stream *Stream, msg Message, out []byte) (n int) {
 			}
 		}
 	}
+
 	// finally roll up tagOpaqueStart-tagOpaqueEnd
 	n = tag2cbor(stream.opaque, out)
 	n += value2cbor(packet[:m], out[n:])
@@ -156,7 +144,7 @@ var txpool = sync.Pool{New: func() interface{} { return &txproto{} }}
 type txproto struct {
 	packet []byte // request
 	flush  bool
-	count  int // response
+	n      int // response
 	err    error
 	respch chan *txproto
 }
@@ -168,7 +156,7 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 	arg.packet, arg.flush, arg.respch = packet, flush, make(chan *txproto, 1)
 	t.txch <- arg
 	resp := <-arg.respch
-	n, err := resp.count, resp.err
+	n, err := resp.n, resp.err
 	if err == nil && n != len(packet) {
 		err = fmt.Errorf("all bytes not written")
 	}
@@ -176,23 +164,25 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 }
 
 func (t *Transport) doTx() {
-	batchlen := t.config["batchlen"].(int)
-	buflen := t.config["buflen"].(int)
-	batch, buflen, bufcap := make([]*txproto, 0, batchlen), 0, buflen
+	batchsize := t.config["batchsize"].(int)
+	buffersize := t.config["buffersize"].(int)
+	batch, buffersize, buffercap := make([]*txproto, 0, batchsize), 0, buffersize
 	drainbuffers := func() {
 		for _, arg := range batch {
-			arg.count, arg.err = 0, nil
+			arg.n, arg.err = 0, nil
 			if len(arg.packet) > 0 { // don't send it empty
 				n, err := t.conn.Write(arg.packet)
-				arg.count, arg.err = n, err
+				arg.n, arg.err = n, err
 			}
 			arg.respch <- arg
 		}
 		// reset the batch
-		buflen = 0
+		buffersize = 0
 		batch = batch[:0]
 	}
 
+	fmsg := "%v doTx(%v, %v) started ...\n"
+	log.Infof(fmsg, t.logprefix, batchsize, buffersize)
 loop:
 	for {
 		arg, ok := <-t.txch
@@ -200,9 +190,10 @@ loop:
 			break loop
 		}
 		batch = append(batch, arg)
-		buflen += len(arg.packet)
-		if arg.flush || len(batch) >= batchlen || buflen > bufcap {
+		buffersize += len(arg.packet)
+		if arg.flush || len(batch) >= batchsize || buffersize > buffercap {
 			drainbuffers()
 		}
 	}
+	log.Infof("%v doTx() ... stopped\n", t.logprefix)
 }
