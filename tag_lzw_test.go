@@ -1,25 +1,22 @@
 package gofast
 
 import "testing"
-import "compress/flate"
+
 import "io/ioutil"
 import "fmt"
 
 var _ = fmt.Sprintf("dummy")
 
-func TestTagGzip(t *testing.T) {
-	config := map[string]interface{}{
-		"buffersize": 1024 * 1024,
-		"gzip.level": flate.DefaultCompression,
-	}
-	tag, enc, dec := make_gzip(nil, config)
-	if tag != tagGzip {
-		t.Errorf("expected %v, got %v", tagGzip, tag)
+func TestTagLzw(t *testing.T) {
+	tag, enc, dec := make_lzw(nil, nil)
+	if tag != tagLzw {
+		t.Errorf("expected %v, got %v", tagLzw, tag)
 	}
 	// test with valid input
 	ref := "hello world"
 	in, out := make([]byte, 1024*1024), make([]byte, 1024*1024)
 	n := enc([]byte(ref), in)
+	fmt.Println(n, in[:n])
 	m := dec(in[:n], out)
 	if s := string(out[:m]); s != ref {
 		t.Errorf("expected %v, got %v", ref, s)
@@ -34,12 +31,8 @@ func TestTagGzip(t *testing.T) {
 	}
 }
 
-func BenchmarkGzEnc1KFast(b *testing.B) {
-	config := map[string]interface{}{
-		"buffersize": 1024 * 1024,
-		"gzip.level": flate.BestSpeed,
-	}
-	_, enc, _ := make_gzip(nil, config)
+func BenchmarkLzwEnc1KFast(b *testing.B) {
+	_, enc, _ := make_lzw(nil, nil)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)
@@ -50,20 +43,16 @@ func BenchmarkGzEnc1KFast(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		n = enc(s, out)
 	}
-	// fmt.Println(n)
+	//fmt.Println(n)
 	b.SetBytes(int64(n))
 }
 
-func BenchmarkGzDec1KFast(b *testing.B) {
-	config := map[string]interface{}{
-		"buffersize": 1024 * 1024,
-		"gzip.level": flate.BestSpeed,
-	}
+func BenchmarkLzwDec1KFast(b *testing.B) {
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)
 	}
-	_, enc, dec := make_gzip(nil, config)
+	_, enc, dec := make_lzw(nil, nil)
 	in, out := make([]byte, 1024*1024), make([]byte, 1024*1024)
 	n := enc(s, in)
 	b.ResetTimer()
@@ -75,12 +64,8 @@ func BenchmarkGzDec1KFast(b *testing.B) {
 	b.SetBytes(int64(m))
 }
 
-func BenchmarkGzEnc10KSmall(b *testing.B) {
-	config := map[string]interface{}{
-		"buffersize": 1024 * 1024,
-		"gzip.level": flate.BestSpeed,
-	}
-	_, enc, _ := make_gzip(nil, config)
+func BenchmarkLzwEnc10KSmall(b *testing.B) {
+	_, enc, _ := make_lzw(nil, nil)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)
@@ -99,12 +84,8 @@ func BenchmarkGzEnc10KSmall(b *testing.B) {
 	b.SetBytes(int64(m))
 }
 
-func BenchmarkGzDec10KSmall(b *testing.B) {
-	config := map[string]interface{}{
-		"buffersize": 1024 * 1024,
-		"gzip.level": flate.BestSpeed,
-	}
-	_, enc, dec := make_gzip(nil, config)
+func BenchmarkLzwDec10KSmall(b *testing.B) {
+	_, enc, dec := make_lzw(nil, nil)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)
