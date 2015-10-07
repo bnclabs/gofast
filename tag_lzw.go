@@ -7,25 +7,47 @@ import "bytes"
 import "io"
 
 func make_lzw(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn) {
+	var wbuf bytes.Buffer
 	enc := func(in, out []byte) int {
-		wbuf := bytes.NewBuffer(out[:])
-		writer := lzw.NewWriter(wbuf, lzw.LSB, 8 /*litWidth*/)
-		_, err := writer.Write(in)
-		if err != nil {
+		if len(in) == 0 {
+			return 0
+		}
+		wbuf.Reset()
+		writer := lzw.NewWriter(&wbuf, lzw.LSB, 8 /*litWidth*/)
+		if _, err := writer.Write(in); err != nil {
 			panic(err)
 		}
 		writer.Close()
 		return copy(out, wbuf.Bytes())
 	}
 	dec := func(in, out []byte) int {
+		if len(in) == 0 {
+			return 0
+		}
 		reader := lzw.NewReader(bytes.NewReader(in), lzw.LSB, 8 /*litWidth*/)
-		n, err := io.ReadFull(reader, out)
+		n, err := readAll(reader, out)
 		if err != nil {
 			panic(err)
 		}
+		reader.Close()
 		return n
 	}
 	return tagLzw, enc, dec
+}
+
+func readAll(r io.Reader, out []byte) (n int, err error) {
+	c := 0
+	for err == nil {
+		// Per http://golang.org/pkg/io/#Reader, it is valid for Read to
+		// return EOF with non-zero number of bytes at the end of the
+		// input stream
+		c, err = r.Read(out[n:])
+		n += c
+	}
+	if err == io.EOF {
+		return n, nil
+	}
+	return n, err
 }
 
 func init() {
