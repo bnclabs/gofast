@@ -83,6 +83,8 @@ import "time"
 
 type tagfn func(in, out []byte) int
 
+type RequestCallback func(*Stream, Message) chan Message
+
 // Transporter interface to send and receive packets.
 type Transporter interface { // facilitates unit testing
 	Read(b []byte) (n int, err error)
@@ -103,7 +105,7 @@ type Transport struct {
 	streams   chan *Stream
 	messages  map[uint64]Message // msgid -> message
 	verfunc   func(interface{}) Version
-	handler   func(*Stream, Message)
+	handler   RequestCallback
 	blueprint map[uint64]interface{} // message-tags -> value
 
 	conn   Transporter
@@ -246,7 +248,7 @@ func (t *Transport) SubscribeMessages(messages []Message) *Transport {
 }
 
 // RequestHandler callback to handle incoming request from peer.
-func (t *Transport) RequestHandler(fn func(*Stream, Message)) *Transport {
+func (t *Transport) RequestHandler(fn RequestCallback) *Transport {
 	t.handler = fn
 	return t
 }

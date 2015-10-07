@@ -59,8 +59,6 @@ func (t *Transport) start(msg Message, ch chan Message) (stream *Stream, err err
 		t.putstream(stream)
 		return nil, err
 	}
-	fmsg := "%v stream ##%x started ...\n"
-	log.Debugf(fmsg, t.logprefix, stream.opaque)
 	return stream, nil
 }
 
@@ -94,8 +92,6 @@ func (t *Transport) finish(stream *Stream) error {
 	n += breakStop(out[n:])            // 0xff
 	err := t.tx(out[:n], false)
 	t.putstream(stream)
-	fmsg := "%v stream ##%x closed ...\n"
-	log.Debugf(fmsg, t.logprefix, stream.opaque)
 	return err
 }
 

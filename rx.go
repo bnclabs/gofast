@@ -56,43 +56,57 @@ loop:
 			case *Stream:
 				_, ok := livestreams[val.opaque]
 				if val.Rxch == nil && ok {
+					fmsg := "%v stream ##%x closed ...\n"
+					log.Debugf(fmsg, t.logprefix, val.opaque)
 					delete(livestreams, val.opaque)
 				} else {
+					fmsg := "%v stream ##%x started ...\n"
+					log.Debugf(fmsg, t.logprefix, val.opaque)
 					livestreams[val.opaque] = val
 				}
 
 			case *rxpacket:
 				stream, streamok := livestreams[val.opaque]
-				if val.finish {
-					fmsg := "%v stream ##%v closed by remote\n"
-					log.Debugf(fmsg, t.logprefix, val.opaque)
-					close(stream.Rxch)
+				msg := t.unmessage(val.packet)
+				switch knownmsg := msg.(type) {
+				case *Heartbeat:
+					atomic.StoreInt64(&t.liveat, time.Now().UnixNano())
+				case *Ping:
+					if streamok {
+						stream.Rxch <- knownmsg
+					} else if _, err := t.Ping(knownmsg.echo); err != nil {
+						log.Errorf("%v ping: %v\n", t.logprefix, err)
+					}
+				case *Whoami:
+					if streamok {
+						stream.Rxch <- knownmsg
+					} else if _, err := t.Whoami(); err != nil {
+						log.Errorf("%v whoami: %v\n", t.logprefix, err)
+					}
+				case Message:
+					if streamok {
+						stream.Rxch <- knownmsg
+					} else { // new request from peer
+						stream = t.newstream(val.opaque)
+						stream.remote, stream.Rxch = true, nil
+						fmsg := "%v remote stream ##%x started ...\n"
+						log.Debugf(fmsg, t.logprefix, stream.opaque)
+						livestreams[stream.opaque] = stream
+						stream.Rxch = t.handler(stream, knownmsg)
+					}
+				default:
+					fmsg := "%v stream %x not expected\n"
+					log.Errorf(fmsg, t.logprefix, val.opaque)
+				}
+				if streamok && val.finish {
+					fmsg := "%v stream ##%x closed by remote ...\n"
+					log.Debugf(fmsg, t.logprefix, stream.opaque)
 					t.putstream(stream)
-
-				} else {
-					msg := t.unmessage(val.packet)
-					switch knownmsg := msg.(type) {
-					case *Heartbeat:
-						atomic.StoreInt64(&t.liveat, time.Now().UnixNano())
-					case *Ping:
-						if streamok {
-							stream.Rxch <- knownmsg
-						} else if _, err := t.Ping(knownmsg.echo); err != nil {
-							log.Errorf("%v ping: %v\n", t.logprefix, err)
-						}
-					case *Whoami:
-						if streamok {
-							stream.Rxch <- knownmsg
-						} else if _, err := t.Whoami(); err != nil {
-							log.Errorf("%v whoami: %v\n", t.logprefix, err)
-						}
-					default:
-						if streamok {
-							stream.Rxch <- knownmsg
-						} else {
-							fmsg := "%v stream %x not expected\n"
-							log.Errorf(fmsg, t.logprefix, val.opaque)
-						}
+					close(stream.Rxch)
+					stream.Rxch = nil
+					delete(livestreams, val.opaque)
+					if stream.remote == false { // reclaim if local stream
+						t.streams <- stream
 					}
 				}
 				t.pktpool.Put(val.packet)

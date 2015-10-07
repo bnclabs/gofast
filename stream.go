@@ -5,11 +5,12 @@ type Stream struct {
 	transport *Transport
 	Rxch      chan Message
 	opaque    uint64
+	remote    bool
 	blueprint map[uint64]interface{}
 }
 
 func (t *Transport) newstream(opaque uint64) *Stream {
-	return &Stream{transport: t, opaque: opaque}
+	return &Stream{transport: t, remote: false, opaque: opaque}
 }
 
 func (t *Transport) getstream(ch chan Message) *Stream {
@@ -22,8 +23,10 @@ func (t *Transport) getstream(ch chan Message) *Stream {
 func (t *Transport) putstream(stream *Stream) {
 	close(stream.Rxch)
 	stream.Rxch = nil
-	t.rxch <- stream // clean from syncrx book keeping
-	t.streams <- stream
+	t.rxch <- stream            // clean from syncrx book keeping
+	if stream.remote == false { // reclaim if local stream
+		t.streams <- stream
+	}
 }
 
 // Send a message on the stream.
