@@ -2,6 +2,7 @@ package gofast
 
 import "sync"
 import "fmt"
+import "errors"
 
 // | 0xd9f7 | packet |
 func (t *Transport) post(msg Message) error {
@@ -36,8 +37,11 @@ func (t *Transport) request(msg Message) (respmsg Message, err error) {
 		t.putstream(stream)
 		return nil, err
 	}
-	respmsg = <-stream.Rxch
-	return respmsg, nil
+	respmsg, ok := <-stream.Rxch
+	if ok {
+		return respmsg, nil
+	}
+	return nil, errors.New("stream closed")
 }
 
 // | 0xd9f7 | 0x9f | packet1 |
@@ -152,13 +156,22 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 	defer txpool.Put(arg)
 
 	arg.packet, arg.flush, arg.respch = packet, flush, make(chan *txproto, 1)
-	t.txch <- arg
-	resp := <-arg.respch
-	n, err := resp.n, resp.err
-	if err == nil && n != len(packet) {
-		err = fmt.Errorf("all bytes not written")
+	select {
+	case t.txch <- arg:
+		select {
+		case resp := <-arg.respch:
+			n, err := resp.n, resp.err
+			if err == nil && n != len(packet) {
+				return fmt.Errorf("partial write")
+			}
+			return err // success or error
+		case <-t.killch:
+			return errors.New("transport closed")
+		}
+	case <-t.killch:
+		return errors.New("transport closed")
 	}
-	return err
+	return nil
 }
 
 func (t *Transport) doTx() {
@@ -179,8 +192,8 @@ func (t *Transport) doTx() {
 		batch = batch[:0]
 	}
 
-	fmsg := "%v doTx(%v, %v) started ...\n"
-	log.Infof(fmsg, t.logprefix, batchsize, buffersize)
+	fmsg := "%v doTx(batch:%v, buffer:%v) started ...\n"
+	log.Infof(fmsg, t.logprefix, batchsize, buffercap)
 loop:
 	for {
 		arg, ok := <-t.txch

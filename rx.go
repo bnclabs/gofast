@@ -24,7 +24,12 @@ func (t *Transport) syncRx() {
 		go func(tag uint64, inch chan interface{}) { // this is the tagrunner
 			for {
 				func() {
-					arg := <-inch
+					var arg interface{}
+					select {
+					case arg = <-inch:
+					case <-t.killch:
+						return
+					}
 					rxpkt := arg.(*rxpacket)
 					defer t.pktpool.Put(rxpkt.packet)
 
@@ -43,11 +48,17 @@ func (t *Transport) syncRx() {
 		}(tag, inch)
 	}
 
+	livestreams := make(map[uint64]*Stream)
+	defer func() {
+		for _, stream := range livestreams {
+			close(stream.Rxch)
+		}
+	}()
+
 	go t.doRx(tagrunners)
 
-	fmsg := "%v syncRx(%v, %v) started ...\n"
+	fmsg := "%v syncRx(chansize:%v, tags:%v) started ...\n"
 	log.Infof(fmsg, t.logprefix, chansize, t.tags)
-	livestreams := make(map[uint64]*Stream)
 loop:
 	for {
 		select {
@@ -56,11 +67,11 @@ loop:
 			case *Stream:
 				_, ok := livestreams[val.opaque]
 				if val.Rxch == nil && ok {
-					fmsg := "%v stream ##%x closed ...\n"
+					fmsg := "%v stream ##%d closed ...\n"
 					log.Debugf(fmsg, t.logprefix, val.opaque)
 					delete(livestreams, val.opaque)
 				} else {
-					fmsg := "%v stream ##%x started ...\n"
+					fmsg := "%v stream ##%d started ...\n"
 					log.Debugf(fmsg, t.logprefix, val.opaque)
 					livestreams[val.opaque] = val
 				}
@@ -89,7 +100,7 @@ loop:
 					} else { // new request from peer
 						stream = t.newstream(val.opaque)
 						stream.remote, stream.Rxch = true, nil
-						fmsg := "%v remote stream ##%x started ...\n"
+						fmsg := "%v remote stream ##%d started ...\n"
 						log.Debugf(fmsg, t.logprefix, stream.opaque)
 						livestreams[stream.opaque] = stream
 						stream.Rxch = t.handler(stream, knownmsg)
@@ -99,15 +110,14 @@ loop:
 					log.Errorf(fmsg, t.logprefix, val.opaque)
 				}
 				if streamok && val.finish {
-					fmsg := "%v stream ##%x closed by remote ...\n"
+					fmsg := "%v stream ##%d closed by remote ...\n"
 					log.Debugf(fmsg, t.logprefix, stream.opaque)
-					t.putstream(stream)
 					close(stream.Rxch)
 					stream.Rxch = nil
-					delete(livestreams, val.opaque)
 					if stream.remote == false { // reclaim if local stream
 						t.streams <- stream
 					}
+					delete(livestreams, val.opaque)
 				}
 				t.pktpool.Put(val.packet)
 				rxpool.Put(val)
@@ -115,10 +125,7 @@ loop:
 			case string:
 				switch val {
 				case "close":
-					for _, stream := range livestreams {
-						stream.Close()
-					}
-					close(t.txch)
+					break loop
 				}
 			}
 
@@ -126,7 +133,7 @@ loop:
 			break loop
 		}
 	}
-	log.Infof("%v syncRx() ... stopped\n")
+	log.Infof("%v syncRx() ... stopped\n", t.logprefix)
 }
 
 func (t *Transport) doRx(tagrunners map[uint64]chan interface{}) {
@@ -164,6 +171,7 @@ func (t *Transport) doRx(tagrunners map[uint64]chan interface{}) {
 		tagrunners[tag.(uint64)] <- rxpkt
 		return nil
 	}
+
 	log.Infof("%v doRx() started ...\n", t.logprefix)
 	var pad [9]byte
 	for {
@@ -173,7 +181,7 @@ func (t *Transport) doRx(tagrunners map[uint64]chan interface{}) {
 		}
 		packet := t.pktpool.Get().([]byte)
 		if pad[0] != 0xf7 || pad[1] != 0xd9 { // check cbor-prefix
-			log.Errorf("%v wrong prefix\n", t.logprefix)
+			log.Errorf("%v wrong prefix %v\n", t.logprefix, pad)
 			break
 		} else if info := cborInfo(pad[2]); info < cborInfo24 {
 			if err := downstream(packet[:info]); err != nil {

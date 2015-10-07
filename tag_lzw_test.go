@@ -16,7 +16,6 @@ func TestTagLzw(t *testing.T) {
 	ref := "hello world"
 	in, out := make([]byte, 1024*1024), make([]byte, 1024*1024)
 	n := enc([]byte(ref), in)
-	fmt.Println(n, in[:n])
 	m := dec(in[:n], out)
 	if s := string(out[:m]); s != ref {
 		t.Errorf("expected %v, got %v", ref, s)

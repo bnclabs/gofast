@@ -144,14 +144,17 @@ func NewTransport(
 		tagenc:    make(map[uint64]tagfn),
 		tagok:     make(map[uint64]bool),
 		tagdec:    make(map[uint64]tagfn),
-		streams:   nil, // shall be initialized after SetOpaqueRange() call
+		streams:   nil, // shall be initialized after setOpaqueRange() call
 		messages:  make(map[uint64]Message),
 		verfunc:   nil,
 		blueprint: make(map[uint64]interface{}),
 
-		conn: conn,
-		txch: make(chan *txproto, chansize),
-		rxch: make(chan interface{}, chansize),
+		conn:   conn,
+		txch:   make(chan *txproto, chansize),
+		rxch:   make(chan interface{}, chansize),
+		killch: make(chan bool),
+
+		msgpools: make(map[uint64]*sync.Pool),
 
 		config: config,
 		tags:   make(map[uint64]bool),
@@ -160,7 +163,7 @@ func NewTransport(
 	setLogger(logg, t.config)
 
 	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
-	t.logprefix = fmt.Sprintf("GFST [%v<->%v]", laddr, raddr)
+	t.logprefix = fmt.Sprintf("GFST[%v<->%v]", laddr, raddr)
 	t.pktpool = &sync.Pool{
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
@@ -208,7 +211,7 @@ func NewTransport(
 		t.tagdec[tag] = dec
 		t.blueprint[tag] = nil
 	}
-	// since blue-print is modified, reinitialize the blue-prints.
+	// since blue-print is modified, reinitialize the streams.
 	streams := make([]*Stream, 0, len(t.streams))
 	for stream := range t.streams {
 		stream.blueprint = t.cloneblueprint()
@@ -367,6 +370,7 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	} else if end > tagOpaqueEnd {
 		panic(err)
 	}
+	log.Debugf("%v local streams start %v end %v\n", t.logprefix, start, end)
 	t.streams = make(chan *Stream, end-start+1) // inclusive
 	for opaque := start; opaque <= end; opaque++ {
 		stream := t.newstream(uint64(opaque))

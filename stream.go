@@ -16,16 +16,26 @@ func (t *Transport) newstream(opaque uint64) *Stream {
 func (t *Transport) getstream(ch chan Message) *Stream {
 	stream := <-t.streams
 	stream.Rxch = ch
-	t.rxch <- stream
+	select {
+	case t.rxch <- stream:
+	case <-t.killch:
+	}
 	return stream
 }
 
 func (t *Transport) putstream(stream *Stream) {
-	close(stream.Rxch)
+	func() {
+		// Rxch could also be closed when transport is closed...
+		defer func() { recover() }()
+		close(stream.Rxch)
+	}()
 	stream.Rxch = nil
-	t.rxch <- stream            // clean from syncrx book keeping
-	if stream.remote == false { // reclaim if local stream
-		t.streams <- stream
+	select {
+	case t.rxch <- stream: // clean from syncrx book keeping
+		if stream.remote == false { // reclaim if local stream
+			t.streams <- stream
+		}
+	case <-t.killch:
 	}
 }
 
