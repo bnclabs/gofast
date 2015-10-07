@@ -126,7 +126,9 @@ func (t *Transport) frame(stream *Stream, msg Message, out []byte) (n int) {
 	for tag := range t.tags { // roll up tags
 		if doenc, ok := t.tagok[tag]; ok && doenc { // if requested by peer
 			if fn, ok := t.tagenc[tag]; ok {
-				n = fn(packet[:m], out)
+				if n = fn(packet[:m], out); n == 0 { // skip tag
+					continue
+				}
 				m = tag2cbor(tag, packet)
 				m += value2cbor(out[:n], packet[m:])
 			}
