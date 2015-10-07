@@ -13,11 +13,10 @@ func make_gzip(t *Transport, config map[string]interface{}) (uint64, tagfn, tagf
 	if err != nil {
 		panic(err)
 	}
-	reader, err := gzip.NewReader(bytes.NewReader([]byte{}))
-	if err != nil {
-		panic(err)
-	}
 	enc := func(in, out []byte) int {
+		if len(in) == 0 { // empty input
+			return 0
+		}
 		wbuf.Reset()
 		writer.Reset(wbuf)
 		_, err := writer.Write(in)
@@ -29,7 +28,13 @@ func make_gzip(t *Transport, config map[string]interface{}) (uint64, tagfn, tagf
 		return copy(out, wbuf.Bytes())
 	}
 	dec := func(in, out []byte) int {
-		reader.Reset(bytes.NewReader(in))
+		if len(in) == 0 {
+			return 0
+		}
+		reader, err := gzip.NewReader(bytes.NewBuffer(in))
+		if err != nil {
+			panic(err)
+		}
 		n, err := reader.Read(out)
 		if err != nil {
 			panic(err)
