@@ -6,57 +6,65 @@
 // message-format:
 //
 //	  A message is encoded as finite length CBOR map with predefined list
-//    of keys, for example, "version", "compression", "id", "data" etc...
-//    keys are typically encoded as uint16 numbers so that
-//    they can be efficiently packed. This implies that each of the
-//    predefined keys shall be assigned a unique number.
-//
-// packet-format:
-//
-//	  a single block of binary blob in CBOR format, transmitted
-//    from client to server or server to client:
-//
-//		tag1 |         payload1				  |
-//			 | tag2 |      payload2			  |
-//					| tag3 |   payload3       |
-//						   | tag 4 | hdr-data |
-//
-//
-//    * payload shall always be encoded as CBOR byte array.
-//	  * tags are uint64 numbers that will either be prefixed
-//      to payload or msg.
-//    * packets are encoded as cbor-bytes.
-//
-//    In the above example:
-//
-//	  * tag1, will always be a opaque number falling within a
-//      reserved tag-space called opaque-space.
-//    * tag2, tag3 can be one of the values predefined by gofast.
-//    * the final embedded tag, in this case tag4, shall always
-//      be tagMsg (value 37).
+//    of keys, for example, "id", "data" etc... keys are typically encoded
+//    as numbers so that they can be efficiently packed. This implies that
+//    each of the predefined keys shall be assigned a unique number.
 //
 // an exchange shall be initiated either by client or server,
 // exchange can be:
 //
 //	   post-request, client post a packet and expects no response:
 //
-//			| 0xd9f7 | packet |
+//			| 0xd9 0xd9f7 | packet |
 //
 //	   request-response, client make a request and expects a
 //     single response:
 //
-//			| 0xd9f7 | 0x9f | packet | 0xff |
+//			| 0xd9 0xd9f7 | 0x91 | packet |
 //
 //	   bi-directional streaming, where client and server will have to close
 //     the stream by sending a 0xff.
 //
-//			| 0xd9f7 | 0x9f | packet1 |
-//							| 0xd9f7 | packet2 |
+//			| 0xd9 0xd9f7 | 0x9f | packet1 |
+//							| 0xd9 0xd9f7  | packet2     |
 //							...
-//							| 0xd9f7 | packetN | 0xff |
+//							| 0xd9 0xd9f7  | end-packet  |
+//
+//	   * `packet` shall always be encoded as CBOR byte-array of info-type,
+//       Info26 (4-byte) length.
+//     * 0x91 denotes an array of single item, a special meaning for new
+//       request that expects a single response from peer.
+//     * 0x9f denotes an array of indefinite items, a special meaning
+//       for a new stream that starts a bi-directional exchange.
 //
 // except of post-request, the exchange between client and server is always
 // symmetrical.
+//
+// packet-format:
+//
+//	  a single block of binary blob in CBOR format, transmitted
+//    from client to server or server to client:
+//
+//       | tag1 |         payload1               |
+//              | tag2 |      payload2           |
+//                     | tag3 |   payload3       |
+//                            | tag 4 | hdr-data |
+//
+//    * payload shall always be encoded as CBOR byte-array.
+//	  * hdr-data shall always be encoded as CBOR map.
+//	  * tags are uint64 numbers that will either be prefixed
+//      to payload or msg.
+//
+//       | tag1  | 0xff |
+//
+//    * if packet denotes a stream-end, payload will be
+//      1-byte 0xff, and not encoded as byte-array.
+//
+//	  * tag1, will always be a opaque number falling within a
+//      reserved tag-space called opaque-space.
+//    * tag2, tag3 can be one of the values predefined by gofast.
+//    * the final embedded tag, in this case tag4, shall always
+//      be tagMsg (value 37).
 //
 // configurations:
 //
@@ -96,29 +104,26 @@ type Transporter interface { // facilitates unit testing
 
 // Transport is a peer-to-peer transport enabler.
 type Transport struct {
-	name      string
-	version   Version
-	peerver   Version
-	tagenc    map[uint64]tagfn // tagid -> func
-	tagdec    map[uint64]tagfn // tagid -> func
-	tagok     map[uint64]bool  // tagid -> bool, requested while handshake
-	streams   chan *Stream
-	messages  map[uint64]Message // msgid -> message
-	verfunc   func(interface{}) Version
-	handler   RequestCallback
-	blueprint map[uint64]interface{} // message-tags -> value
+	name     string
+	version  Version
+	peerver  Version
+	tagenc   map[uint64]tagfn // tagid -> func
+	tagdec   map[uint64]tagfn // tagid -> func
+	streams  chan *Stream
+	messages map[uint64]Message // msgid -> message
+	verfunc  func(interface{}) Version
+	handlers map[uint64]RequestCallback
 
-	conn   Transporter
-	liveat int64
-	txch   chan *txproto
-	rxch   chan interface{}
-	killch chan bool
+	conn    Transporter
+	aliveat int64
+	txch    chan *txproto
+	rxch    chan interface{}
+	killch  chan bool
 
 	pktpool  *sync.Pool
 	msgpools map[uint64]*sync.Pool
 
 	config    map[string]interface{}
-	tags      map[uint64]bool
 	logprefix string
 }
 
@@ -139,15 +144,13 @@ func NewTransport(
 	chansize := config["chansize"].(int)
 
 	t := &Transport{
-		name:      name,
-		version:   version,
-		tagenc:    make(map[uint64]tagfn),
-		tagok:     make(map[uint64]bool),
-		tagdec:    make(map[uint64]tagfn),
-		streams:   nil, // shall be initialized after setOpaqueRange() call
-		messages:  make(map[uint64]Message),
-		verfunc:   nil,
-		blueprint: make(map[uint64]interface{}),
+		name:     name,
+		version:  version,
+		tagenc:   make(map[uint64]tagfn),
+		tagdec:   make(map[uint64]tagfn),
+		streams:  nil, // shall be initialized after setOpaqueRange() call
+		messages: make(map[uint64]Message),
+		verfunc:  nil,
 
 		conn:   conn,
 		txch:   make(chan *txproto, chansize),
@@ -157,7 +160,6 @@ func NewTransport(
 		msgpools: make(map[uint64]*sync.Pool),
 
 		config: config,
-		tags:   make(map[uint64]bool),
 	}
 
 	setLogger(logg, t.config)
@@ -168,58 +170,35 @@ func NewTransport(
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
 
-	// pre-initialize blueprint
-	t.blueprint[tagId] = nil
-	t.blueprint[tagData] = nil
+	// parse tag list, tags will be applied in the specified order.
+	if tagcsv, ok := config["tags"].(string); ok {
+		for _, tag := range strings.Split(tagcsv, ",") {
+			if strings.Trim(tag, " \n\t\r") != "" {
+				factory, ok := tag_factory[tag]
+				if !ok {
+					panic(fmt.Errorf("unknown tag %v", tag))
+				}
+				tagid, enc, dec := factory(t, config)
+				t.tagenc[tagid], t.tagdec[tagid] = enc, dec
+			}
+		}
+	}
 
 	t.setOpaqueRange(uint64(opqstart), uint64(opqend)) // precise sequence
 
-	t.SubscribeMessages([]Message{&Whoami{}, &Ping{}, &Heartbeat{}})
+	t.SubscribeMessages(t.msghandler, &Whoami{}, &Ping{}, &Heartbeat{})
 	log.Verbosef("%v pre-initialized ...\n", t.logprefix)
 
 	go t.doTx()
 	go t.syncRx()
 
-	if _, err := t.Ping("handshake"); err != nil {
+	msg, err := t.Whoami()
+	if err != nil {
 		return nil, err
-	} else if msg, err := t.Whoami(); err != nil {
-		return nil, err
-	} else {
-		fmsg := "%v handshake completed peer: %v / %v ...\n"
-		log.Verbosef(fmsg, t.logprefix, t.PeerVersion(), msg.Repr())
 	}
+	fmsg := "%v handshake completed with peer: %v ...\n"
+	log.Verbosef(fmsg, t.logprefix, msg.Repr())
 
-	// parse tag list, tags will be applied in the specified order
-	// do this before invoking tag-factory
-	tagmap := map[string]bool{}
-	if tagcsv, ok := config["tags"].(string); ok {
-		for _, tagname := range strings.Split(tagcsv, ",") {
-			if strings.Trim(tagname, " \n\t\r") != "" {
-				tagmap[tagname] = true
-			}
-		}
-	}
-	// initialize blueprint and tag-wrapping
-	t.blueprint[tagVersion] = t.peerver.Value()
-	for tagname, factory := range tag_factory {
-		if _, ok := tagmap[tagname]; !ok {
-			continue
-		}
-		tag, enc, dec := factory(t, config)
-		t.tags[tag] = true
-		t.tagenc[tag] = enc
-		t.tagdec[tag] = dec
-		t.blueprint[tag] = nil
-	}
-	// since blue-print is modified, reinitialize the streams.
-	streams := make([]*Stream, 0, len(t.streams))
-	for stream := range t.streams {
-		stream.blueprint = t.cloneblueprint()
-		streams = append(streams, stream)
-	}
-	for _, stream := range streams {
-		t.streams <- stream
-	}
 	log.Infof("%v started ...\n", t.logprefix)
 	return t, nil
 }
@@ -232,7 +211,7 @@ func (t *Transport) VersionHandler(fn func(value interface{}) Version) *Transpor
 
 // SubscribeMessages that shall be exchanged via this transport. Only
 // subscribed messages can be exchanged.
-func (t *Transport) SubscribeMessages(messages []Message) *Transport {
+func (t *Transport) SubscribeMessages(handler RequestCallback, msgs ...Message) *Transport {
 	factory := func(msg Message) func() interface{} {
 		return func() interface{} {
 			typeOfMsg := reflect.ValueOf(msg).Elem().Type()
@@ -240,9 +219,11 @@ func (t *Transport) SubscribeMessages(messages []Message) *Transport {
 		}
 	}
 	msgstr := []string{}
-	for _, msg := range messages {
-		t.messages[msg.Id()] = msg
-		t.msgpools[msg.Id()] = &sync.Pool{New: factory(msg)}
+	for _, msg := range msgs {
+		id := msg.Id()
+		t.messages[id] = msg
+		t.msgpools[id] = &sync.Pool{New: factory(msg)}
+		t.handlers[id] = handler
 		msgstr = append(msgstr, msg.String())
 	}
 	s := strings.Join(msgstr, ",")
@@ -250,17 +231,10 @@ func (t *Transport) SubscribeMessages(messages []Message) *Transport {
 	return t
 }
 
-// RequestHandler callback to handle incoming request from peer.
-func (t *Transport) RequestHandler(fn RequestCallback) *Transport {
-	t.handler = fn
-	return t
-}
-
 // Close this tranport, connection will be closed as well.
 func (t *Transport) Close() error {
 	defer func() { recover() }()
 	t.pktpool = nil
-	t.rxch <- "close"
 	close(t.killch)
 	log.Infof("%v ... closed\n", t.logprefix)
 	return t.conn.Close()
@@ -296,7 +270,7 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 // Liveat returns the timestamp of last heartbeat message received
 // from peer.
 func (t *Transport) Liveat() int64 {
-	return atomic.LoadInt64(&t.liveat)
+	return atomic.LoadInt64(&t.aliveat)
 }
 
 // LocalAddr of this connection.
@@ -315,7 +289,7 @@ func (t *Transport) PeerVersion() Version {
 }
 
 // Free will return the message back to the pool, should be
-// called on messages received via RequestHandler callback and
+// called on messages received via RequestCallback callback and
 // via Stream.Rxch.
 func (t *Transport) Free(msg Message) {
 	t.msgpools[msg.Id()].Put(msg)
@@ -373,25 +347,10 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	log.Debugf("%v local streams start %v end %v\n", t.logprefix, start, end)
 	t.streams = make(chan *Stream, end-start+1) // inclusive
 	for opaque := start; opaque <= end; opaque++ {
-		stream := t.newstream(uint64(opaque))
-		stream.blueprint = t.cloneblueprint()
-		t.streams <- stream
+		t.streams <- t.newstream(uint64(opaque), false)
 	}
 }
 
-func (t *Transport) cloneblueprint() map[uint64]interface{} {
-	// once transport is initialized, blueprint is immutable.
-	blueprint := make(map[uint64]interface{})
-	blueprint[tagId] = nil
-	// during pre-initialization version won't be present.
-	if version, ok := t.blueprint[tagVersion]; ok {
-		blueprint[tagVersion] = version
-	}
-	blueprint[tagData] = nil
-	for tag, _ := range t.blueprint {
-		blueprint[tag] = nil
-	}
-	return blueprint
-}
+type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)
 
-var tag_factory = make(map[string]func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn))
+var tag_factory = make(map[string]tagFactory)

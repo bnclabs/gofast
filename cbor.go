@@ -103,8 +103,6 @@ const ( // pre-defined tag values
 	// Lzw compression method.
 	tagLzw
 
-	// unassigned 38..255
-
 	// opaque-space 256..55798
 	tagOpaqueStart = iota + 235
 	tagOpaqueEnd   = iota + 55776

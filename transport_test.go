@@ -2,9 +2,10 @@ package gofast
 
 import "testing"
 import "fmt"
-import "bytes"
 import "compress/flate"
 import "net"
+import "time"
+import "sync"
 
 func TestTransport(t *testing.T) {
 	st, end := tagOpaqueStart, tagOpaqueStart+1000
@@ -31,24 +32,48 @@ func newconfig(name string, start, end int) map[string]interface{} {
 }
 
 type testConnection struct {
-	buf   bytes.Buffer
+	roff  int
+	woff  int
+	buf   []byte
+	mu    sync.Mutex
 	laddr netAddr
 	raddr netAddr
 }
 
 func newTestConnection() *testConnection {
 	return &testConnection{
+		buf:   make([]byte, 100000),
 		laddr: netAddr("127.0.0.1:9998"),
 		raddr: netAddr("127.0.0.1:9999"),
 	}
 }
 
 func (tc *testConnection) Write(b []byte) (n int, err error) {
-	return tc.buf.Write(b)
+	do := func() (int, error) {
+		tc.mu.Lock()
+		defer tc.mu.Unlock()
+		newoff := tc.woff + len(b)
+		copy(tc.buf[tc.woff:newoff], b)
+		tc.woff = newoff
+		return len(b), nil
+	}
+	return do()
 }
 
 func (tc *testConnection) Read(b []byte) (n int, err error) {
-	return tc.buf.Read(b)
+	do := func() (int, error) {
+		tc.mu.Lock()
+		defer tc.mu.Unlock()
+		newoff := tc.roff + len(b)
+		copy(b, tc.buf[tc.roff:newoff])
+		tc.roff = newoff
+		return len(b), nil
+	}
+	for err == nil && n == 0 {
+		n, err = do()
+		time.Sleep(100 * time.Millisecond)
+	}
+	return n, err
 }
 
 func (tc *testConnection) LocalAddr() net.Addr {
@@ -59,8 +84,12 @@ func (tc *testConnection) RemoteAddr() net.Addr {
 	return tc.raddr
 }
 
-func (tc *testConnection) Close() error {
-	tc.buf.Reset()
+func (tc *testConnection) reset() *testConnection {
+	tc.woff, tc.roff = 0, 0
+	return tc
+}
+
+func (tx *testConnection) Close() error {
 	return nil
 }
 
