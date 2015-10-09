@@ -15,7 +15,7 @@ func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
 }
 
 func (t *Transport) getstream(ch chan Message) *Stream {
-	stream := <-t.streams
+	stream := <-t.strmpool
 	stream.Rxch = ch
 	t.putch(t.rxch, stream)
 	return stream
@@ -34,7 +34,7 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	close(stream.Rxch)
 	stream.Rxch = nil
 	if stream.remote == false { // reclaim if local stream
-		t.streams <- stream
+		t.strmpool <- stream
 	}
 	if tellrx {
 		t.putch(t.rxch, stream)
@@ -43,17 +43,36 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 
 // Response a request.
 func (s *Stream) Response(msg Message) error {
-	return s.transport.stream(s, msg)
+	out := s.transport.pktpool.Get().([]byte)
+	defer s.transport.pktpool.Put(out)
+	defer s.transport.putstream(s.opaque, s, true /*tellrx*/)
+
+	n := s.transport.response(msg, s, out)
+	return s.transport.tx(out[:n], false)
 }
 
 // Stream a message on the stream.
-func (s *Stream) Stream(msg Message) error {
-	return s.transport.stream(s, msg)
+func (s *Stream) Stream(msg Message) (err error) {
+	out := s.transport.pktpool.Get().([]byte)
+	defer s.transport.pktpool.Put(out)
+	defer func() {
+		if err != nil {
+			s.transport.putstream(s.opaque, s, true /*tellrx*/)
+		}
+	}()
+	n := s.transport.stream(s, msg, out)
+	err = s.transport.tx(out[:n], false)
+	return
 }
 
 // Close the stream.
 func (s *Stream) Close() error {
-	return s.transport.finish(s)
+	out := s.transport.pktpool.Get().([]byte)
+	defer s.transport.pktpool.Put(out)
+	defer s.transport.putstream(s.opaque, s, true /*tellrx*/)
+
+	n := s.transport.finish(s, out)
+	return s.transport.tx(out[:n], false)
 }
 
 // Transport carrying this stream.

@@ -56,7 +56,7 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)
 		}
 		// TODO: make this atomic
-		t.peerver = t.verfunc(m.Version)
+		t.peerver = t.verfunc(m.version)
 		t.Free(rv)
 		stream.Close()
 

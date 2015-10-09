@@ -16,13 +16,7 @@ type rxpacket struct {
 
 func (t *Transport) syncRx() {
 	chansize := t.config["chansize"].(int)
-
 	livestreams := make(map[uint64]*Stream)
-	defer func() {
-		for _, stream := range livestreams {
-			t.putstream(stream.opaque, stream, false /*tellrx*/)
-		}
-	}()
 
 	streamupdate := func(stream *Stream) {
 		_, ok := livestreams[stream.opaque]
@@ -72,15 +66,6 @@ func (t *Transport) syncRx() {
 		t.putmsg(stream.Rxch, msg)
 	}
 
-	drainrxch := func() {
-		for len(t.rxch) > 0 {
-			arg := <-t.rxch
-			if rxpkt, ok := arg.(*rxpacket); ok {
-				handlepkt(rxpkt)
-			}
-		}
-	}
-
 	go t.doRx()
 
 	fmsg := "%v syncRx(chansize:%v) started ...\n"
@@ -96,9 +81,6 @@ loop:
 				handlepkt(val)
 			}
 		case <-t.killch:
-			if len(t.rxch) > 0 {
-				drainrxch()
-			}
 			break loop
 		}
 	}

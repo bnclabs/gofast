@@ -4,6 +4,7 @@ package gofast
 
 import "reflect"
 import "unsafe"
+import "strings"
 
 func bytes2str(bytes []byte) string {
 	if bytes == nil {
@@ -30,6 +31,22 @@ func hasString(str string, strs []string) bool {
 		}
 	}
 	return false
+}
+
+func csv2strings(line string, out []string) []string {
+	for _, str := range strings.Split(line, ",") {
+		if strings.Trim(str, " \n\t\r") != "" {
+			out = append(out, str)
+		}
+	}
+	return out
+}
+
+func objfactory(msg Message) func() interface{} {
+	return func() interface{} {
+		typeOfMsg := reflect.ValueOf(msg).Elem().Type()
+		return reflect.New(typeOfMsg).Interface()
+	}
 }
 
 // CborMap2golangMap transforms [][2]interface{} to map[string]interface{}

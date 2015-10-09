@@ -2,118 +2,56 @@ package gofast
 
 import "sync"
 import "fmt"
-import "errors"
 
 // | 0xd9f7 | packet |
-func (t *Transport) post(msg Message) error {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
-
-	stream := t.getstream(nil)
-	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
-
-	n := tag2cbor(tagCborPrefix, out)     // prefix
+func (t *Transport) post(msg Message, stream *Stream, out []byte) (n int) {
+	n = tag2cbor(tagCborPrefix, out)      // prefix
 	n += t.framepkt(stream, msg, out[n:]) // packet
-	return t.tx(out[:n], false)
+	return n
 }
 
 // | 0xd9f7 | 0x91 | packet |
-func (t *Transport) request(msg Message) (respmsg Message, err error) {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
-
-	stream := t.getstream(make(chan Message, 1))
-	defer func() {
-		if err != nil {
-			t.putstream(stream.opaque, stream, true /*tellrx*/)
-		}
-	}()
-
-	n := tag2cbor(tagCborPrefix, out) // prefix
-	out[n] = 0x91                     // 0x91
+func (t *Transport) request(msg Message, stream *Stream, out []byte) (n int) {
+	n = tag2cbor(tagCborPrefix, out) // prefix
+	out[n] = 0x91                    // 0x91
 	n += 1
 	n += t.framepkt(stream, msg, out[n:]) // packet
-	if err = t.tx(out[:n], false); err != nil {
-		t.putstream(stream.opaque, stream, true /*tellrx*/)
-		return nil, err
-	}
-	respmsg, ok := <-stream.Rxch
-	if ok {
-		return respmsg, nil
-	}
-	return nil, errors.New("stream closed")
+	return n
 }
 
 // | 0xd9f7 | 0x91 | packet |
-func (t *Transport) response(stream *Stream, msg Message) (err error) {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
-	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
-
-	n := tag2cbor(tagCborPrefix, out) // prefix
-	out[n] = 0x91                     // 0x91
+func (t *Transport) response(msg Message, stream *Stream, out []byte) (n int) {
+	n = tag2cbor(tagCborPrefix, out) // prefix
+	out[n] = 0x91                    // 0x91
 	n += 1
 	n += t.framepkt(stream, msg, out[n:]) // packet
-	return t.tx(out[:n], false)
+	return n
 }
 
 // | 0xd9f7 | 0x9f | packet1 |
-func (t *Transport) start(msg Message, ch chan Message) (stream *Stream, err error) {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
-
-	stream = t.getstream(ch)
-	defer func() {
-		if err != nil {
-			t.putstream(stream.opaque, stream, true /*tellrx*/)
-		}
-	}()
-
-	n := tag2cbor(tagCborPrefix, out)     // prefix
+func (t *Transport) start(msg Message, stream *Stream, out []byte) (n int) {
+	n = tag2cbor(tagCborPrefix, out)      // prefix
 	n += arrayStart(out[n:])              // 0x9f
 	n += t.framepkt(stream, msg, out[n:]) // packet
-	if err = t.tx(out[:n], false); err != nil {
-		t.putstream(stream.opaque, stream, true /*tellrx*/)
-		return nil, err
-	}
-	return stream, nil
+	return n
 }
 
 // | 0xd9f7 | packet2 |
-func (t *Transport) stream(stream *Stream, msg Message) (err error) {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
-
-	defer func() {
-		if err != nil {
-			t.putstream(stream.opaque, stream, true /*tellrx*/)
-		}
-	}()
-
-	n := tag2cbor(tagCborPrefix, out)     // prefix
+func (t *Transport) stream(stream *Stream, msg Message, out []byte) (n int) {
+	n = tag2cbor(tagCborPrefix, out)      // prefix
 	n += t.framepkt(stream, msg, out[n:]) // packet
-	if err = t.tx(out[:n], false); err != nil {
-		t.putstream(stream.opaque, stream, true /*tellrx*/)
-		return err
-	}
-	return nil
+	return n
 }
 
 // | 0xd9f7 | packetN | 0xff |
-func (t *Transport) finish(stream *Stream) error {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
-	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
-
+func (t *Transport) finish(stream *Stream, out []byte) (n int) {
 	var scratch [16]byte
-
-	n := tag2cbor(tagCborPrefix, out)        // prefix
+	n = tag2cbor(tagCborPrefix, out)         // prefix
 	m := tag2cbor(stream.opaque, scratch[:]) // tag-opaque
 	scratch[m] = 0xff                        // 0xff (payload)
 	m += 1
 	n += value2cbor(scratch[:m], out[n:]) // packet
-	err := t.tx(out[:n], false)
-	return err
+	return n
 }
 
 func (t *Transport) framepkt(stream *Stream, msg Message, ping []byte) (n int) {
@@ -175,10 +113,11 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 			}
 			return err // success or error
 		case <-t.killch:
-			return errors.New("transport closed")
+			return fmt.Errorf("transport closed")
 		}
+
 	case <-t.killch:
-		return errors.New("transport closed")
+		return fmt.Errorf("transport closed")
 	}
 	return nil
 }
@@ -203,16 +142,17 @@ func (t *Transport) doTx() {
 
 	fmsg := "%v doTx(batch:%v, buffer:%v) started ...\n"
 	log.Infof(fmsg, t.logprefix, batchsize, buffercap)
-loop:
 	for {
-		arg, ok := <-t.txch
-		if ok == false {
-			break loop
-		}
-		batch = append(batch, arg)
-		buffersize += len(arg.packet)
-		if arg.flush || len(batch) >= batchsize || buffersize > buffercap {
-			drainbuffers()
+		select {
+		case arg := <-t.txch:
+			batch = append(batch, arg)
+			buffersize += len(arg.packet)
+			if arg.flush || len(batch) >= batchsize || buffersize > buffercap {
+				drainbuffers()
+			}
+
+		case <-t.killch:
+			break
 		}
 	}
 	log.Infof("%v doTx() ... stopped\n", t.logprefix)
