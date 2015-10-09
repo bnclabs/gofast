@@ -59,7 +59,9 @@ func setLogger(logger Logger, config map[string]interface{}) Logger {
 		logfile := val.(string)
 		logfd, err = os.OpenFile(logfile, os.O_RDWR|os.O_APPEND, 0660)
 		if err != nil {
-			panic(err)
+			if logfd, err = os.Create(logfile); err != nil {
+				panic(err)
+			}
 		}
 	}
 	log = &DefaultLogger{level: level, output: logfd}
@@ -110,6 +112,8 @@ func (l *DefaultLogger) canlog(level logLevel) bool {
 
 func (l logLevel) String() string {
 	switch l {
+	case logLevelIgnore:
+		return "Ignore"
 	case logLevelFatal:
 		return "Fatal"
 	case logLevelError:
