@@ -25,13 +25,17 @@ func (msg *Ping) Encode(out []byte) int {
 }
 
 func (msg *Ping) Decode(in []byte) {
-	// echo
-	val, _ := cbor2value(in)
-	if items, ok := val.([]interface{}); ok {
-		msg.echo = items[0].(string)
-	} else {
-		log.Errorf("Ping{}.Decode() invalid i/p\n")
+	if in[0] != 0x9f {
+		return
 	}
+	ln, n := cborItemLength(in[1:])
+	bs := str2bytes(msg.echo)
+	if cap(bs) == 0 {
+		bs = make([]byte, len(in))
+	}
+	bs = append(bs[:0], in[1+n:1+n+ln]...)
+	msg.echo = bytes2str(bs[:ln])
+	return
 }
 
 func (msg *Ping) String() string {
