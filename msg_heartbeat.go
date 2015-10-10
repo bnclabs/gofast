@@ -7,7 +7,7 @@ type Heartbeat struct {
 	count uint64
 }
 
-func NewHeartbeat(t *Transport, count uint64) *Heartbeat {
+func NewHeartbeat(count uint64) *Heartbeat {
 	val := hbpool.Get()
 	msg := val.(*Heartbeat)
 	msg.count = count
