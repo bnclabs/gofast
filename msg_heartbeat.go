@@ -20,19 +20,17 @@ func (msg *Heartbeat) Id() uint64 {
 
 func (msg *Heartbeat) Encode(out []byte) int {
 	n := arrayStart(out)
-	n += value2cbor(msg.count, out[n:])
+	n += valuint642cbor(uint64(msg.count), out[n:])
 	n += breakStop(out[n:])
 	return n
 }
 
 func (msg *Heartbeat) Decode(in []byte) {
-	// count
-	val, _ := cbor2value(in)
-	if items, ok := val.([]interface{}); ok {
-		msg.count = items[0].(uint64)
-	} else {
-		log.Errorf("Heartbeat{}.Decode() invalid i/p\n")
+	if in[0] != 0x9f {
+		return
 	}
+	ln, _ := cborItemLength(in[1:])
+	msg.count = uint64(ln)
 }
 
 func (msg *Heartbeat) String() string {
@@ -40,7 +38,7 @@ func (msg *Heartbeat) String() string {
 }
 
 func (msg *Heartbeat) Repr() string {
-	return strconv.Itoa(int(msg.count))
+	return msg.String() + ":" + strconv.Itoa(int(msg.count))
 }
 
 var hbpool *sync.Pool
