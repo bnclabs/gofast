@@ -8,13 +8,15 @@ import "time"
 import "sync"
 
 func TestTransport(t *testing.T) {
-	st, end := tagOpaqueStart, tagOpaqueStart+1000
+	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config, conn := newconfig("testtransport", st, end), newTestConnection()
 	trans, err := NewTransport(conn, testVersion(1), nil, config)
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(trans)
+	trans.VersionHandler(verhandler).Handshake()
+	trans.Close()
+	time.Sleep(1 * time.Second)
 }
 
 func newconfig(name string, start, end int) map[string]interface{} {
@@ -57,22 +59,27 @@ func (tc *testConnection) Write(b []byte) (n int, err error) {
 		tc.woff = newoff
 		return len(b), nil
 	}
-	return do()
+	n, err = do()
+	//fmt.Println("write ...", n, err)
+	return
 }
 
 func (tc *testConnection) Read(b []byte) (n int, err error) {
 	do := func() (int, error) {
 		tc.mu.Lock()
 		defer tc.mu.Unlock()
-		newoff := tc.roff + len(b)
-		copy(b, tc.buf[tc.roff:newoff])
-		tc.roff = newoff
-		return len(b), nil
+		if newoff := tc.roff + len(b); newoff <= tc.woff {
+			copy(b, tc.buf[tc.roff:newoff])
+			tc.roff = newoff
+			return len(b), nil
+		}
+		return 0, nil
 	}
 	for err == nil && n == 0 {
 		n, err = do()
 		time.Sleep(100 * time.Millisecond)
 	}
+	//fmt.Println("read ...", n, err)
 	return n, err
 }
 
@@ -119,4 +126,13 @@ func (v testVersion) String() string {
 
 func (v testVersion) Value() interface{} {
 	return int(v)
+}
+
+func verhandler(val interface{}) Version {
+	if ver, ok := val.(uint64); ok {
+		return testVersion(ver)
+	} else if ver, ok := val.(int); ok {
+		return testVersion(ver)
+	}
+	return nil
 }
