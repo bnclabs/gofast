@@ -30,25 +30,48 @@ func (msg *Whoami) Id() uint64 {
 
 func (msg *Whoami) Encode(out []byte) int {
 	n := arrayStart(out)
-	n += value2cbor(msg.name, out[n:])
+	n += valtext2cbor(msg.name, out[n:])
 	n += value2cbor(msg.version, out[n:])
-	n += value2cbor(msg.buffersize, out[n:])
-	n += value2cbor(msg.tags, out[n:])
+	n += valuint642cbor(uint64(msg.buffersize), out[n:])
+	n += valtext2cbor(msg.tags, out[n:])
 	n += breakStop(out[n:])
 	return n
 }
 
 func (msg *Whoami) Decode(in []byte) {
-	val, _ := cbor2value(in)
-	if items, ok := val.([]interface{}); ok {
-		msg.name = items[0].(string)
-		msg.version = items[1]
-		msg.buffersize = int(items[2].(uint64))
-		msg.tags = items[3].(string)
-
-	} else {
-		log.Errorf("Whoami{}.Decode() invalid i/p\n")
+	n := 0
+	if in[n] != 0x9f {
+		return
 	}
+	n += 1
+	// name
+	ln, m := cborItemLength(in[n:])
+	n += m
+	bs := str2bytes(msg.name)
+	if cap(bs) == 0 {
+		bs = make([]byte, len(in))
+	}
+	bs = append(bs[:0], in[n:n+ln]...)
+	msg.name = bytes2str(bs)
+	n += ln
+	// version
+	val, m := cbor2value(in[n:])
+	msg.version = val
+	n += m
+	// buffersize
+	ln, m = cborItemLength(in[n:])
+	msg.buffersize = ln
+	n += m
+	// tags
+	ln, m = cborItemLength(in[n:])
+	n += m
+	bs = str2bytes(msg.tags)
+	if cap(bs) == 0 {
+		bs = make([]byte, len(in))
+	}
+	bs = append(bs[:0], in[n:n+ln]...)
+	msg.tags = bytes2str(bs)
+	n += ln
 }
 
 func (msg *Whoami) String() string {

@@ -40,8 +40,9 @@ func BenchmarkHbDecode(b *testing.B) {
 	out := make([]byte, 1024)
 	ref := NewHeartbeat(10000000)
 	n := ref.Encode(out)
-	hb := &Heartbeat{}
 	for i := 0; i < b.N; i++ {
+		hb := hbpool.Get().(*Heartbeat)
 		hb.Decode(out[:n])
+		hbpool.Put(hb)
 	}
 }

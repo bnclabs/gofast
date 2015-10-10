@@ -28,7 +28,7 @@ func newconfig(name string, start, end int) map[string]interface{} {
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
-		"log.level":    "debug",
+		"log.level":    "error",
 		"gzip.file":    flate.BestSpeed,
 	}
 }

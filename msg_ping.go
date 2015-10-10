@@ -34,7 +34,7 @@ func (msg *Ping) Decode(in []byte) {
 		bs = make([]byte, len(in))
 	}
 	bs = append(bs[:0], in[1+n:1+n+ln]...)
-	msg.echo = bytes2str(bs[:ln])
+	msg.echo = bytes2str(bs)
 	return
 }
 
