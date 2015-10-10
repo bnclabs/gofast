@@ -27,7 +27,7 @@ func NewWhoami(t *Transport) *Whoami {
 }
 
 func (msg *Whoami) Id() uint64 {
-	return MsgWhoami
+	return msgWhoami
 }
 
 func (msg *Whoami) Encode(out []byte) int {

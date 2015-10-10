@@ -17,12 +17,11 @@ type Message interface {
 }
 
 const (
-	// MsgPing reserved Message Id for ping/echo with peer.
-	MsgPing uint64 = 0x1
-	// MsgWhoami reserved Message Id for supplying/obtaining peer details.
-	MsgWhoami = 0x2
-	// MsgHeartbeat reserved Message Id to send/receive heartbeat
-	MsgHeartbeat = 0x3
+	msgStart     uint64 = 0x0 // reserve start.
+	msgPing             = 0x1 // to ping/echo with peer.
+	msgWhoami           = 0x2 // to supplying/obtaining peer info.
+	msgHeartbeat        = 0x3 // to send/receive heartbeat.
+	msgEnd              = 0xf // reserve end.
 )
 
 // Version interface for all messages that are exchanged via gofast.
@@ -43,25 +42,28 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 		atomic.StoreInt64(&t.aliveat, time.Now().UnixNano())
 
 	case *Ping:
-		rv := NewPing(m.echo)
+		rv := NewPing(m.echo) // respond back
+		defer t.Free(rv)
+		defer stream.Close()
 		if err := stream.Response(rv); err != nil {
 			log.Errorf("%v response-ping: %v\n", t.logprefix, err)
 		}
-		t.Free(rv)
-		stream.Close()
 
 	case *Whoami:
-		rv := NewWhoami(t)
+		t.peerver = t.verfunc(m.version) // TODO: make this atomic
+		rv := NewWhoami(t)               // respond back
+		defer t.Free(rv)
+		defer stream.Close()
 		if err := stream.Response(rv); err != nil {
 			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)
 		}
-		// TODO: make this atomic
-		t.peerver = t.verfunc(m.version)
-		t.Free(rv)
-		stream.Close()
 
 	default:
 		log.Errorf("%v message %T : %v not expected\n", t.logprefix, msg)
 	}
 	return nil
+}
+
+func isReservedMsg(id uint64) bool {
+	return (msgStart <= id) && (id <= msgEnd)
 }

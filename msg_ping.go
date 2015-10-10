@@ -14,7 +14,7 @@ func NewPing(echo string) *Ping {
 }
 
 func (msg *Ping) Id() uint64 {
-	return MsgPing
+	return msgPing
 }
 
 func (msg *Ping) Encode(out []byte) int {

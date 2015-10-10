@@ -15,7 +15,7 @@ func NewHeartbeat(t *Transport, count uint64) *Heartbeat {
 }
 
 func (msg *Heartbeat) Id() uint64 {
-	return MsgHeartbeat
+	return msgHeartbeat
 }
 
 func (msg *Heartbeat) Encode(out []byte) int {

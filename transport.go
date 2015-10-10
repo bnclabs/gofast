@@ -217,6 +217,9 @@ func (t *Transport) SubscribeMessages(handler RequestCallback, msgs ...Message) 
 	msgstr := []string{}
 	for _, msg := range msgs {
 		id := msg.Id()
+		if isReservedMsg(id) {
+			panic(fmt.Errorf("message id %v reserved", id))
+		}
 		t.messages[id] = msg
 		t.msgpools[id] = &sync.Pool{New: objfactory(msg)}
 		t.handlers[id] = handler
