@@ -99,7 +99,7 @@ func (l *DefaultLogger) Tracef(format string, v ...interface{}) {
 func (l *DefaultLogger) printf(level logLevel, format string, v ...interface{}) {
 	if l.canlog(level) {
 		ts := time.Now().Format("2006-01-02T15:04:05.999Z-07:00")
-		fmt.Fprintf(l.output, ts+" ["+l.level.String()+"] "+format, v...)
+		fmt.Fprintf(l.output, ts+" ["+level.String()+"] "+format, v...)
 	}
 }
 
