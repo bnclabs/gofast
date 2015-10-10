@@ -135,6 +135,7 @@ func (t *Transport) doTx() {
 			}
 			arg.respch <- arg
 		}
+		log.Debugf("%v drained %v packets\n", t.logprefix, len(batch))
 		// reset the batch
 		buffersize = 0
 		batch = batch[:0]
@@ -142,6 +143,7 @@ func (t *Transport) doTx() {
 
 	fmsg := "%v doTx(batch:%v, buffer:%v) started ...\n"
 	log.Infof(fmsg, t.logprefix, batchsize, buffercap)
+loop:
 	for {
 		select {
 		case arg := <-t.txch:
@@ -152,7 +154,7 @@ func (t *Transport) doTx() {
 			}
 
 		case <-t.killch:
-			break
+			break loop
 		}
 	}
 	log.Infof("%v doTx() ... stopped\n", t.logprefix)

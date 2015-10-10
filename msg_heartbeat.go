@@ -27,12 +27,11 @@ func (msg *Heartbeat) Encode(out []byte) int {
 
 func (msg *Heartbeat) Decode(in []byte) {
 	// count
-	val, n := cbor2value(in)
-	if count, ok := val.(uint64); ok {
-		msg.count = count
-	}
-	if in[n] == 0xff {
-		return
+	val, _ := cbor2value(in)
+	if items, ok := val.([]interface{}); ok {
+		msg.count = items[0].(uint64)
+	} else {
+		log.Errorf("Heartbeat{}.Decode() invalid i/p\n")
 	}
 }
 

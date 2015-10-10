@@ -5,7 +5,6 @@ import "strings"
 import "strconv"
 
 type Whoami struct {
-	transport  *Transport
 	name       string
 	version    interface{}
 	buffersize int
@@ -15,7 +14,6 @@ type Whoami struct {
 func NewWhoami(t *Transport) *Whoami {
 	val := whoamipool.Get()
 	msg := val.(*Whoami)
-	msg.transport = t
 	msg.name = t.name
 	msg.version = t.version.Value()
 	msg.buffersize = t.config["buffersize"].(int)
@@ -41,29 +39,15 @@ func (msg *Whoami) Encode(out []byte) int {
 }
 
 func (msg *Whoami) Decode(in []byte) {
-	// name
-	val, n := cbor2value(in)
-	if name, ok := val.(string); ok {
-		msg.name = name
-	}
-	// version
-	val, m := cbor2value(in[n:])
-	n += m
-	msg.version = msg.transport.verfunc(val)
-	// buffersize
-	val, m = cbor2value(in[n:])
-	n += m
-	if buffersize, ok := val.(uint64); ok {
-		msg.buffersize = int(buffersize)
-	}
-	// tags
-	val, m = cbor2value(in[n:])
-	n += m
-	if tags, ok := val.(string); ok {
-		msg.tags = tags
-	}
-	if in[n] == 0xff {
-		return
+	val, _ := cbor2value(in)
+	if items, ok := val.([]interface{}); ok {
+		msg.name = items[0].(string)
+		msg.version = items[1]
+		msg.buffersize = int(items[2].(uint64))
+		msg.tags = items[3].(string)
+
+	} else {
+		log.Errorf("Whoami{}.Decode() invalid i/p\n")
 	}
 }
 
@@ -72,10 +56,7 @@ func (msg *Whoami) String() string {
 }
 
 func (msg *Whoami) Repr() string {
-	ver := msg.transport.verfunc(msg.version)
-	items := [3]string{
-		msg.name, ver.String(), strconv.Itoa(msg.buffersize),
-	}
+	items := [2]string{msg.name, strconv.Itoa(msg.buffersize)}
 	return strings.Join(items[:], ", ")
 }
 

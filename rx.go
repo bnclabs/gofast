@@ -2,6 +2,7 @@ package gofast
 
 import "sync"
 import "io"
+import "fmt"
 
 var rxpool = sync.Pool{New: func() interface{} { return &rxpacket{} }}
 
@@ -26,8 +27,8 @@ func (t *Transport) syncRx() {
 			delete(livestreams, stream.opaque)
 
 		} else {
-			fmsg := "%v stream ##%d started ...\n"
-			log.Debugf(fmsg, t.logprefix, stream.opaque)
+			fmsg := "%v ##%d stream started ...\n"
+			log.Verbosef(fmsg, t.logprefix, stream.opaque)
 			livestreams[stream.opaque] = stream
 		}
 	}
@@ -49,6 +50,7 @@ func (t *Transport) syncRx() {
 		if msg == nil {
 			return
 		}
+		log.Debugf("%v received msg %v\n", t.logprefix, msg)
 		if rxpkt.request || rxpkt.start {
 			if !streamok {
 				stream = t.newstream(rxpkt.opaque, true)
@@ -57,7 +59,7 @@ func (t *Transport) syncRx() {
 				return
 			}
 			fmsg := "%v ##%d stream already active ...\n"
-			log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
+			log.Warnf(fmsg, t.logprefix, rxpkt.opaque)
 
 		} else if streamok == false {
 			fmsg := "%v ##%d stream unknown ...\n"
@@ -78,7 +80,9 @@ loop:
 			case *Stream:
 				streamupdate(val)
 			case *rxpacket:
-				handlepkt(val)
+				if val != nil {
+					handlepkt(val)
+				}
 			}
 		case <-t.killch:
 			break loop
@@ -93,6 +97,7 @@ func (t *Transport) doRx() {
 	log.Infof("%v doRx() started ...\n", t.logprefix)
 	for {
 		rxpkt := t.unframepkt(t.conn)
+		log.Debugf("%v received packet %v\n", t.logprefix, rxpkt)
 		if t.putch(t.rxch, rxpkt) == false {
 			break
 		}
@@ -119,6 +124,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
 		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
 		return
 	}
+	fmt.Println("doRx() io.ReadFull() first", pad)
 	// check cbor-prefix
 	if pad[0] != 0xd9 || pad[1] != 0xd9 || pad[2] != 0xf7 {
 		log.Errorf("%v wrong prefix %v\n", t.logprefix, pad)
@@ -142,6 +148,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
 		log.Errorf("%v reading packet %v,%v,%v\n", t.logprefix, ln, n, err)
 		return
 	}
+	//fmt.Println("doRx() io.ReadFull() second")
 	rxpkt = rxpool.Get().(*rxpacket)
 	rxpkt.packet = t.pktpool.Get().([]byte)
 	// opaque
@@ -176,7 +183,7 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		value, n2 := cbor2value(msgdata[n+n1:])
 		switch tag := key.(uint64); tag {
 		case tagId:
-			id = tag
+			id = value.(uint64)
 		case tagData:
 			data = value.([]byte)
 		default:
@@ -234,4 +241,8 @@ func readtp(payload []byte) (uint64, []byte) {
 	ln, m := cborItemLength(payload[n:])
 	n += m
 	return uint64(tag), payload[n : n+ln]
+}
+
+func (r *rxpacket) String() string {
+	return fmt.Sprintf("##%d %v %v %v", r.opaque, r.request, r.start, r.finish)
 }

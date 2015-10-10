@@ -90,7 +90,11 @@ import "time"
 
 type tagfn func(in, out []byte) int
 
+// RequestCallback into application for a new incoming peer.
 type RequestCallback func(*Stream, Message) chan Message
+
+// MessageConstructor to create new incoming messages.
+type MessageConstructor func(msg Message)
 
 // Transporter interface to send and receive packets.
 type Transporter interface { // facilitates unit testing
@@ -150,6 +154,7 @@ func NewTransport(
 		strmpool: nil, // shall be initialized after setOpaqueRange() call
 		messages: make(map[uint64]Message),
 		verfunc:  nil,
+		handlers: make(map[uint64]RequestCallback),
 
 		conn:   conn,
 		txch:   make(chan *txproto, chansize),
@@ -169,7 +174,10 @@ func NewTransport(
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
 	t.setOpaqueRange(uint64(opqstart), uint64(opqend))
-	t.SubscribeMessages(t.msghandler, &Whoami{}, &Ping{}, &Heartbeat{})
+	t.subscribeMessage(
+		&Whoami{}, t.msghandler).subscribeMessage(
+		&Ping{}, t.msghandler).subscribeMessage(
+		&Heartbeat{}, t.msghandler)
 
 	// educate tranport with configured tag decoders.
 	tagcsv, _ := config["tags"]
@@ -185,24 +193,28 @@ func NewTransport(
 	go t.doTx()
 	go t.syncRx() // will spawn another go-routine doRx().
 
+	log.Infof("%v started ...\n", t.logprefix)
+	return t, nil
+}
+
+// Handshake with remote, only after handshake message
+// exchange can happen.
+func (t *Transport) Handshake() *Transport {
 	msg, err := t.Whoami()
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	// parse tag list, tags will be applied in the specified order.
 	for _, tag := range t.getTags(msg.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
-			tagid, enc, _ := factory(t, config)
+			tagid, enc, _ := factory(t, t.config)
 			t.tagenc[tagid] = enc
 		}
 		log.Warnf("%v remote ask for unknown tag: %v", t.logprefix, tag)
 	}
-
 	fmsg := "%v handshake completed with peer: %v ...\n"
 	log.Verbosef(fmsg, t.logprefix, msg.Repr())
-
-	log.Infof("%v started ...\n", t.logprefix)
-	return t, nil
+	return t
 }
 
 // VersionHandler callback to convert peer version to Version interface.
@@ -211,23 +223,14 @@ func (t *Transport) VersionHandler(fn func(value interface{}) Version) *Transpor
 	return t
 }
 
-// SubscribeMessages that shall be exchanged via this transport. Only
+// SubscribeMessage that shall be exchanged via this transport. Only
 // subscribed messages can be exchanged.
-func (t *Transport) SubscribeMessages(handler RequestCallback, msgs ...Message) *Transport {
-	msgstr := []string{}
-	for _, msg := range msgs {
-		id := msg.Id()
-		if isReservedMsg(id) {
-			panic(fmt.Errorf("message id %v reserved", id))
-		}
-		t.messages[id] = msg
-		t.msgpools[id] = &sync.Pool{New: objfactory(msg)}
-		t.handlers[id] = handler
-		msgstr = append(msgstr, msg.String())
+func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Transport {
+	id := msg.Id()
+	if isReservedMsg(id) {
+		panic(fmt.Errorf("message id %v reserved", id))
 	}
-	s := strings.Join(msgstr, ",")
-	log.Verbosef("%v subscribed %v\n", t.logprefix, s)
-	return t
+	return t.subscribeMessage(msg, handler)
 }
 
 // Close this tranport, connection will be closed as well.
@@ -237,9 +240,6 @@ func (t *Transport) Close() error {
 	// a. prevent any more transmission on the connection.
 	// b. close all active streams.
 	close(t.killch)
-	// drain out the stream-pool.
-	for range t.strmpool {
-	}
 	t.pktpool = nil
 	log.Infof("%v ... closed\n", t.logprefix)
 	// finally close the connection itself.
@@ -266,7 +266,7 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 	go func() {
 		for {
 			<-tick
-			msg := NewHeartbeat(t, count)
+			msg := NewHeartbeat(count)
 			t.Post(msg)
 			t.Free(msg)
 			count++
@@ -383,7 +383,7 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	} else if end > tagOpaqueEnd {
 		panic(err)
 	}
-	log.Debugf("%v local streams start %v end %v\n", t.logprefix, start, end)
+	log.Debugf("%v local streams (%v,%v) pre-created\n", t.logprefix, start, end)
 	t.strmpool = make(chan *Stream, end-start+1) // inclusive
 	for opaque := start; opaque <= end; opaque++ {
 		t.strmpool <- t.newstream(uint64(opaque), false)
@@ -397,6 +397,15 @@ func (t *Transport) getTags(line string, tags []string) []string {
 		}
 	}
 	return tags
+}
+
+func (t *Transport) subscribeMessage(msg Message, handler RequestCallback) *Transport {
+	id := msg.Id()
+	t.messages[id] = msg
+	t.msgpools[id] = &sync.Pool{New: objfactory(msg)}
+	t.handlers[id] = handler
+	log.Verbosef("%v subscribed %v\n", t.logprefix, msg)
+	return t
 }
 
 type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)

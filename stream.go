@@ -10,7 +10,7 @@ type Stream struct {
 
 func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
 	fmsg := "%v ##%d(remote:%v) stream started ...\n"
-	log.Debugf(fmsg, t.logprefix, opaque, remote)
+	log.Verbosef(fmsg, t.logprefix, opaque, remote)
 	return &Stream{transport: t, remote: remote, opaque: opaque, Rxch: nil}
 }
 
