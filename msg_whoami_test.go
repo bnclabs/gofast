@@ -9,9 +9,10 @@ var _ = fmt.Sprintf("dummy")
 
 func TestWaiEncode(t *testing.T) {
 	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config, conn := newconfig("testtransport", st, end), newTestConnection()
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(conn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, testVersion(1), nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -28,9 +29,10 @@ func TestWaiEncode(t *testing.T) {
 
 func TestWaiDecode(t *testing.T) {
 	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config, conn := newconfig("testtransport", st, end), newTestConnection()
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(conn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, testVersion(1), nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -48,9 +50,10 @@ func TestWaiDecode(t *testing.T) {
 
 func BenchmarkWaiEncode(b *testing.B) {
 	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config, conn := newconfig("testtransport", st, end), newTestConnection()
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(conn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, testVersion(1), nil, config)
 	if err != nil {
 		b.Error(err)
 	}
@@ -65,9 +68,10 @@ func BenchmarkWaiEncode(b *testing.B) {
 
 func BenchmarkWaiDecode(b *testing.B) {
 	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config, conn := newconfig("testtransport", st, end), newTestConnection()
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(conn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, testVersion(1), nil, config)
 	if err != nil {
 		b.Error(err)
 	}

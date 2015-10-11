@@ -9,8 +9,9 @@ import "sync"
 
 func TestTransport(t *testing.T) {
 	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config, conn := newconfig("testtransport", st, end), newTestConnection()
-	trans, err := NewTransport(conn, testVersion(1), nil, config)
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, true)
+	trans, err := NewTransport(tconn, testVersion(1), nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -37,17 +38,22 @@ type testConnection struct {
 	roff  int
 	woff  int
 	buf   []byte
+	read  bool
 	mu    sync.Mutex
 	laddr netAddr
 	raddr netAddr
 }
 
-func newTestConnection() *testConnection {
-	return &testConnection{
-		buf:   make([]byte, 100000),
+func newTestConnection(buf []byte, read bool) *testConnection {
+	tconn := &testConnection{
 		laddr: netAddr("127.0.0.1:9998"),
 		raddr: netAddr("127.0.0.1:9999"),
+		read:  read,
 	}
+	if tconn.buf = buf; buf == nil {
+		tconn.buf = make([]byte, 100000)
+	}
+	return tconn
 }
 
 func (tc *testConnection) Write(b []byte) (n int, err error) {
@@ -76,7 +82,9 @@ func (tc *testConnection) Read(b []byte) (n int, err error) {
 		return 0, nil
 	}
 	for err == nil && n == 0 {
-		n, err = do()
+		if tc.read {
+			n, err = do()
+		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	//fmt.Println("read ...", n, err)

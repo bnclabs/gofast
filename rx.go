@@ -124,7 +124,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
 		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
 		return
 	}
-	fmt.Println("doRx() io.ReadFull() first", pad)
+	//fmt.Println("doRx() io.ReadFull() first", pad)
 	// check cbor-prefix
 	if pad[0] != 0xd9 || pad[1] != 0xd9 || pad[2] != 0xf7 {
 		log.Errorf("%v wrong prefix %v\n", t.logprefix, pad)
@@ -176,20 +176,23 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		return nil
 	}
 	n := 1
-	var id uint64
+	var id int
 	var data []byte
+	var v int
 	for msgdata[n] != 0xff {
-		key, n1 := cbor2value(msgdata[n:])
-		value, n2 := cbor2value(msgdata[n+n1:])
-		switch tag := key.(uint64); tag {
+		tag, k := cborItemLength(msgdata[n:])
+		n += k
+		switch tag {
 		case tagId:
-			id = value.(uint64)
+			id, v = cborItemLength(msgdata[n:])
+			n += v
 		case tagData:
-			data = value.([]byte)
+			ln, m := cborItemLength(msgdata[n:])
+			n += m
+			data = msgdata[n : n+ln]
 		default:
 			log.Warnf("%v unknown tag in header %v\n", t.logprefix, tag)
 		}
-		n += n1 + n2
 	}
 	n += 1 // skip the breakstop (0xff)
 
@@ -198,7 +201,7 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		log.Errorf("%v %v rx invalid message packet\n", opaque, t.logprefix)
 		return nil
 	}
-	msg := t.msgpools[id].Get().(Message)
+	msg := t.msgpools[uint64(id)].Get().(Message)
 	msg.Decode(data)
 	return msg
 }

@@ -42,7 +42,7 @@ func csv2strings(line string, out []string) []string {
 	return out
 }
 
-func objfactory(msg Message) func() interface{} {
+func msgfactory(msg Message) func() interface{} {
 	return func() interface{} {
 		typeOfMsg := reflect.ValueOf(msg).Elem().Type()
 		return reflect.New(typeOfMsg).Interface()

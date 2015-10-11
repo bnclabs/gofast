@@ -402,7 +402,7 @@ func (t *Transport) getTags(line string, tags []string) []string {
 func (t *Transport) subscribeMessage(msg Message, handler RequestCallback) *Transport {
 	id := msg.Id()
 	t.messages[id] = msg
-	t.msgpools[id] = &sync.Pool{New: objfactory(msg)}
+	t.msgpools[id] = &sync.Pool{New: msgfactory(msg)}
 	t.handlers[id] = handler
 	log.Verbosef("%v subscribed %v\n", t.logprefix, msg)
 	return t

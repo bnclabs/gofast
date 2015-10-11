@@ -19,6 +19,15 @@ func TestStr2Bytes(t *testing.T) {
 	}
 }
 
+func TestMsgFactory(t *testing.T) {
+	ref := &Whoami{}
+	wai_factory := msgfactory(ref)
+	msg := wai_factory()
+	if _, ok := msg.(*Whoami); !ok {
+		t.Errorf("expected %v, got %v", ref, msg)
+	}
+}
+
 func BenchmarkBytes2Str(b *testing.B) {
 	bs := []byte("hello world")
 	for i := 0; i < b.N; i++ {
@@ -30,5 +39,12 @@ func BenchmarkStr2Bytes(b *testing.B) {
 	s := "hello world"
 	for i := 0; i < b.N; i++ {
 		str2bytes(s)
+	}
+}
+
+func BenchmarkMsgFactory(b *testing.B) {
+	wai_factory := msgfactory(&Whoami{})
+	for i := 0; i < b.N; i++ {
+		wai_factory()
 	}
 }

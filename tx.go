@@ -50,41 +50,42 @@ func (t *Transport) finish(stream *Stream, out []byte) (n int) {
 	m := tag2cbor(stream.opaque, scratch[:]) // tag-opaque
 	scratch[m] = 0xff                        // 0xff (payload)
 	m += 1
-	n += value2cbor(scratch[:m], out[n:]) // packet
+	n += valbytes2cbor(scratch[:m], out[n:]) // packet
 	return n
 }
 
 func (t *Transport) framepkt(stream *Stream, msg Message, ping []byte) (n int) {
-	// compose message
-	data := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(data)
+	// data
+	x := t.pktpool.Get()
+	defer t.pktpool.Put(x)
 	// create another buffer and rotate with `ping` buffer
 	// and roll up the tags
-	pong := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(pong)
+	y := t.pktpool.Get()
+	defer t.pktpool.Put(y)
+
+	data, pong := x.([]byte), y.([]byte)
 
 	// tagMsg
 	n = tag2cbor(tagMsg, ping) // tagMsg
 	n += mapStart(ping[n:])
-	n += value2cbor(tagId, ping[n:]) // hdr-tagId
-	n += value2cbor(msg.Id(), ping[n:])
-	p := msg.Encode(data)
-	n += value2cbor(tagData, ping[n:]) // hdr-tagId
-	n += value2cbor(data[:p], ping[n:])
+	n += valuint642cbor(tagId, ping[n:])    // hdr-tagId
+	n += valuint642cbor(msg.Id(), ping[n:]) // value
+	n += valuint642cbor(tagData, ping[n:])  // hdr-tagData
+	m := msg.Encode(data)                   // value
+	n += valbytes2cbor(data[:m], ping[n:])
 	n += breakStop(ping[n:])
 
-	var m int
 	for tag, fn := range t.tagenc { // roll up tags
 		if m = fn(ping[:n], pong); n == 0 { // skip tag
 			continue
 		}
 		n = tag2cbor(tag, ping)
-		n += value2cbor(pong[:m], ping[n:])
+		n += valbytes2cbor(pong[:m], ping[n:])
 	}
 
 	m = tag2cbor(stream.opaque, pong) // finally roll up opaque
-	m += value2cbor(ping[:n], pong[m:])
-	return value2cbor(pong[:m], ping) // packet encoded as CBOR byte array
+	m += valbytes2cbor(ping[:n], pong[m:])
+	return valbytes2cbor(pong[:m], ping) // packet encoded as CBOR byte array
 }
 
 var txpool = sync.Pool{New: func() interface{} { return &txproto{} }}
