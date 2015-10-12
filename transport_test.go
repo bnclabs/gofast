@@ -10,12 +10,19 @@ import "sync"
 func TestTransport(t *testing.T) {
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
+	config["tags"] = "gzip"
 	tconn := newTestConnection(nil, true)
 	trans, err := NewTransport(tconn, testVersion(1), nil, config)
 	if err != nil {
 		t.Error(err)
 	}
 	trans.VersionHandler(testVerhandler).Handshake()
+	if _, ok := trans.tagenc[tagGzip]; !ok && len(trans.tagenc) != 1 {
+		t.Errorf("expected gzip, got %v", trans.tagenc)
+	}
+	if ver := trans.peerver.Value().(int); ver != 1 {
+		t.Errorf("expected 1, got %v", ver)
+	}
 	trans.Close()
 	time.Sleep(1 * time.Second)
 }
@@ -129,7 +136,7 @@ func (v testVersion) Equal(ver Version) bool {
 }
 
 func (v testVersion) String() string {
-	return fmt.Sprintf("%v", v)
+	return fmt.Sprintf("%v", int(v))
 }
 
 func (v testVersion) Value() interface{} {

@@ -93,9 +93,6 @@ type tagfn func(in, out []byte) int
 // RequestCallback into application for a new incoming peer.
 type RequestCallback func(*Stream, Message) chan Message
 
-// MessageConstructor to create new incoming messages.
-type MessageConstructor func(msg Message)
-
 // Transporter interface to send and receive packets.
 type Transporter interface { // facilitates unit testing
 	Read(b []byte) (n int, err error)
@@ -169,7 +166,7 @@ func NewTransport(
 	setLogger(logg, t.config)
 
 	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
-	t.logprefix = fmt.Sprintf("GFST[%v<->%v]", laddr, raddr)
+	t.logprefix = fmt.Sprintf("GFST[%v; %v<->%v]", name, laddr, raddr)
 	t.pktpool = &sync.Pool{
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
@@ -185,6 +182,7 @@ func NewTransport(
 		if factory, ok := tag_factory[tag]; ok {
 			tagid, _, dec := factory(t, config)
 			t.tagdec[tagid] = dec
+			continue
 		}
 		panic(fmt.Errorf("unknown tag %v", tag))
 	}
@@ -204,16 +202,18 @@ func (t *Transport) Handshake() *Transport {
 	if err != nil {
 		panic(err)
 	}
+	t.peerver = t.verfunc(msg.version)
 	// parse tag list, tags will be applied in the specified order.
 	for _, tag := range t.getTags(msg.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
 			tagid, enc, _ := factory(t, t.config)
 			t.tagenc[tagid] = enc
+			continue
 		}
 		log.Warnf("%v remote ask for unknown tag: %v", t.logprefix, tag)
 	}
-	fmsg := "%v handshake completed with peer: %v ...\n"
-	log.Verbosef(fmsg, t.logprefix, msg.Repr())
+	fmsg := "%v handshake completed with peer: %#v ...\n"
+	log.Verbosef(fmsg, t.logprefix, msg)
 	return t
 }
 
@@ -248,6 +248,10 @@ func (t *Transport) Close() error {
 
 //---- maintenance APIs
 
+func (t *Transport) Name() string {
+	return t.name
+}
+
 // FlushPeriod to periodically flush batched packets.
 func (t *Transport) FlushPeriod(ms time.Duration) {
 	now, tick := time.Now(), time.Tick(ms)
@@ -278,6 +282,10 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 // Silentsince returns the timestamp of last heartbeat message received
 // from peer.
 func (t *Transport) Silentsince() time.Duration {
+	if t.aliveat == 0 {
+		log.Warnf("%v heartbeat not initialized\n", t.logprefix)
+		return time.Duration(0)
+	}
 	then := time.Unix(0, atomic.LoadInt64(&t.aliveat))
 	return time.Since(then)
 }
