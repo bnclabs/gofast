@@ -6,7 +6,7 @@ import "fmt"
 // | 0xd9f7 | packet |
 func (t *Transport) post(msg Message, stream *Stream, out []byte) (n int) {
 	n = tag2cbor(tagCborPrefix, out)      // prefix
-	n += t.framepkt(stream, msg, out[n:]) // packet
+	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
@@ -15,7 +15,7 @@ func (t *Transport) request(msg Message, stream *Stream, out []byte) (n int) {
 	n = tag2cbor(tagCborPrefix, out) // prefix
 	out[n] = 0x91                    // 0x91
 	n += 1
-	n += t.framepkt(stream, msg, out[n:]) // packet
+	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
@@ -24,7 +24,7 @@ func (t *Transport) response(msg Message, stream *Stream, out []byte) (n int) {
 	n = tag2cbor(tagCborPrefix, out) // prefix
 	out[n] = 0x91                    // 0x91
 	n += 1
-	n += t.framepkt(stream, msg, out[n:]) // packet
+	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
@@ -32,14 +32,14 @@ func (t *Transport) response(msg Message, stream *Stream, out []byte) (n int) {
 func (t *Transport) start(msg Message, stream *Stream, out []byte) (n int) {
 	n = tag2cbor(tagCborPrefix, out)      // prefix
 	n += arrayStart(out[n:])              // 0x9f
-	n += t.framepkt(stream, msg, out[n:]) // packet
+	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
 // | 0xd9f7 | packet2 |
-func (t *Transport) stream(stream *Stream, msg Message, out []byte) (n int) {
+func (t *Transport) stream(msg Message, stream *Stream, out []byte) (n int) {
 	n = tag2cbor(tagCborPrefix, out)      // prefix
-	n += t.framepkt(stream, msg, out[n:]) // packet
+	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
@@ -54,7 +54,7 @@ func (t *Transport) finish(stream *Stream, out []byte) (n int) {
 	return n
 }
 
-func (t *Transport) framepkt(stream *Stream, msg Message, ping []byte) (n int) {
+func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
 	// data
 	x := t.pktpool.Get()
 	defer t.pktpool.Put(x)

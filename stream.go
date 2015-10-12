@@ -60,7 +60,7 @@ func (s *Stream) Stream(msg Message) (err error) {
 			s.transport.putstream(s.opaque, s, true /*tellrx*/)
 		}
 	}()
-	n := s.transport.stream(s, msg, out)
+	n := s.transport.stream(msg, s, out)
 	err = s.transport.tx(out[:n], false)
 	return
 }

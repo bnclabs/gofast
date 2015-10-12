@@ -15,7 +15,7 @@ func TestTransport(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	trans.VersionHandler(verhandler).Handshake()
+	trans.VersionHandler(testVerhandler).Handshake()
 	trans.Close()
 	time.Sleep(1 * time.Second)
 }
@@ -136,7 +136,7 @@ func (v testVersion) Value() interface{} {
 	return int(v)
 }
 
-func verhandler(val interface{}) Version {
+func testVerhandler(val interface{}) Version {
 	if ver, ok := val.(uint64); ok {
 		return testVersion(ver)
 	} else if ver, ok := val.(int); ok {
