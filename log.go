@@ -113,17 +113,17 @@ func (l *DefaultLogger) canlog(level logLevel) bool {
 func (l logLevel) String() string {
 	switch l {
 	case logLevelIgnore:
-		return "Ignore"
+		return "Ignor"
 	case logLevelFatal:
 		return "Fatal"
 	case logLevelError:
 		return "Error"
 	case logLevelWarn:
-		return "Warn"
+		return "Warng"
 	case logLevelInfo:
-		return "Info"
+		return "Infom"
 	case logLevelVerbose:
-		return "Verbose"
+		return "Verbs"
 	case logLevelDebug:
 		return "Debug"
 	case logLevelTrace:
