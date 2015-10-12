@@ -176,9 +176,8 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		return nil
 	}
 	n := 1
-	var id int
+	var v, id int
 	var data []byte
-	var v int
 	for msgdata[n] != 0xff {
 		tag, k := cborItemLength(msgdata[n:])
 		n += k
@@ -190,8 +189,9 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 			ln, m := cborItemLength(msgdata[n:])
 			n += m
 			data = msgdata[n : n+ln]
+			n += ln
 		default:
-			log.Warnf("%v unknown tag in header %v\n", t.logprefix, tag)
+			log.Warnf("%v unknown tag in header %v,%v\n", t.logprefix, n, tag)
 		}
 	}
 	n += 1 // skip the breakstop (0xff)
@@ -201,7 +201,8 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		log.Errorf("%v %v rx invalid message packet\n", opaque, t.logprefix)
 		return nil
 	}
-	msg := t.msgpools[uint64(id)].Get().(Message)
+	obj := t.msgpools[uint64(id)].Get()
+	msg := obj.(Message)
 	msg.Decode(data)
 	return msg
 }
