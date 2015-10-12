@@ -44,7 +44,6 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 	case *Ping:
 		rv := NewPing(m.echo) // respond back
 		defer t.Free(rv)
-		defer stream.Close()
 		if err := stream.Response(rv); err != nil {
 			log.Errorf("%v response-ping: %v\n", t.logprefix, err)
 		}
@@ -53,7 +52,6 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 		t.peerver = t.verfunc(m.version) // TODO: make this atomic
 		rv := NewWhoami(t)               // respond back
 		defer t.Free(rv)
-		defer stream.Close()
 		if err := stream.Response(rv); err != nil {
 			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)
 		}

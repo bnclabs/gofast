@@ -28,10 +28,12 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 		defer func() { recover() }()
 	}()
 	if stream == nil {
-		log.Errorf("%v unkown stream ##%v\n", t.logprefix, opaque)
+		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
 		return
 	}
-	close(stream.Rxch)
+	if stream.Rxch != nil {
+		close(stream.Rxch)
+	}
 	stream.Rxch = nil
 	if stream.remote == false { // reclaim if local stream
 		t.strmpool <- stream

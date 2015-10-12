@@ -22,7 +22,7 @@ func (t *Transport) syncRx() {
 	streamupdate := func(stream *Stream) {
 		_, ok := livestreams[stream.opaque]
 		if stream.Rxch == nil && ok {
-			fmsg := "%v stream ##%d closed ...\n"
+			fmsg := "%v ##%d stream closed ...\n"
 			log.Debugf(fmsg, t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
 
@@ -39,7 +39,7 @@ func (t *Transport) syncRx() {
 		defer rxpool.Put(rxpkt)
 
 		if rxpkt.finish {
-			fmsg := "%v stream ##%d closed by remote ...\n"
+			fmsg := "%v ##%d stream closed by remote ...\n"
 			log.Debugf(fmsg, t.logprefix, stream.opaque)
 			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
 			delete(livestreams, rxpkt.opaque)
@@ -50,21 +50,14 @@ func (t *Transport) syncRx() {
 		if msg == nil {
 			return
 		}
-		log.Debugf("%v received msg %v\n", t.logprefix, msg)
-		if rxpkt.request || rxpkt.start {
-			if !streamok {
-				stream = t.newstream(rxpkt.opaque, true)
-				livestreams[stream.opaque] = stream
-				stream.Rxch = t.handlers[msg.Id()](stream, msg)
-				return
-			}
-			fmsg := "%v ##%d stream already active ...\n"
-			log.Warnf(fmsg, t.logprefix, rxpkt.opaque)
-
-		} else if streamok == false {
-			fmsg := "%v ##%d stream unknown ...\n"
-			log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
+		log.Debugf("%v received msg %#v\n", t.logprefix, msg)
+		if streamok == false { // post, request, stream-start
+			stream = t.newstream(rxpkt.opaque, true)
+			stream.Rxch = t.handlers[msg.Id()](stream, msg)
+			livestreams[stream.opaque] = stream
+			return
 		}
+		// response, stream, finish
 		t.putmsg(stream.Rxch, msg)
 	}
 
@@ -97,7 +90,7 @@ func (t *Transport) doRx() {
 	log.Infof("%v doRx() started ...\n", t.logprefix)
 	for {
 		rxpkt := t.unframepkt(t.conn)
-		log.Debugf("%v received packet %v\n", t.logprefix, rxpkt)
+		log.Debugf("%v %v ; received pkt\n", t.logprefix, rxpkt)
 		if t.putch(t.rxch, rxpkt) == false {
 			break
 		}
