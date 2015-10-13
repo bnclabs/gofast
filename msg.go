@@ -32,8 +32,10 @@ type Version interface {
 	Equal(ver Version) bool
 	// String representation of message, used for logging.
 	String() string
-	// Convert to basic data-type that can be encoded via CBOR.
-	Value() interface{}
+	// Marshal version into array of bytes.
+	Marshal(out []byte) (n int)
+	// Unmarshal array of bytes (originally returned by Encode).
+	Unmarshal(out []byte) (n int)
 }
 
 func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
@@ -49,8 +51,8 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 		}
 
 	case *Whoami:
-		t.peerver = t.verfunc(m.version) // TODO: make this atomic
-		rv := NewWhoami(t)               // respond back
+		t.peerver = m.version // TODO: make this atomic
+		rv := NewWhoami(t)    // respond back
 		defer t.Free(rv)
 		if err := stream.Response(rv); err != nil {
 			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)

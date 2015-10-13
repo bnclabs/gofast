@@ -23,11 +23,12 @@ func TestReadtagp(t *testing.T) {
 }
 
 func TestUnmessage(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "warn"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -41,7 +42,6 @@ func TestUnmessage(t *testing.T) {
 	// unmessage
 	ref := NewWhoami(trans)
 	msg := trans.unmessage(100, bs).(*Whoami)
-	msg.version = testVerhandler(msg.version).Value()
 	if !reflect.DeepEqual(ref, msg) {
 		t.Errorf("expected %v, got %v", ref, msg)
 	}
@@ -59,11 +59,12 @@ func BenchmarkReadtagp(b *testing.B) {
 }
 
 func BenchmarkUnmessage(b *testing.B) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "warn"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		b.Error(err)
 	}

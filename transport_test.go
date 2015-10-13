@@ -8,20 +8,21 @@ import "time"
 import "sync"
 
 func TestTransport(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	config["tags"] = "gzip"
 	tconn := newTestConnection(nil, true)
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
-	trans.VersionHandler(testVerhandler).Handshake()
+	trans.Handshake()
 	if _, ok := trans.tagenc[tagGzip]; !ok && len(trans.tagenc) != 1 {
 		t.Errorf("expected gzip, got %v", trans.tagenc)
 	}
-	if ver := trans.peerver.Value().(int); ver != 1 {
-		t.Errorf("expected 1, got %v", ver)
+	if !trans.peerver.Equal(&ver) {
+		t.Errorf("expected %v, got %v", ver, trans.peerver)
 	}
 	trans.Close()
 	time.Sleep(1 * time.Second)
@@ -127,27 +128,24 @@ func (addr netAddr) String() string {
 
 type testVersion int
 
-func (v testVersion) Less(ver Version) bool {
-	return v < ver.(testVersion)
+func (v *testVersion) Less(ver Version) bool {
+	return (*v) < (*ver.(*testVersion))
 }
 
-func (v testVersion) Equal(ver Version) bool {
-	return v == ver.(testVersion)
+func (v *testVersion) Equal(ver Version) bool {
+	return (*v) == (*ver.(*testVersion))
 }
 
-func (v testVersion) String() string {
-	return fmt.Sprintf("%v", int(v))
+func (v *testVersion) String() string {
+	return fmt.Sprintf("%v", int(*v))
 }
 
-func (v testVersion) Value() interface{} {
-	return int(v)
+func (v *testVersion) Marshal(out []byte) int {
+	return valuint642cbor(uint64(*v), out)
 }
 
-func testVerhandler(val interface{}) Version {
-	if ver, ok := val.(uint64); ok {
-		return testVersion(ver)
-	} else if ver, ok := val.(int); ok {
-		return testVersion(ver)
-	}
-	return nil
+func (v *testVersion) Unmarshal(in []byte) int {
+	ln, n := cborItemLength(in)
+	*v = testVersion(ln)
+	return n
 }

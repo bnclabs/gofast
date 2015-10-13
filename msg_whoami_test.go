@@ -8,11 +8,12 @@ import "fmt"
 var _ = fmt.Sprintf("dummy")
 
 func TestWaiEncode(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -28,11 +29,12 @@ func TestWaiEncode(t *testing.T) {
 }
 
 func TestWaiDecode(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -41,19 +43,20 @@ func TestWaiDecode(t *testing.T) {
 	ref := NewWhoami(trans)
 	n := ref.Encode(out)
 	wai := &Whoami{}
+	wai.version, wai.transport = &ver, trans
 	wai.Decode(out[:n])
-	wai.version = int(wai.version.(uint64))
 	if !reflect.DeepEqual(ref, wai) {
 		t.Errorf("expected %#v, got %#v", ref, wai)
 	}
 }
 
 func BenchmarkWaiEncode(b *testing.B) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		b.Error(err)
 	}
@@ -67,11 +70,12 @@ func BenchmarkWaiEncode(b *testing.B) {
 }
 
 func BenchmarkWaiDecode(b *testing.B) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		b.Error(err)
 	}
@@ -81,6 +85,7 @@ func BenchmarkWaiDecode(b *testing.B) {
 	ref.tags = "gzip"
 	n := ref.Encode(out)
 	wai := &Whoami{}
+	wai.version, wai.transport = &ver, trans
 	for i := 0; i < b.N; i++ {
 		wai.Decode(out[:n])
 	}

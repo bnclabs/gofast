@@ -111,7 +111,6 @@ type Transport struct {
 	tagdec   map[uint64]tagfn // tagid -> func
 	strmpool chan *Stream
 	messages map[uint64]Message // msgid -> message
-	verfunc  func(interface{}) Version
 	handlers map[uint64]RequestCallback
 
 	conn    Transporter
@@ -150,7 +149,6 @@ func NewTransport(
 		tagdec:   make(map[uint64]tagfn),
 		strmpool: nil, // shall be initialized after setOpaqueRange() call
 		messages: make(map[uint64]Message),
-		verfunc:  nil,
 		handlers: make(map[uint64]RequestCallback),
 
 		conn:   conn,
@@ -202,7 +200,7 @@ func (t *Transport) Handshake() *Transport {
 	if err != nil {
 		panic(err)
 	}
-	t.peerver = t.verfunc(msg.version)
+	t.peerver = msg.version
 	// parse tag list, tags will be applied in the specified order.
 	for _, tag := range t.getTags(msg.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
@@ -214,12 +212,6 @@ func (t *Transport) Handshake() *Transport {
 	}
 	fmsg := "%v handshake completed with peer: %#v ...\n"
 	log.Verbosef(fmsg, t.logprefix, msg)
-	return t
-}
-
-// VersionHandler callback to convert peer version to Version interface.
-func (t *Transport) VersionHandler(fn func(value interface{}) Version) *Transport {
-	t.verfunc = fn
 	return t
 }
 

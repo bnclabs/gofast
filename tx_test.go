@@ -7,11 +7,12 @@ import "bytes"
 var _ = fmt.Sprintf("dummy")
 
 func TestPost(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -29,30 +30,13 @@ func TestPost(t *testing.T) {
 	}
 }
 
-func BenchmarkPostPkt(b *testing.B) {
-	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
-	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
-	if err != nil {
-		b.Error(err)
-	}
-
-	stream := trans.getstream(nil)
-	out := make([]byte, 1024)
-	wai := NewPing("hello world")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		trans.post(wai, stream, out)
-	}
-}
 func TestRequest(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -70,31 +54,13 @@ func TestRequest(t *testing.T) {
 	}
 }
 
-func BenchmarkRequestPkt(b *testing.B) {
-	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
-	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
-	if err != nil {
-		b.Error(err)
-	}
-
-	stream := trans.getstream(nil)
-	out := make([]byte, 1024)
-	wai := NewPing("hello world")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		trans.request(wai, stream, out)
-	}
-}
-
 func TestResponse(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -112,31 +78,13 @@ func TestResponse(t *testing.T) {
 	}
 }
 
-func BenchmarkResponsePkt(b *testing.B) {
-	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
-	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
-	if err != nil {
-		b.Error(err)
-	}
-
-	stream := trans.getstream(nil)
-	out := make([]byte, 1024)
-	wai := NewPing("hello world")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		trans.response(wai, stream, out)
-	}
-}
-
 func TestStart(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -154,31 +102,13 @@ func TestStart(t *testing.T) {
 	}
 }
 
-func BenchmarkStartPkt(b *testing.B) {
-	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
-	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
-	if err != nil {
-		b.Error(err)
-	}
-
-	stream := trans.getstream(nil)
-	out := make([]byte, 1024)
-	wai := NewPing("hello world")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		trans.start(wai, stream, out)
-	}
-}
-
 func TestStream(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -196,31 +126,13 @@ func TestStream(t *testing.T) {
 	}
 }
 
-func BenchmarkStreamPkt(b *testing.B) {
-	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
-	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
-	if err != nil {
-		b.Error(err)
-	}
-
-	stream := trans.getstream(nil)
-	out := make([]byte, 1024)
-	wai := NewPing("hello world")
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		trans.stream(wai, stream, out)
-	}
-}
-
 func TestFinish(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -234,30 +146,13 @@ func TestFinish(t *testing.T) {
 	}
 }
 
-func BenchmarkFinishPkt(b *testing.B) {
-	st, end := tagOpaqueStart, tagOpaqueStart+10
-	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
-	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
-	if err != nil {
-		b.Error(err)
-	}
-
-	stream := trans.getstream(nil)
-	out := make([]byte, 1024)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		trans.finish(stream, out)
-	}
-}
-
 func TestFramePkt(t *testing.T) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		t.Error(err)
 	}
@@ -275,12 +170,132 @@ func TestFramePkt(t *testing.T) {
 	}
 }
 
-func BenchmarkFramePkt(b *testing.B) {
+func BenchmarkPostPkt(b *testing.B) {
+	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
 	tconn := newTestConnection(nil, false)
 	config["tags"], config["log.level"] = "", "error"
-	trans, err := NewTransport(tconn, testVersion(1), nil, config)
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		b.Error(err)
+	}
+
+	stream := trans.getstream(nil)
+	out := make([]byte, 1024)
+	wai := NewPing("hello world")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trans.post(wai, stream, out)
+	}
+}
+
+func BenchmarkRequestPkt(b *testing.B) {
+	ver := testVersion(1)
+	st, end := tagOpaqueStart, tagOpaqueStart+10
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
+	config["tags"], config["log.level"] = "", "error"
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		b.Error(err)
+	}
+
+	stream := trans.getstream(nil)
+	out := make([]byte, 1024)
+	wai := NewPing("hello world")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trans.request(wai, stream, out)
+	}
+}
+
+func BenchmarkResponsePkt(b *testing.B) {
+	ver := testVersion(1)
+	st, end := tagOpaqueStart, tagOpaqueStart+10
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
+	config["tags"], config["log.level"] = "", "error"
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		b.Error(err)
+	}
+
+	stream := trans.getstream(nil)
+	out := make([]byte, 1024)
+	wai := NewPing("hello world")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trans.response(wai, stream, out)
+	}
+}
+
+func BenchmarkStartPkt(b *testing.B) {
+	ver := testVersion(1)
+	st, end := tagOpaqueStart, tagOpaqueStart+10
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
+	config["tags"], config["log.level"] = "", "error"
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		b.Error(err)
+	}
+
+	stream := trans.getstream(nil)
+	out := make([]byte, 1024)
+	wai := NewPing("hello world")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trans.start(wai, stream, out)
+	}
+}
+
+func BenchmarkStreamPkt(b *testing.B) {
+	ver := testVersion(1)
+	st, end := tagOpaqueStart, tagOpaqueStart+10
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
+	config["tags"], config["log.level"] = "", "error"
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		b.Error(err)
+	}
+
+	stream := trans.getstream(nil)
+	out := make([]byte, 1024)
+	wai := NewPing("hello world")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trans.stream(wai, stream, out)
+	}
+}
+
+func BenchmarkFinishPkt(b *testing.B) {
+	ver := testVersion(1)
+	st, end := tagOpaqueStart, tagOpaqueStart+10
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
+	config["tags"], config["log.level"] = "", "error"
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		b.Error(err)
+	}
+
+	stream := trans.getstream(nil)
+	out := make([]byte, 1024)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trans.finish(stream, out)
+	}
+}
+
+func BenchmarkFramePkt(b *testing.B) {
+	ver := testVersion(1)
+	st, end := tagOpaqueStart, tagOpaqueStart+10
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
+	config["tags"], config["log.level"] = "", "error"
+	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
 		b.Error(err)
 	}
