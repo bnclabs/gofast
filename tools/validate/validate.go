@@ -55,6 +55,11 @@ func main() {
 }
 
 func validatePost(trans *gofast.Transport) {
+	time.Now()
+	for i := 0; i < options.post; i++ {
+		hb := NewHeartbeat(i)
+		trans.Post(hb)
+	}
 	return
 }
 

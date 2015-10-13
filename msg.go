@@ -42,6 +42,7 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 	switch m := msg.(type) {
 	case *Heartbeat:
 		atomic.StoreInt64(&t.aliveat, time.Now().UnixNano())
+		atomic.AddUint64(&t.n_rxbeats, 1)
 
 	case *Ping:
 		rv := NewPing(m.echo) // respond back

@@ -70,14 +70,14 @@
 //
 //  "name"         - give a name for the transport.
 //  "buffersize"   - maximum size that a packet can needs.
-//  "chansize"     - channel size to use for internal go-routines.
 //  "batchsize"    - number of packets to batch before writting to socket.
+//  "chansize"     - channel size to use for internal go-routines.
 //  "tags"         - comma separated list of tags to apply, in specified order.
 //  "opaque.start" - starting opaque range, inclusive.
 //  "opaque.end"   - ending opaque range, inclusive.
 //  "log.level"    - log level to use for DefaultLogger
 //  "log.file"     - log file to use for DefaultLogger, if empty stdout is used.
-//  "gzip.file"    - gzip compression level.
+//  "gzip.level"   - gzip compression level.
 //
 package gofast
 
@@ -119,11 +119,34 @@ type Transport struct {
 	rxch    chan interface{}
 	killch  chan bool
 
+	// mempools
 	pktpool  *sync.Pool
 	msgpools map[uint64]*sync.Pool
 
+	// configuration
 	config    map[string]interface{}
 	logprefix string
+
+	// statistics
+	n_tx       uint64 // number of packets transmitted
+	n_flushes  uint64 // number of times message-batches where flushed
+	n_txbyte   uint64 // number of bytes transmitted on socket
+	n_txpost   uint64 // number of post messages transmitted
+	n_txreq    uint64 // number of request messages transmitted
+	n_txresp   uint64 // number of response messages transmitted
+	n_txstart  uint64 // number of start messages transmitted
+	n_txstream uint64 // number of stream messages transmitted
+	n_txfin    uint64 // number of finish messages transmitted
+	n_rx       uint64 // number of packets received
+	n_rxbyte   uint64 // number of bytes received from socket
+	n_rxpost   uint64 // number of post messages received
+	n_rxreq    uint64 // number of request messages received
+	n_rxresp   uint64 // number of response messages received
+	n_rxstart  uint64 // number of start messages received
+	n_rxstream uint64 // number of stream messages received
+	n_rxfin    uint64 // number of finish messages received
+	n_rxbeats  uint64 // number of heartbeats received
+	n_dropped  uint64 // number of dropped packets
 }
 
 //---- transport initialization APIs
@@ -399,11 +422,14 @@ func (t *Transport) getTags(line string, tags []string) []string {
 	return tags
 }
 
-func (t *Transport) subscribeMessage(msg Message, handler RequestCallback) *Transport {
+func (t *Transport) subscribeMessage(
+	msg Message, handler RequestCallback) *Transport {
+
 	id := msg.Id()
 	t.messages[id] = msg
 	t.msgpools[id] = &sync.Pool{New: msgfactory(msg)}
 	t.handlers[id] = handler
+
 	log.Verbosef("%v subscribed %v\n", t.logprefix, msg)
 	return t
 }

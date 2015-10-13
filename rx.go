@@ -1,6 +1,7 @@
 package gofast
 
 import "sync"
+import "sync/atomic"
 import "io"
 import "fmt"
 
@@ -43,6 +44,7 @@ func (t *Transport) syncRx() {
 			log.Debugf(fmsg, t.logprefix, stream.opaque)
 			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
 			delete(livestreams, rxpkt.opaque)
+			atomic.AddUint64(&t.n_rxfin, 1)
 			return
 
 		}
@@ -54,11 +56,25 @@ func (t *Transport) syncRx() {
 		if streamok == false { // post, request, stream-start
 			stream = t.newstream(rxpkt.opaque, true)
 			stream.Rxch = t.handlers[msg.Id()](stream, msg)
+			if rxpkt.request {
+				atomic.AddUint64(&t.n_rxreq, 1)
+			} else if rxpkt.start {
+				atomic.AddUint64(&t.n_rxstart, 1)
+			} else {
+				atomic.AddUint64(&t.n_rxpost, 1)
+			}
 			livestreams[stream.opaque] = stream
 			return
 		}
 		// response, stream, finish
 		t.putmsg(stream.Rxch, msg)
+		if rxpkt.request {
+			atomic.AddUint64(&t.n_rxresp, 1)
+		} else if rxpkt.finish {
+			atomic.AddUint64(&t.n_rxfin, 1)
+		} else {
+			atomic.AddUint64(&t.n_rxstream, 1)
+		}
 	}
 
 	go t.doRx()
@@ -73,6 +89,7 @@ loop:
 			case *Stream:
 				streamupdate(val)
 			case *rxpacket:
+				atomic.AddUint64(&t.n_rx, 1)
 				if val != nil {
 					handlepkt(val)
 				}
@@ -90,9 +107,11 @@ func (t *Transport) doRx() {
 	log.Infof("%v doRx() started ...\n", t.logprefix)
 	for {
 		rxpkt := t.unframepkt(t.conn)
-		log.Debugf("%v %v ; received pkt\n", t.logprefix, rxpkt)
-		if t.putch(t.rxch, rxpkt) == false {
-			break
+		if rxpkt != nil {
+			log.Debugf("%v %v ; received pkt\n", t.logprefix, rxpkt)
+			if t.putch(t.rxch, rxpkt) == false {
+				break
+			}
 		}
 	}
 	log.Infof("%v doRx() ... stopped\n", t.logprefix)
@@ -115,14 +134,15 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
 		return
 	} else if err != nil || n != 9 {
 		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
+		atomic.AddUint64(&t.n_dropped, uint64(n))
+		return
+	} else if pad[0] != 0xd9 || pad[1] != 0xd9 || pad[2] != 0xf7 { // prefix
+		log.Errorf("%v wrong prefix %v\n", t.logprefix, pad)
+		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
 	}
 	//fmt.Println("doRx() io.ReadFull() first", pad)
 	// check cbor-prefix
-	if pad[0] != 0xd9 || pad[1] != 0xd9 || pad[2] != 0xf7 {
-		log.Errorf("%v wrong prefix %v\n", t.logprefix, pad)
-		return
-	}
 	n := 3
 	request, start := pad[n] == 0x91, pad[n] == 0x9f
 	if request || start {
@@ -139,8 +159,10 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
 		return
 	} else if err != nil || m != (ln-n) {
 		log.Errorf("%v reading packet %v,%v,%v\n", t.logprefix, ln, n, err)
+		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
 	}
+	atomic.AddUint64(&t.n_rxbyte, 9+uint64(ln-n))
 	//fmt.Println("doRx() io.ReadFull() second")
 	rxpkt = rxpool.Get().(*rxpacket)
 	rxpkt.packet = t.pktpool.Get().([]byte)
@@ -191,10 +213,15 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 
 	// check whether id, data is present
 	if id == 0 || data == nil {
-		log.Errorf("%v %v rx invalid message packet\n", opaque, t.logprefix)
+		log.Errorf("%v ##%v rx invalid message packet\n", t.logprefix, opaque)
 		return nil
 	}
-	obj := t.msgpools[uint64(id)].Get()
+	pool, ok := t.msgpools[uint64(id)]
+	if !ok {
+		log.Errorf("%v ##%v rx invalid message id %v\n", t.logprefix, opaque, id)
+		return nil
+	}
+	obj := pool.Get()
 	if m, ok := obj.(*Whoami); ok { // hack to make whoami aware of transport
 		m.transport = t
 	}
