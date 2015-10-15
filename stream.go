@@ -44,17 +44,17 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 }
 
 // Response to a request.
-func (s *Stream) Response(msg Message) error {
+func (s *Stream) Response(msg Message, flush bool) error {
 	out := s.transport.pktpool.Get().([]byte)
 	defer s.transport.pktpool.Put(out)
 	defer s.transport.putstream(s.opaque, s, true /*tellrx*/)
 
 	n := s.transport.response(msg, s, out)
-	return s.transport.tx(out[:n], false)
+	return s.transport.tx(out[:n], flush)
 }
 
 // Stream a message.
-func (s *Stream) Stream(msg Message) (err error) {
+func (s *Stream) Stream(msg Message, flush bool) (err error) {
 	out := s.transport.pktpool.Get().([]byte)
 	defer s.transport.pktpool.Put(out)
 	defer func() {
@@ -63,7 +63,7 @@ func (s *Stream) Stream(msg Message) (err error) {
 		}
 	}()
 	n := s.transport.stream(msg, s, out)
-	err = s.transport.tx(out[:n], false)
+	err = s.transport.tx(out[:n], flush)
 	return
 }
 
@@ -74,7 +74,7 @@ func (s *Stream) Close() error {
 	defer s.transport.putstream(s.opaque, s, true /*tellrx*/)
 
 	n := s.transport.finish(s, out)
-	return s.transport.tx(out[:n], false)
+	return s.transport.tx(out[:n], true /*flush*/)
 }
 
 // Transport return the underlying transport carrying this stream.

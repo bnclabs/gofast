@@ -242,10 +242,14 @@ func NewTransport(
 
 // Handshake with remote, should be called imm. after NewTransport().
 func (t *Transport) Handshake() *Transport {
-	msg, err := t.Whoami()
+	msg := NewWhoami(t)
+	defer t.Free(msg)
+	resp, err := t.Request(msg, true /*flush*/)
 	if err != nil {
 		panic(err)
 	}
+	msg = resp.(*Whoami)
+
 	t.peerver = msg.version
 	// parse tag list, tags will be applied in the specified order.
 	for _, tag := range t.getTags(msg.tags, []string{}) {
@@ -278,7 +282,6 @@ func (t *Transport) Close() error {
 	// a. prevent any more transmission on the connection.
 	// b. close all active streams.
 	close(t.killch)
-	t.pktpool = nil
 	log.Infof("%v ... closed\n", t.logprefix)
 	// finally close the connection itself.
 	return t.conn.Close()
@@ -310,7 +313,7 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 		for {
 			<-tick
 			msg := NewHeartbeat(count)
-			t.Post(msg)
+			t.Post(msg, false /*flush*/)
 			t.Free(msg)
 			count++
 			log.Debugf("%v posted heartbeat %v\n", t.logprefix, count)
@@ -383,7 +386,7 @@ func (t *Transport) Counts() map[string]uint64 {
 func (t *Transport) Whoami() (*Whoami, error) {
 	msg := NewWhoami(t)
 	defer t.Free(msg)
-	resp, err := t.Request(msg)
+	resp, err := t.Request(msg, false /*flush*/)
 	if err != nil {
 		return nil, err
 	}
@@ -394,7 +397,7 @@ func (t *Transport) Whoami() (*Whoami, error) {
 func (t *Transport) Ping(echo string) (*Ping, error) {
 	msg := NewPing(echo)
 	defer t.Free(msg)
-	resp, err := t.Request(msg)
+	resp, err := t.Request(msg, false /*flush*/)
 	if err != nil {
 		return nil, err
 	}
@@ -402,18 +405,18 @@ func (t *Transport) Ping(echo string) (*Ping, error) {
 }
 
 // Post request to peer.
-func (t *Transport) Post(msg Message) error {
+func (t *Transport) Post(msg Message, flush bool) error {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 	stream := t.getstream(nil)
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
 	n := t.post(msg, stream, out)
-	return t.tx(out[:n], false)
+	return t.tx(out[:n], flush)
 }
 
 // Request a response from peer.
-func (t *Transport) Request(msg Message) (response Message, err error) {
+func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 	stream := t.getstream(make(chan Message, 1))
@@ -421,8 +424,8 @@ func (t *Transport) Request(msg Message) (response Message, err error) {
 
 	var ok bool
 	n := t.request(msg, stream, out)
-	if err = t.tx(out[:n], false); err == nil {
-		if response, ok = <-stream.Rxch; ok {
+	if err = t.tx(out[:n], flush); err == nil {
+		if resp, ok = <-stream.Rxch; ok {
 			return
 		}
 		err = fmt.Errorf("stream closed")
@@ -431,7 +434,7 @@ func (t *Transport) Request(msg Message) (response Message, err error) {
 }
 
 // Request a bi-directional stream with peer.
-func (t *Transport) Stream(msg Message, ch chan Message) (stream *Stream, err error) {
+func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (stream *Stream, err error) {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 
