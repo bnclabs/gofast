@@ -3,6 +3,7 @@ package gofast
 import "sync"
 import "strconv"
 
+// Heartbeat is predefined heartbeat message.
 type Heartbeat struct {
 	count uint64
 }

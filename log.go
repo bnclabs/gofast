@@ -21,8 +21,8 @@ type Logger interface {
 	Tracef(format string, v ...interface{})
 }
 
-// * default log file is os.Stdout
-// * default level is LogLevelInfo
+// DefaultLogger with default log-file as os.Stdout and,
+// default log-level is LogLevelInfo.
 type DefaultLogger struct {
 	level  logLevel
 	output io.Writer

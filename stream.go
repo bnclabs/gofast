@@ -1,6 +1,6 @@
 package gofast
 
-// Stream for every stream started on the transport.
+// Stream for a newly started stream on the transport.
 type Stream struct {
 	transport *Transport
 	Rxch      chan Message
@@ -43,7 +43,7 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	}
 }
 
-// Response a request.
+// Response to a request.
 func (s *Stream) Response(msg Message) error {
 	out := s.transport.pktpool.Get().([]byte)
 	defer s.transport.pktpool.Put(out)
@@ -53,7 +53,7 @@ func (s *Stream) Response(msg Message) error {
 	return s.transport.tx(out[:n], false)
 }
 
-// Stream a message on the stream.
+// Stream a message.
 func (s *Stream) Stream(msg Message) (err error) {
 	out := s.transport.pktpool.Get().([]byte)
 	defer s.transport.pktpool.Put(out)
@@ -77,7 +77,7 @@ func (s *Stream) Close() error {
 	return s.transport.tx(out[:n], false)
 }
 
-// Transport carrying this stream.
+// Transport return the underlying transport carrying this stream.
 func (s *Stream) Transport() *Transport {
 	return s.transport
 }

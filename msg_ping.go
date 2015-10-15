@@ -2,6 +2,7 @@ package gofast
 
 import "sync"
 
+// Ping is predefined message to ping-pong with remote.
 type Ping struct {
 	echo string
 }

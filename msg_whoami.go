@@ -5,6 +5,7 @@ import "strings"
 import "reflect"
 import "strconv"
 
+// Whoami is predefined message to exchange peer information.
 type Whoami struct {
 	transport  *Transport
 	name       string

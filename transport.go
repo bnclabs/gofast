@@ -114,7 +114,7 @@ import "time"
 
 type tagfn func(in, out []byte) int
 
-// RequestCallback into application for a new incoming peer.
+// RequestCallback for a new incoming peer, to be supplied by application.
 type RequestCallback func(*Stream, Message) chan Message
 
 // Transporter interface to send and receive packets.
