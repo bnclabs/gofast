@@ -7,10 +7,11 @@ import "bytes"
 var _ = fmt.Sprintf("dummy")
 
 func TestPost(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -31,10 +32,11 @@ func TestPost(t *testing.T) {
 }
 
 func TestRequest(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -55,10 +57,11 @@ func TestRequest(t *testing.T) {
 }
 
 func TestResponse(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -79,10 +82,11 @@ func TestResponse(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -103,10 +107,11 @@ func TestStart(t *testing.T) {
 }
 
 func TestStream(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -127,10 +132,11 @@ func TestStream(t *testing.T) {
 }
 
 func TestFinish(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -147,10 +153,11 @@ func TestFinish(t *testing.T) {
 }
 
 func TestFramePkt(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -171,10 +178,11 @@ func TestFramePkt(t *testing.T) {
 }
 
 func BenchmarkPostPkt(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -191,10 +199,11 @@ func BenchmarkPostPkt(b *testing.B) {
 }
 
 func BenchmarkRequestPkt(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -211,10 +220,11 @@ func BenchmarkRequestPkt(b *testing.B) {
 }
 
 func BenchmarkResponsePkt(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -231,10 +241,11 @@ func BenchmarkResponsePkt(b *testing.B) {
 }
 
 func BenchmarkStartPkt(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -251,10 +262,11 @@ func BenchmarkStartPkt(b *testing.B) {
 }
 
 func BenchmarkStreamPkt(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -271,10 +283,11 @@ func BenchmarkStreamPkt(b *testing.B) {
 }
 
 func BenchmarkFinishPkt(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -290,10 +303,11 @@ func BenchmarkFinishPkt(b *testing.B) {
 }
 
 func BenchmarkFramePkt(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {

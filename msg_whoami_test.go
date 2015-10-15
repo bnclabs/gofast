@@ -8,10 +8,11 @@ import "fmt"
 var _ = fmt.Sprintf("dummy")
 
 func TestWaiEncode(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -29,10 +30,11 @@ func TestWaiEncode(t *testing.T) {
 }
 
 func TestWaiDecode(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -51,10 +53,11 @@ func TestWaiDecode(t *testing.T) {
 }
 
 func TestWhoamiMisc(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -71,10 +74,11 @@ func TestWhoamiMisc(t *testing.T) {
 }
 
 func BenchmarkWaiEncode(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -90,10 +94,11 @@ func BenchmarkWaiEncode(b *testing.B) {
 }
 
 func BenchmarkWaiDecode(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "error"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {

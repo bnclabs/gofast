@@ -23,10 +23,11 @@ func TestReadtagp(t *testing.T) {
 }
 
 func TestUnmessage(t *testing.T) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "warn"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
@@ -59,10 +60,11 @@ func BenchmarkReadtagp(b *testing.B) {
 }
 
 func BenchmarkUnmessage(b *testing.B) {
+	laddr, raddr := "127.0.0.1:9998", "127.0.0.1:9999"
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
 	config := newconfig("testtransport", st, end)
-	tconn := newTestConnection(nil, false)
+	tconn := newTestConnection(laddr, raddr, nil, false)
 	config["tags"], config["log.level"] = "", "warn"
 	trans, err := NewTransport(tconn, &ver, nil, config)
 	if err != nil {
