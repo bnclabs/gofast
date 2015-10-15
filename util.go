@@ -35,8 +35,8 @@ func hasString(str string, strs []string) bool {
 
 func csv2strings(line string, out []string) []string {
 	for _, str := range strings.Split(line, ",") {
-		if strings.Trim(str, " \n\t\r") != "" {
-			out = append(out, str)
+		if s := strings.Trim(str, " \n\t\r"); s != "" {
+			out = append(out, s)
 		}
 	}
 	return out
