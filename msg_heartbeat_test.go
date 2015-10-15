@@ -27,6 +27,16 @@ func TestHbDecode(t *testing.T) {
 	}
 }
 
+func TestHbMisc(t *testing.T) {
+	hb := NewHeartbeat(10)
+	if hb.String() != "Heartbeat" {
+		t.Errorf("expected Heartbeat, got %v", hb.String())
+	}
+	if ref := "Heartbeat:10"; ref != hb.Repr() {
+		t.Errorf("expected %v, got %v", ref, hb.Repr())
+	}
+}
+
 func BenchmarkHbEncode(b *testing.B) {
 	out := make([]byte, 1024)
 	for i := 0; i < b.N; i++ {

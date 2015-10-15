@@ -29,6 +29,16 @@ func TestPingDecode(t *testing.T) {
 	}
 }
 
+func TestPingMisc(t *testing.T) {
+	ping := NewPing("hello world")
+	if ping.String() != "Ping" {
+		t.Errorf("expected Ping, got %v", ping.String())
+	}
+	if ref := "hello world"; ref != ping.Repr() {
+		t.Errorf("expected %v, got %v", ref, ping.Repr())
+	}
+}
+
 func BenchmarkPingEncode(b *testing.B) {
 	out := make([]byte, 1024)
 	for i := 0; i < b.N; i++ {

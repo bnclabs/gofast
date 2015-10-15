@@ -50,6 +50,26 @@ func TestWaiDecode(t *testing.T) {
 	}
 }
 
+func TestWhoamiMisc(t *testing.T) {
+	ver := testVersion(1)
+	st, end := tagOpaqueStart, tagOpaqueStart+10
+	config := newconfig("testtransport", st, end)
+	tconn := newTestConnection(nil, false)
+	config["tags"], config["log.level"] = "", "error"
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		t.Error(err)
+	}
+
+	wai := NewWhoami(trans)
+	if wai.String() != "Whoami" {
+		t.Errorf("expected Whoami, got %v", wai.String())
+	}
+	if ref := "testtransport, 10485760"; ref != wai.Repr() {
+		t.Errorf("expected %v, got %v", ref, wai.Repr())
+	}
+}
+
 func BenchmarkWaiEncode(b *testing.B) {
 	ver := testVersion(1)
 	st, end := tagOpaqueStart, tagOpaqueStart+10
