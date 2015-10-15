@@ -55,6 +55,22 @@ func TestSubscribeMessage(t *testing.T) {
 	}()
 }
 
+func TestCount(t *testing.T) {
+	// init
+	laddr, raddr, ver := "127.0.0.1:9998", "127.0.0.1:9999", testVersion(1)
+	config := newconfig("testtransport", tagOpaqueStart, tagOpaqueStart+10)
+	tconn := newTestConnection(laddr, raddr, nil, true)
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		t.Error(err)
+	}
+	trans.Handshake()
+	// test
+	if count, ref := len(trans.Counts()), 19; count != ref {
+		t.Errorf("expected %v, got %v", ref, count)
+	}
+}
+
 //func TestFlushPeriod(t *testing.T) {
 //	// init
 //	laddr, raddr, ver := "127.0.0.1:9998", "127.0.0.1:9999", testVersion(1)
@@ -70,6 +86,22 @@ func TestSubscribeMessage(t *testing.T) {
 //	time.Sleep(1 * time.Second)
 //	if trans.n_flushes != 100
 //}
+
+func BenchmarkTransCounts(b *testing.B) {
+	// init
+	laddr, raddr, ver := "127.0.0.1:9998", "127.0.0.1:9999", testVersion(1)
+	config := newconfig("testtransport", tagOpaqueStart, tagOpaqueStart+10)
+	tconn := newTestConnection(laddr, raddr, nil, true)
+	trans, err := NewTransport(tconn, &ver, nil, config)
+	if err != nil {
+		b.Error(err)
+	}
+	trans.Handshake()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		trans.Counts()
+	}
+}
 
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{

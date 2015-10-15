@@ -37,7 +37,7 @@
 //     * 0x9f denotes an array of indefinite items, a special meaning
 //       for a new stream that starts a bi-directional exchange.
 //
-// except of post-request, the exchange between client and server is always
+// except for post-request, the exchange between client and server is always
 // symmetrical.
 //
 // packet-format:
@@ -53,12 +53,15 @@
 //    * payload shall always be encoded as CBOR byte-array.
 //    * hdr-data shall always be encoded as CBOR map.
 //    * tags are uint64 numbers that will either be prefixed
-//      to payload or msg.
+//      to payload or hdr-data.
 //    * tag1, will always be a opaque number falling within a
 //      reserved tag-space called opaque-space.
-//    * tag2, tag3 can be one of the values predefined by gofast.
+//    * tag2, tag3 can be one of the values predefined by this
+//      library.
 //    * the final embedded tag, in this case tag4, shall always
 //      be tagMsg (value 37).
+//
+//    end-of-stream:
 //
 //      | tag1  | 0xff |
 //
@@ -69,16 +72,37 @@
 // configurations:
 //
 //  "name"         - give a name for the transport.
-//  "buffersize"   - maximum size that a packet can needs.
-//  "batchsize"    - number of packets to batch before writting to socket.
+//  "buffersize"   - maximum size that a packet will need.
+//  "batchsize"    - number of packets to batch before writing to socket.
 //  "chansize"     - channel size to use for internal go-routines.
 //  "tags"         - comma separated list of tags to apply, in specified order.
 //  "opaque.start" - starting opaque range, inclusive.
 //  "opaque.end"   - ending opaque range, inclusive.
 //  "log.level"    - log level to use for DefaultLogger
 //  "log.file"     - log file to use for DefaultLogger, if empty stdout is used.
-//  "gzip.level"   - gzip compression level.
+//  "gzip.level"   - gzip compression level, if `tags` contain "gzip".
 //
+// transport statistics:
+//
+//  n_tx       - number of packets transmitted
+//  n_flushes  - number of times message-batches where flushed
+//  n_txbyte   - number of bytes transmitted on socket
+//  n_txpost   - number of post messages transmitted
+//  n_txreq    - number of request messages transmitted
+//  n_txresp   - number of response messages transmitted
+//  n_txstart  - number of start messages transmitted
+//  n_txstream - number of stream messages transmitted
+//  n_txfin    - number of finish messages transmitted
+//  n_rx       - number of packets received
+//  n_rxbyte   - number of bytes received from socket
+//  n_rxpost   - number of post messages received
+//  n_rxreq    - number of request messages received
+//  n_rxresp   - number of response messages received
+//  n_rxstart  - number of start messages received
+//  n_rxstream - number of stream messages received
+//  n_rxfin    - number of finish messages received
+//  n_rxbeats  - number of heartbeats received
+//  n_dropped  - number of dropped packets
 package gofast
 
 import "sync"
@@ -216,8 +240,7 @@ func NewTransport(
 	return t, nil
 }
 
-// Handshake with remote, only after handshake message
-// exchange can happen.
+// Handshake with remote, should be called imm. after NewTransport().
 func (t *Transport) Handshake() *Transport {
 	msg, err := t.Whoami()
 	if err != nil {
@@ -263,6 +286,7 @@ func (t *Transport) Close() error {
 
 //---- maintenance APIs
 
+// Name returns the transport-name.
 func (t *Transport) Name() string {
 	return t.name
 }
@@ -327,6 +351,32 @@ func (t *Transport) Free(msg Message) {
 	t.msgpools[msg.Id()].Put(msg)
 }
 
+// Counts will return the stat counts for this transport.
+func (t *Transport) Counts() map[string]uint64 {
+	stats := map[string]uint64{
+		"n_tx":       atomic.LoadUint64(&t.n_tx),
+		"n_flushes":  atomic.LoadUint64(&t.n_flushes),
+		"n_txbyte":   atomic.LoadUint64(&t.n_txbyte),
+		"n_txpost":   atomic.LoadUint64(&t.n_txpost),
+		"n_txreq":    atomic.LoadUint64(&t.n_txreq),
+		"n_txresp":   atomic.LoadUint64(&t.n_txresp),
+		"n_txstart":  atomic.LoadUint64(&t.n_txstart),
+		"n_txstream": atomic.LoadUint64(&t.n_txstream),
+		"n_txfin":    atomic.LoadUint64(&t.n_txfin),
+		"n_rx":       atomic.LoadUint64(&t.n_rx),
+		"n_rxbyte":   atomic.LoadUint64(&t.n_rxbyte),
+		"n_rxpost":   atomic.LoadUint64(&t.n_rxpost),
+		"n_rxreq":    atomic.LoadUint64(&t.n_rxreq),
+		"n_rxresp":   atomic.LoadUint64(&t.n_rxresp),
+		"n_rxstart":  atomic.LoadUint64(&t.n_rxstart),
+		"n_rxstream": atomic.LoadUint64(&t.n_rxstream),
+		"n_rxfin":    atomic.LoadUint64(&t.n_rxfin),
+		"n_rxbeats":  atomic.LoadUint64(&t.n_rxbeats),
+		"n_dropped":  atomic.LoadUint64(&t.n_dropped),
+	}
+	return stats
+}
+
 //---- transport APIs
 
 // Whoami will return remote information.
@@ -380,7 +430,7 @@ func (t *Transport) Request(msg Message) (response Message, err error) {
 	return
 }
 
-// Request a bi-directional with peer.
+// Request a bi-directional stream with peer.
 func (t *Transport) Stream(msg Message, ch chan Message) (stream *Stream, err error) {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)

@@ -54,13 +54,13 @@ func TestCsv2strings(t *testing.T) {
 	}
 }
 
-func TestCborMap2Golang(t *testing.T) {
-	ref := map[string]interface{}{"a": 10, "b": []interface{}{true, false, nil}}
-	val := CborMap2golangMap(GolangMap2cborMap(ref))
-	if !reflect.DeepEqual(ref, val) {
-		t.Errorf("expected %v, got %v", ref, val)
-	}
-}
+//func TestCborMap2Golang(t *testing.T) {
+//	ref := map[string]interface{}{"a": 10, "b": []interface{}{true, false, nil}}
+//	val := CborMap2golangMap(GolangMap2cborMap(ref))
+//	if !reflect.DeepEqual(ref, val) {
+//		t.Errorf("expected %v, got %v", ref, val)
+//	}
+//}
 
 func BenchmarkBytes2Str(b *testing.B) {
 	bs := []byte("hello world")
