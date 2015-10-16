@@ -72,7 +72,7 @@ const ( // pre-defined tag values
 	tagVersion
 	// tag 39 (unassigned as per spec). place-holder for "id" header key.
 	tagId
-	// tag 40 (unassigned as per spec). place-holder for "id" header key.
+	// tag 40 (unassigned as per spec). place-holder for "data" header key.
 	tagData
 	// tag 41 (unassigned as per spec). says payload is compressed using
 	// Gzip compression method.
