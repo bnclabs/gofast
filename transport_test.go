@@ -3,118 +3,269 @@ package gofast
 import "testing"
 import "fmt"
 import "compress/flate"
+import "sort"
 import "net"
 import "time"
 import "sync"
+import "strings"
 
 func TestTransport(t *testing.T) {
-	// init
-	laddr, raddr, ver := "127.0.0.1:9998", "127.0.0.1:9999", testVersion(1)
-	config := newconfig("testtransport", tagOpaqueStart, tagOpaqueStart+10)
-	config["tags"] = "gzip"
-	tconn := newTestConnection(laddr, raddr, nil, true)
-	trans, err := NewTransport(tconn, &ver, nil, config)
-	if err != nil {
-		t.Error(err)
-	}
-	trans.Handshake()
+	ver, addr := testVersion(1), "127.0.0.1:9998"
+	// init server
+	lis, serverch := newServer("gzip")
+	// init client
+	transc := newClient("gzip").Handshake()
+	transv := <-serverch
+
+	c_counts := transv.Counts()
+	s_counts := transv.Counts()
 	// test
-	if _, ok := trans.tagenc[tagGzip]; !ok && len(trans.tagenc) != 1 {
-		t.Errorf("expected gzip, got %v", trans.tagenc)
+	if ref := "server"; transv.Name() != ref {
+		t.Errorf("expected %v, got %v", ref, transv.Name())
+	} else if _, ok := transc.tagenc[tagGzip]; !ok && len(transc.tagenc) != 1 {
+		t.Errorf("expected gzip, got %v", transc.tagenc)
+	} else if ref := "client"; ref != transc.Name() {
+		t.Errorf("expected %v, got %v", ref, transc.Name())
+	} else if !transc.PeerVersion().Equal(&ver) {
+		t.Errorf("expected %v, got %v", ver, transc.peerver)
+	} else if s := transc.RemoteAddr().String(); s != addr {
+		t.Errorf("expected %v, got %v", s, addr)
+	} else if !verify(c_counts, "n_flushes", "n_rx", "n_rxreq", "n_tx", 1) {
+		t.Errorf("unexpected c_counts: %v", c_counts)
+	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 41) {
+		t.Errorf("unexpected c_counts: %v", c_counts)
+	} else if !verify(s_counts, "n_flushes", "n_rx", "n_rxreq", "n_tx", 1) {
+		t.Errorf("unexpected s_counts: %v", s_counts)
+	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 41) {
+		t.Errorf("unexpected s_counts: %v", s_counts)
 	}
-	if ref := "testtransport"; ref != trans.Name() {
-		t.Errorf("expected %v, got %v", ref, trans.Name())
-	} else if !trans.PeerVersion().Equal(&ver) {
-		t.Errorf("expected %v, got %v", ver, trans.peerver)
-	} else if s := trans.LocalAddr().String(); s != laddr {
-		t.Errorf("expected %v, got %v", s, laddr)
-	} else if s := trans.RemoteAddr().String(); s != raddr {
-		t.Errorf("expected %v, got %v", s, raddr)
-	}
-	trans.Close()
+	lis.Close()
+	transc.Close()
+	transv.Close()
 }
 
 func TestSubscribeMessage(t *testing.T) {
-	// init
-	laddr, raddr, ver := "127.0.0.1:9998", "127.0.0.1:9999", testVersion(1)
-	config := newconfig("testtransport", tagOpaqueStart, tagOpaqueStart+10)
-	tconn := newTestConnection(laddr, raddr, nil, true)
-	trans, err := NewTransport(tconn, &ver, nil, config)
-	if err != nil {
-		t.Error(err)
-	}
-	trans.Handshake()
+	// init server
+	lis, serverch := newServer("")
+	// init client
+	transc := newClient("").Handshake()
+	transv := <-serverch
+
 	// test
+	if ref := "server"; transv.Name() != ref {
+		t.Errorf("expected %v, got %v", ref, transv.Name())
+	}
 	func() {
 		defer func() {
 			if r := recover(); r == nil {
 				t.Errorf("expected panic")
 			}
 		}()
-		trans.SubscribeMessage(NewPing("should faile"), nil)
+		transc.SubscribeMessage(NewPing("should failed"), nil)
 	}()
+	lis.Close()
+	transc.Close()
+	transv.Close()
 }
 
-func TestCount(t *testing.T) {
-	// init
-	laddr, raddr, ver := "127.0.0.1:9998", "127.0.0.1:9999", testVersion(1)
-	config := newconfig("testtransport", tagOpaqueStart, tagOpaqueStart+10)
-	tconn := newTestConnection(laddr, raddr, nil, true)
-	trans, err := NewTransport(tconn, &ver, nil, config)
+func TestFlushPeriod(t *testing.T) {
+	// init server
+	lis, serverch := newServer("")
+	// init client
+	transc := newClient("").Handshake()
+	transv := <-serverch
+
+	// test
+	transc.FlushPeriod(10 * time.Millisecond) // 99 flushes + 1 from handshake
+	time.Sleep(2 * time.Second)
+	c_counts := transc.Counts()
+	if ref, n := uint64(10), c_counts["n_flushes"]; n < ref {
+		t.Errorf("expected less than %v, got %v", ref, n)
+	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestHeartbeat(t *testing.T) {
+	// init server
+	lis, serverch := newServer("")
+	// init client
+	transc := newClient("").Handshake()
+	transv := <-serverch
+
+	// test
+	transc.SendHeartbeat(10 * time.Millisecond)
+	time.Sleep(1 * time.Second)
+	transc.Close()
+	time.Sleep(20 * time.Millisecond)
+	c_counts := transc.Counts()
+	s_counts := transv.Counts()
+
+	if !verify(c_counts, "n_txreq", "n_rxresp", "n_rx", 1) {
+		t.Errorf("unexpected c_counts %v", c_counts)
+	} else if limit := uint64(5); c_counts["n_flushes"] < limit {
+		t.Errorf("atleast %v, got %v", limit, c_counts["n_flushes"])
+	} else if !verify(c_counts, "n_tx", "n_flushes") {
+		t.Errorf("failed c_counts: %v", c_counts)
+	} else if !verify(s_counts, "n_rxreq", "n_txresp", "n_flushes", "n_tx", 1) {
+		t.Errorf("unexpected s_counts %v", s_counts)
+	} else if c_counts["n_rxbyte"] != s_counts["n_txbyte"] {
+		t.Errorf("mismatch %v, %v", c_counts["n_rxbyte"], s_counts["n_txbyte"])
+	} else if c_counts["n_txbyte"] != s_counts["n_rxbyte"] {
+		t.Errorf("mismatch %v, %v", c_counts["n_txbyte"], s_counts["n_rxbyte"])
+	} else if c_counts["n_flushes"] != s_counts["n_rx"] {
+		t.Errorf("mismatch %v, %v", c_counts["n_flushes"], s_counts["n_rx"])
+	} else if !verify(s_counts, "n_rxbeats", "n_rxpost") {
+		t.Errorf("mismatch %v, %v", s_counts["n_rxbeats"], s_counts["n_rxpost"])
+	} else if n := s_counts["n_rxpost"]; n != 99 && n != 100 {
+		t.Errorf("neither 100, nor 99: %v", n)
+	}
+
+	ref, since := (200 * time.Millisecond), transc.Silentsince()
+	if since > ref {
+		t.Errorf("expected less than %v, got %v", ref, since)
+	}
+	lis.Close()
+	transv.Close()
+}
+
+func TestPing(t *testing.T) {
+	// init server
+	lis, serverch := newServer("")
+	// init client
+	transc := newClient("").Handshake()
+	transv := <-serverch
+
+	// test
+	refs := "hello world"
+	if ping, err := transc.Ping(refs); err != nil {
+		t.Error(err)
+	} else if ping.echo != refs {
+		t.Errorf("expected atleast %v, got %v", refs, ping.echo)
+	}
+	counts := transc.Counts()
+	if ref, n := uint64(2), counts["n_flushes"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_tx"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_txreq"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_rx"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_rxresp"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if x, y := counts["n_rxbyte"], counts["n_txbyte"]; x != y {
+		t.Errorf("expected atleast %v, got %v", x, y)
+	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestWhoami(t *testing.T) {
+	// init server
+	lis, serverch := newServer("")
+	// init client
+	transc := newClient("").Handshake()
+	transv := <-serverch
+	// test
+	wai, err := transc.Whoami()
 	if err != nil {
 		t.Error(err)
+	} else if wai.name != "server" {
+		t.Errorf("expected %v, got %v", "server", wai.name)
 	}
-	trans.Handshake()
-	// test
-	if count, ref := len(trans.Counts()), 19; count != ref {
-		t.Errorf("expected %v, got %v", ref, count)
+	counts := transc.Counts()
+	if ref, n := uint64(2), counts["n_flushes"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_tx"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_txreq"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_rx"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_rxresp"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if x, y := counts["n_rxbyte"], counts["n_txbyte"]; x != y {
+		t.Errorf("expected atleast %v, got %v", x, y)
 	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
 }
-
-//func TestFlushPeriod(t *testing.T) {
-//	// init
-//	laddr, raddr, ver := "127.0.0.1:9998", "127.0.0.1:9999", testVersion(1)
-//	config := newconfig("testtransport", tagOpaqueStart, tagOpaqueStart+10)
-//	tconn := newTestConnection(laddr, raddr, nil, true)
-//	trans, err := NewTransport(tconn, &ver, nil, config)
-//	if err != nil {
-//		t.Error(err)
-//	}
-//	trans.Handshake()
-//	// test
-//	trans.FlushPeriod(10 * time.Millisecond)
-//	time.Sleep(1 * time.Second)
-//	if trans.n_flushes != 100
-//}
 
 func BenchmarkTransCounts(b *testing.B) {
-	// init
-	laddr, raddr, ver := "127.0.0.1:9998", "127.0.0.1:9999", testVersion(1)
-	config := newconfig("testtransport", tagOpaqueStart, tagOpaqueStart+10)
-	tconn := newTestConnection(laddr, raddr, nil, true)
-	trans, err := NewTransport(tconn, &ver, nil, config)
-	if err != nil {
-		b.Error(err)
-	}
-	trans.Handshake()
+	// init server
+	lis, serverch := newServer("")
+	// init client
+	transc := newClient("").Handshake()
+	transv := <-serverch
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		trans.Counts()
+		transc.Counts()
 	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
 }
+
+//---- test fixture with client and server.
 
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
 		"buffersize":   1024 * 1024 * 10,
-		"chansize":     1,
-		"batchsize":    1,
+		"chansize":     1000,
+		"batchsize":    1000,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
 		"log.level":    "error",
 		"gzip.file":    flate.BestSpeed,
 	}
+}
+
+func newServer(tags string) (net.Listener, chan *Transport) {
+	addr := "127.0.0.1:9998"
+	config := newconfig("server", tagOpaqueStart, tagOpaqueStart+10)
+	config["tags"] = tags
+
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		panic(fmt.Errorf("listen failed %v", err))
+	}
+	ch := make(chan *Transport, 10)
+	go func() {
+		for {
+			if conn, err := lis.Accept(); err == nil {
+				ver := testVersion(1)
+				trans, err := NewTransport(conn, &ver, nil, config)
+				if err != nil {
+					panic("NewTransport server failed")
+				}
+				ch <- trans
+			}
+		}
+	}()
+	return lis, ch
+}
+
+func newClient(tags string) *Transport {
+	addr := "127.0.0.1:9998"
+	config := newconfig("client", tagOpaqueStart+11, tagOpaqueStart+20)
+	config["tags"] = tags
+
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	ver := testVersion(1)
+	trans, err := NewTransport(conn, &ver, nil, config)
+	if err != nil {
+		panic(err)
+	}
+	return trans
 }
 
 type testConnection struct {
@@ -168,7 +319,7 @@ func (tc *testConnection) Read(b []byte) (n int, err error) {
 		if tc.read {
 			n, err = do()
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	//fmt.Println("read ...", n, err)
 	return n, err
@@ -223,4 +374,53 @@ func (v *testVersion) Unmarshal(in []byte) int {
 	ln, n := cborItemLength(in)
 	*v = testVersion(ln)
 	return n
+}
+
+func printCounts(counts map[string]uint64) {
+	keys := []string{}
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Sort(sort.StringSlice(keys))
+	s := []string{}
+	for _, key := range keys {
+		s = append(s, fmt.Sprintf("%v:%v", key, counts[key]))
+	}
+	fmt.Println(strings.Join(s, ", "))
+}
+
+func verify(counts map[string]uint64, args ...interface{}) bool {
+	check := func(keys []string, val uint64) bool {
+		for _, k := range keys {
+			if counts[k] != val {
+				return false
+			}
+		}
+		return true
+	}
+	keys := []string{}
+	for _, arg := range args {
+		if k, ok := arg.(string); ok {
+			keys = append(keys, k)
+		} else if i, ok := arg.(int); ok {
+			if check(keys, uint64(i)) == false {
+				return false
+			}
+			keys = []string{}
+		} else if i64, ok := arg.(uint64); ok {
+			if check(keys, i64) == false {
+				return false
+			}
+			keys = []string{}
+		}
+	}
+	if len(keys) > 0 {
+		x := counts[keys[0]]
+		for _, k := range keys[1:] {
+			if x != counts[k] {
+				return false
+			}
+		}
+	}
+	return true
 }

@@ -26,12 +26,14 @@ func (t *Transport) syncRx() {
 			fmsg := "%v ##%d stream closed ...\n"
 			log.Debugf(fmsg, t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
-
-		} else {
-			fmsg := "%v ##%d stream started ...\n"
-			log.Verbosef(fmsg, t.logprefix, stream.opaque)
-			livestreams[stream.opaque] = stream
+			if stream.remote == false {
+				t.strmpool <- stream
+			}
+			return
 		}
+		fmsg := "%v ##%d stream started ...\n"
+		log.Verbosef(fmsg, t.logprefix, stream.opaque)
+		livestreams[stream.opaque] = stream
 	}
 
 	handlepkt := func(rxpkt *rxpacket) {
@@ -42,7 +44,7 @@ func (t *Transport) syncRx() {
 		if rxpkt.finish {
 			fmsg := "%v ##%d stream closed by remote ...\n"
 			log.Debugf(fmsg, t.logprefix, stream.opaque)
-			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
+			t.putstream(stream, false /*tellrx*/)
 			delete(livestreams, rxpkt.opaque)
 			atomic.AddUint64(&t.n_rxfin, 1)
 			return
@@ -58,12 +60,13 @@ func (t *Transport) syncRx() {
 			stream.Rxch = t.handlers[msg.Id()](stream, msg)
 			if rxpkt.request {
 				atomic.AddUint64(&t.n_rxreq, 1)
+				livestreams[stream.opaque] = stream
 			} else if rxpkt.start {
 				atomic.AddUint64(&t.n_rxstart, 1)
+				livestreams[stream.opaque] = stream
 			} else {
 				atomic.AddUint64(&t.n_rxpost, 1)
 			}
-			livestreams[stream.opaque] = stream
 			return
 		}
 		// response, stream, finish
@@ -89,8 +92,8 @@ loop:
 			case *Stream:
 				streamupdate(val)
 			case *rxpacket:
-				atomic.AddUint64(&t.n_rx, 1)
 				if val != nil {
+					atomic.AddUint64(&t.n_rx, 1)
 					handlepkt(val)
 				}
 			}
@@ -106,7 +109,10 @@ func (t *Transport) doRx() {
 
 	log.Infof("%v doRx() started ...\n", t.logprefix)
 	for {
-		rxpkt := t.unframepkt(t.conn)
+		rxpkt, err := t.unframepkt(t.conn)
+		if err != nil {
+			break
+		}
 		if rxpkt != nil {
 			log.Debugf("%v %v ; received pkt\n", t.logprefix, rxpkt)
 			if t.putch(t.rxch, rxpkt) == false {
@@ -117,7 +123,7 @@ func (t *Transport) doRx() {
 	log.Infof("%v doRx() ... stopped\n", t.logprefix)
 }
 
-func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
+func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("%v malformed packet: %v\n", t.logprefix, r)
@@ -128,22 +134,24 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
 		}
 	}()
 
+	var n int
 	var pad [9]byte
-	if n, err := io.ReadFull(conn, pad[:9]); err == io.EOF {
+	if n, err = io.ReadFull(conn, pad[:9]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
 	} else if err != nil || n != 9 {
-		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
+		log.Infof("%v reading prefix: %v,%v\n", t.logprefix, n, err)
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
 	} else if pad[0] != 0xd9 || pad[1] != 0xd9 || pad[2] != 0xf7 { // prefix
-		log.Errorf("%v wrong prefix %v\n", t.logprefix, pad)
+		err = fmt.Errorf("%v wrong prefix %v", t.logprefix, pad)
 		atomic.AddUint64(&t.n_dropped, uint64(n))
+		log.Errorf("%v\n", err)
 		return
 	}
 	//fmt.Println("doRx() io.ReadFull() first", pad)
 	// check cbor-prefix
-	n := 3
+	n = 3
 	request, start := pad[n] == 0x91, pad[n] == 0x9f
 	if request || start {
 		n += 1
@@ -154,15 +162,15 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
 	packet := t.pktpool.Get().([]byte)
 	defer func() { t.pktpool.Put(packet) }()
 	n = copy(packet, pad[n:9])
-	if m, err := io.ReadFull(conn, packet[n:ln]); err == io.EOF {
+	if m, err = io.ReadFull(conn, packet[n:ln]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
 	} else if err != nil || m != (ln-n) {
-		log.Errorf("%v reading packet %v,%v,%v\n", t.logprefix, ln, n, err)
+		log.Infof("%v reading packet %v,%v:%v\n", t.logprefix, ln, n, err)
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
 	}
-	atomic.AddUint64(&t.n_rxbyte, 9+uint64(ln-n))
+	atomic.AddUint64(&t.n_rxbyte, uint64(9+m))
 	//fmt.Println("doRx() io.ReadFull() second")
 	rxpkt = rxpool.Get().(*rxpacket)
 	rxpkt.packet = t.pktpool.Get().([]byte)
@@ -182,7 +190,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket) {
 		tag, rxpkt.payload = readtp(packet)
 		rxpkt.packet, packet = packet, rxpkt.packet // swap
 	}
-	return rxpkt
+	return rxpkt, nil
 }
 
 func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {

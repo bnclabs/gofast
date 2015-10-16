@@ -109,7 +109,7 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 	arg := txpool.Get().(*txproto)
 	defer txpool.Put(arg)
 
-	log.Debugf("%v tx packet %v\n", t.logprefix, packet)
+	log.Debugf("%v tx packet %v %v\n", t.logprefix, packet, len(t.txch))
 	arg.packet, arg.flush, arg.respch = packet, flush, make(chan *txproto, 1)
 	select {
 	case t.txch <- arg:
@@ -141,12 +141,12 @@ func (t *Transport) doTx() {
 				n, err := t.conn.Write(arg.packet)
 				arg.n, arg.err = n, err
 				atomic.AddUint64(&t.n_tx, 1)
-				atomic.AddUint64(&t.n_txbyte, uint64(ln))
+				atomic.AddUint64(&t.n_txbyte, uint64(n))
 			}
 			arg.respch <- arg
 		}
-		batch = batch[:0] // reset the batch
 		log.Debugf("%v drained %v packets\n", t.logprefix, len(batch))
+		batch = batch[:0] // reset the batch
 	}
 
 	log.Infof("%v doTx(batch:%v) started ...\n", t.logprefix, batchsize)

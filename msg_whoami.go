@@ -51,12 +51,7 @@ func (msg *Whoami) Decode(in []byte) {
 	// name
 	ln, m := cborItemLength(in[n:])
 	n += m
-	bs := str2bytes(msg.name)
-	if cap(bs) == 0 {
-		bs = make([]byte, len(in))
-	}
-	bs = append(bs[:0], in[n:n+ln]...)
-	msg.name = bytes2str(bs)
+	msg.name = string(in[n : n+ln])
 	n += ln
 	// version
 	if msg.version == nil {
@@ -71,12 +66,7 @@ func (msg *Whoami) Decode(in []byte) {
 	// tags
 	ln, m = cborItemLength(in[n:])
 	n += m
-	bs = str2bytes(msg.tags)
-	if cap(bs) == 0 {
-		bs = make([]byte, len(in))
-	}
-	bs = append(bs[:0], in[n:n+ln]...)
-	msg.tags = bytes2str(bs)
+	msg.tags = string(in[n : n+ln])
 	n += ln
 }
 

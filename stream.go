@@ -9,7 +9,7 @@ type Stream struct {
 }
 
 func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
-	fmsg := "%v ##%d(remote:%v) stream started ...\n"
+	fmsg := "%v ##%d(remote:%v) stream created ...\n"
 	log.Verbosef(fmsg, t.logprefix, opaque, remote)
 	return &Stream{transport: t, remote: remote, opaque: opaque, Rxch: nil}
 }
@@ -21,23 +21,20 @@ func (t *Transport) getstream(ch chan Message) *Stream {
 	return stream
 }
 
-func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
+func (t *Transport) putstream(stream *Stream, tellrx bool) {
 	func() {
 		// Rxch could also be closed when transport is closed...
 		// Rxch could also be nil in case of post...
 		defer func() { recover() }()
 	}()
 	if stream == nil {
-		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
+		log.Errorf("%v ##%v unkown stream\n", t.logprefix, stream.opaque)
 		return
 	}
 	if stream.Rxch != nil {
 		close(stream.Rxch)
 	}
 	stream.Rxch = nil
-	if stream.remote == false { // reclaim if local stream
-		t.strmpool <- stream
-	}
 	if tellrx {
 		t.putch(t.rxch, stream)
 	}
@@ -47,9 +44,9 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 func (s *Stream) Response(msg Message, flush bool) error {
 	out := s.transport.pktpool.Get().([]byte)
 	defer s.transport.pktpool.Put(out)
-	defer s.transport.putstream(s.opaque, s, true /*tellrx*/)
 
 	n := s.transport.response(msg, s, out)
+	s.transport.putstream(s, true /*tellrx*/)
 	return s.transport.tx(out[:n], flush)
 }
 
@@ -57,13 +54,10 @@ func (s *Stream) Response(msg Message, flush bool) error {
 func (s *Stream) Stream(msg Message, flush bool) (err error) {
 	out := s.transport.pktpool.Get().([]byte)
 	defer s.transport.pktpool.Put(out)
-	defer func() {
-		if err != nil {
-			s.transport.putstream(s.opaque, s, true /*tellrx*/)
-		}
-	}()
 	n := s.transport.stream(msg, s, out)
-	err = s.transport.tx(out[:n], flush)
+	if err = s.transport.tx(out[:n], flush); err != nil {
+		s.transport.putstream(s, true /*tellrx*/)
+	}
 	return
 }
 
@@ -71,9 +65,9 @@ func (s *Stream) Stream(msg Message, flush bool) (err error) {
 func (s *Stream) Close() error {
 	out := s.transport.pktpool.Get().([]byte)
 	defer s.transport.pktpool.Put(out)
-	defer s.transport.putstream(s.opaque, s, true /*tellrx*/)
 
 	n := s.transport.finish(s, out)
+	s.transport.putstream(s, true /*tellrx*/)
 	return s.transport.tx(out[:n], true /*flush*/)
 }
 

@@ -26,16 +26,14 @@ func (msg *Ping) Encode(out []byte) int {
 }
 
 func (msg *Ping) Decode(in []byte) {
-	if in[0] != 0x9f {
+	n := 0
+	if in[n] != 0x9f {
 		return
 	}
-	ln, n := cborItemLength(in[1:])
-	bs := str2bytes(msg.echo)
-	if cap(bs) == 0 {
-		bs = make([]byte, len(in))
-	}
-	bs = append(bs[:0], in[1+n:1+n+ln]...)
-	msg.echo = bytes2str(bs)
+	n += 1
+	ln, m := cborItemLength(in[n:])
+	n += m
+	msg.echo = string(in[n : n+ln])
 	return
 }
 

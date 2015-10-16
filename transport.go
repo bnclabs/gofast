@@ -188,6 +188,7 @@ func NewTransport(
 	opqstart := config["opaque.start"].(int)
 	opqend := config["opaque.end"].(int)
 	chansize := config["chansize"].(int)
+	batchsize := config["batchsize"].(int)
 
 	t := &Transport{
 		name:     name,
@@ -199,7 +200,7 @@ func NewTransport(
 		handlers: make(map[uint64]RequestCallback),
 
 		conn:   conn,
-		txch:   make(chan *txproto, chansize),
+		txch:   make(chan *txproto, chansize+batchsize),
 		rxch:   make(chan interface{}, chansize),
 		killch: make(chan bool),
 
@@ -216,10 +217,9 @@ func NewTransport(
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
 	t.setOpaqueRange(uint64(opqstart), uint64(opqend))
-	t.subscribeMessage(
-		&Whoami{}, t.msghandler).subscribeMessage(
-		&Ping{}, t.msghandler).subscribeMessage(
-		&Heartbeat{}, t.msghandler)
+	t.subscribeMessage(&Whoami{}, t.msghandler)
+	t.subscribeMessage(&Ping{}, t.msghandler)
+	t.subscribeMessage(&Heartbeat{}, t.msghandler)
 
 	// educate tranport with configured tag decoders.
 	tagcsv, _ := config["tags"]
@@ -242,15 +242,12 @@ func NewTransport(
 
 // Handshake with remote, should be called imm. after NewTransport().
 func (t *Transport) Handshake() *Transport {
-	msg := NewWhoami(t)
-	defer t.Free(msg)
-	resp, err := t.Request(msg, true /*flush*/)
+	msg, err := t.Whoami()
 	if err != nil {
 		panic(err)
 	}
-	msg = resp.(*Whoami)
 
-	t.peerver = msg.version
+	t.peerver = msg.version // TODO: should be atomic ?
 	// parse tag list, tags will be applied in the specified order.
 	for _, tag := range t.getTags(msg.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
@@ -300,7 +297,9 @@ func (t *Transport) FlushPeriod(ms time.Duration) {
 	go func() {
 		for {
 			<-tick
-			t.tx([]byte{} /*empty*/, true /*flush*/)
+			if t.tx([]byte{} /*empty*/, true /*flush*/) != nil {
+				return
+			}
 			log.Debugf("%v flushed after %v\n", t.logprefix, time.Since(now))
 		}
 	}()
@@ -313,7 +312,10 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 		for {
 			<-tick
 			msg := NewHeartbeat(count)
-			t.Post(msg, false /*flush*/)
+			if t.Post(msg, true /*flush*/) != nil {
+				t.Free(msg)
+				return
+			}
 			t.Free(msg)
 			count++
 			log.Debugf("%v posted heartbeat %v\n", t.logprefix, count)
@@ -386,7 +388,7 @@ func (t *Transport) Counts() map[string]uint64 {
 func (t *Transport) Whoami() (*Whoami, error) {
 	msg := NewWhoami(t)
 	defer t.Free(msg)
-	resp, err := t.Request(msg, false /*flush*/)
+	resp, err := t.Request(msg, true /*flush*/)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +399,7 @@ func (t *Transport) Whoami() (*Whoami, error) {
 func (t *Transport) Ping(echo string) (*Ping, error) {
 	msg := NewPing(echo)
 	defer t.Free(msg)
-	resp, err := t.Request(msg, false /*flush*/)
+	resp, err := t.Request(msg, true /*flush*/)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +411,7 @@ func (t *Transport) Post(msg Message, flush bool) error {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 	stream := t.getstream(nil)
-	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
+	defer t.putstream(stream, true /*tellrx*/)
 
 	n := t.post(msg, stream, out)
 	return t.tx(out[:n], flush)
@@ -420,7 +422,7 @@ func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 	stream := t.getstream(make(chan Message, 1))
-	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
+	defer t.putstream(stream, true /*tellrx*/)
 
 	var ok bool
 	n := t.request(msg, stream, out)
@@ -439,22 +441,19 @@ func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (stream *St
 	defer t.pktpool.Put(out)
 
 	stream = t.getstream(ch)
-	defer func() {
-		if err != nil {
-			t.putstream(stream.opaque, stream, true /*tellrx*/)
-		}
-	}()
 	n := t.start(msg, stream, out)
-	err = t.tx(out[:n], false)
+	if err = t.tx(out[:n], false); err != nil {
+		t.putstream(stream, true /*tellrx*/)
+	}
 	return
 }
 
 //---- local APIs
 
 func (t *Transport) setOpaqueRange(start, end uint64) {
-	fmsg := "opaques must start `%v` and shall not exceed `%v`"
-	err := fmt.Errorf(fmsg, tagOpaqueStart, tagOpaqueEnd)
-	if start != tagOpaqueStart {
+	fmsg := "opaques must start `%v` and shall not exceed `%v`(%v,%v)"
+	err := fmt.Errorf(fmsg, tagOpaqueStart, tagOpaqueEnd, start, end)
+	if start < tagOpaqueStart {
 		panic(err)
 	} else if end > tagOpaqueEnd {
 		panic(err)
