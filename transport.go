@@ -3,9 +3,9 @@
 // Package gofast implements a high performance symmetric protocol
 // for on the wire data transport.
 //
-// message-format:
+// frame-format:
 //
-//    A message is encoded as finite length CBOR map with predefined list
+//    A frame is encoded as finite length CBOR map with predefined list
 //    of keys, for example, "id", "data" etc... keys are typically encoded
 //    as numbers so that they can be efficiently packed. This implies that
 //    each of the predefined keys shall be assigned a unique number.
