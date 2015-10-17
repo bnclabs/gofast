@@ -60,24 +60,23 @@ func main() {
 	n_trans := make([]*gofast.Transport, 0)
 	for i := 0; i < options.conns; i++ {
 		wg.Add(1)
-		go func() {
-			config := newconfig("client", 3000, 4000)
-			config["tags"] = ""
-			conn, err := net.Dial("tcp", options.addr)
-			if err != nil {
-				panic(err)
-			}
-			ver := testVersion(1)
-
-			trans, err := gofast.NewTransport(conn, &ver, nil, config)
-			if err != nil {
-				panic(err)
-			}
-			n_trans = append(n_trans, trans)
+		ver := testVersion(1)
+		config := newconfig("client", 3000, 4000)
+		config["tags"] = ""
+		conn, err := net.Dial("tcp", options.addr)
+		if err != nil {
+			panic(err)
+		}
+		trans, err := gofast.NewTransport(conn, &ver, nil, config)
+		if err != nil {
+			panic(err)
+		}
+		n_trans = append(n_trans, trans)
+		go func(trans *gofast.Transport) {
 			doRequest(trans)
 			wg.Done()
 			trans.Close()
-		}()
+		}(trans)
 	}
 	wg.Wait()
 	printCounts(addCounts(n_trans...))
