@@ -7,10 +7,9 @@ import "bytes"
 var _ = fmt.Sprintf("dummy")
 
 func TestPost(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ref := []byte{
@@ -31,10 +30,9 @@ func TestPost(t *testing.T) {
 }
 
 func TestRequest(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ref := []byte{
@@ -55,10 +53,9 @@ func TestRequest(t *testing.T) {
 }
 
 func TestResponse(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ref := []byte{
@@ -79,10 +76,9 @@ func TestResponse(t *testing.T) {
 }
 
 func TestStart(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ref := []byte{
@@ -103,10 +99,9 @@ func TestStart(t *testing.T) {
 }
 
 func TestStream(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ref := []byte{
@@ -127,10 +122,9 @@ func TestStream(t *testing.T) {
 }
 
 func TestFinish(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ref := []byte{217, 217, 247, 68, 217, 1, 12, 255}
@@ -146,10 +140,9 @@ func TestFinish(t *testing.T) {
 }
 
 func TestFramePkt(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ref := []byte{
@@ -170,10 +163,9 @@ func TestFramePkt(t *testing.T) {
 }
 
 func BenchmarkPostPkt(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	stream := transc.getstream(nil)
@@ -189,10 +181,9 @@ func BenchmarkPostPkt(b *testing.B) {
 }
 
 func BenchmarkRequestPkt(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	stream := transc.getstream(nil)
@@ -208,10 +199,9 @@ func BenchmarkRequestPkt(b *testing.B) {
 }
 
 func BenchmarkResponsePkt(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	stream := transc.getstream(nil)
@@ -227,10 +217,9 @@ func BenchmarkResponsePkt(b *testing.B) {
 }
 
 func BenchmarkStartPkt(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	stream := transc.getstream(nil)
@@ -246,10 +235,9 @@ func BenchmarkStartPkt(b *testing.B) {
 }
 
 func BenchmarkStreamPkt(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	stream := transc.getstream(nil)
@@ -265,10 +253,9 @@ func BenchmarkStreamPkt(b *testing.B) {
 }
 
 func BenchmarkFinishPkt(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	stream := transc.getstream(nil)
@@ -283,10 +270,9 @@ func BenchmarkFinishPkt(b *testing.B) {
 }
 
 func BenchmarkFramePkt(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	stream := transc.getstream(nil)

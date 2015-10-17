@@ -23,48 +23,52 @@ func (t *Transport) syncRx() {
 	streamupdate := func(stream *Stream) {
 		_, ok := livestreams[stream.opaque]
 		if stream.Rxch == nil && ok {
-			fmsg := "%v ##%d stream closed ...\n"
-			log.Debugf(fmsg, t.logprefix, stream.opaque)
+			log.Debugf("%v ##%d stream closed ...\n", t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
 			if stream.remote == false {
 				t.strmpool <- stream
 			}
 			return
 		}
-		fmsg := "%v ##%d stream started ...\n"
-		log.Verbosef(fmsg, t.logprefix, stream.opaque)
+		log.Verbosef("%v ##%d stream started ...\n", t.logprefix, stream.opaque)
 		livestreams[stream.opaque] = stream
 	}
 
 	handlepkt := func(rxpkt *rxpacket) {
-		stream, streamok := livestreams[rxpkt.opaque]
 		defer t.pktpool.Put(rxpkt.packet)
 		defer rxpool.Put(rxpkt)
+
+		stream, streamok := livestreams[rxpkt.opaque]
 
 		if rxpkt.finish {
 			fmsg := "%v ##%d stream closed by remote ...\n"
 			log.Debugf(fmsg, t.logprefix, stream.opaque)
-			t.putstream(stream, false /*tellrx*/)
+			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
 			delete(livestreams, rxpkt.opaque)
 			atomic.AddUint64(&t.n_rxfin, 1)
 			return
-
 		}
+
 		msg := t.unmessage(rxpkt.opaque, rxpkt.payload)
 		if msg == nil {
 			return
 		}
 		log.Debugf("%v received msg %#v\n", t.logprefix, msg)
 		if streamok == false { // post, request, stream-start
-			stream = t.newstream(rxpkt.opaque, true)
-			stream.Rxch = t.handlers[msg.Id()](stream, msg)
 			if rxpkt.request {
-				atomic.AddUint64(&t.n_rxreq, 1)
-				livestreams[stream.opaque] = stream
+				func() {
+					stream = t.newstream(rxpkt.opaque, true /*remote*/)
+					defer rxstrmpool.Put(stream)
+					t.handlers[msg.Id()](stream, msg)
+					atomic.AddUint64(&t.n_rxreq, 1)
+				}()
 			} else if rxpkt.start {
-				atomic.AddUint64(&t.n_rxstart, 1)
+				stream = t.newstream(rxpkt.opaque, true /*remote*/)
+				stream.Rxch = t.handlers[msg.Id()](stream, msg)
 				livestreams[stream.opaque] = stream
+				atomic.AddUint64(&t.n_rxstart, 1)
 			} else {
+				t.handlers[msg.Id()](nil /*stream*/, msg)
 				atomic.AddUint64(&t.n_rxpost, 1)
 			}
 			return

@@ -23,10 +23,9 @@ func TestReadtagp(t *testing.T) {
 }
 
 func TestUnmessage(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// read tag and its payload
@@ -59,10 +58,9 @@ func BenchmarkReadtagp(b *testing.B) {
 }
 
 func BenchmarkUnmessage(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// read tag and its payload

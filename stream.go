@@ -1,5 +1,7 @@
 package gofast
 
+import "sync"
+
 // Stream for a newly started stream on the transport.
 type Stream struct {
 	transport *Transport
@@ -9,26 +11,30 @@ type Stream struct {
 }
 
 func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
+	stream := rxstrmpool.Get().(*Stream)
 	fmsg := "%v ##%d(remote:%v) stream created ...\n"
 	log.Verbosef(fmsg, t.logprefix, opaque, remote)
-	return &Stream{transport: t, remote: remote, opaque: opaque, Rxch: nil}
+	// reset all fields (it is coming from a pool)
+	stream.transport, stream.remote, stream.opaque = t, remote, opaque
+	stream.Rxch = nil
+	return stream
 }
 
-func (t *Transport) getstream(ch chan Message) *Stream {
+func (t *Transport) getstream(ch chan Message) *Stream { // called only be tx.
 	stream := <-t.strmpool
 	stream.Rxch = ch
 	t.putch(t.rxch, stream)
 	return stream
 }
 
-func (t *Transport) putstream(stream *Stream, tellrx bool) {
+func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	func() {
 		// Rxch could also be closed when transport is closed...
 		// Rxch could also be nil in case of post...
 		defer func() { recover() }()
 	}()
 	if stream == nil {
-		log.Errorf("%v ##%v unkown stream\n", t.logprefix, stream.opaque)
+		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
 		return
 	}
 	if stream.Rxch != nil {
@@ -47,7 +53,6 @@ func (s *Stream) Response(msg Message, flush bool) error {
 
 	out := obj.([]byte)
 	n := s.transport.response(msg, s, out)
-	s.transport.putstream(s, true /*tellrx*/)
 	return s.transport.tx(out[:n], flush)
 }
 
@@ -59,7 +64,7 @@ func (s *Stream) Stream(msg Message, flush bool) (err error) {
 	out := obj.([]byte)
 	n := s.transport.stream(msg, s, out)
 	if err = s.transport.tx(out[:n], flush); err != nil {
-		s.transport.putstream(s, true /*tellrx*/)
+		s.transport.putstream(s.opaque, s, true /*tellrx*/)
 	}
 	return
 }
@@ -71,11 +76,17 @@ func (s *Stream) Close() error {
 
 	out := obj.([]byte)
 	n := s.transport.finish(s, out)
-	s.transport.putstream(s, true /*tellrx*/)
+	s.transport.putstream(s.opaque, s, true /*tellrx*/)
 	return s.transport.tx(out[:n], true /*flush*/)
 }
 
 // Transport return the underlying transport carrying this stream.
 func (s *Stream) Transport() *Transport {
 	return s.transport
+}
+
+var rxstrmpool *sync.Pool
+
+func init() {
+	rxstrmpool = &sync.Pool{New: func() interface{} { return &Stream{} }}
 }

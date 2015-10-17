@@ -3,6 +3,7 @@ package gofast
 import "testing"
 import "fmt"
 import "bytes"
+import "syscall"
 import "runtime"
 import "compress/flate"
 import "sort"
@@ -12,11 +13,9 @@ import "sync"
 import "strings"
 
 func TestTransport(t *testing.T) {
-	ver, addr := testVersion(1), "127.0.0.1:9998"
-	// init server
-	lis, serverch := newServer("gzip")
-	// init client
-	transc := newClient("gzip").Handshake()
+	ver, addr := testVersion(1), <-testBindAddrs
+	lis, serverch := newServer(addr, "gzip")      // init server
+	transc := newClient(addr, "gzip").Handshake() // init client
 	transv := <-serverch
 
 	c_counts := transv.Counts()
@@ -47,10 +46,9 @@ func TestTransport(t *testing.T) {
 }
 
 func TestSubscribeMessage(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// test
@@ -71,10 +69,9 @@ func TestSubscribeMessage(t *testing.T) {
 }
 
 func TestFlushPeriod(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// test
@@ -90,10 +87,9 @@ func TestFlushPeriod(t *testing.T) {
 }
 
 func TestHeartbeat(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// test
@@ -133,10 +129,9 @@ func TestHeartbeat(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// test
@@ -166,10 +161,9 @@ func TestPing(t *testing.T) {
 }
 
 func TestWhoami(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
 	wai, err := transc.Whoami()
@@ -198,10 +192,9 @@ func TestWhoami(t *testing.T) {
 }
 
 func BenchmarkTransCounts(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -228,15 +221,24 @@ func newconfig(name string, start, end int) map[string]interface{} {
 	}
 }
 
-func newServer(tags string) (net.Listener, chan *Transport) {
-	addr := "127.0.0.1:9998"
+func newServer(addr, tags string) (*net.TCPListener, chan *Transport) {
 	config := newconfig("server", tagOpaqueStart, tagOpaqueStart+10)
 	config["tags"] = tags
 
-	lis, err := net.Listen("tcp", addr)
+	la, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		panic(err)
+	}
+	lis, err := net.ListenTCP("tcp", la)
 	if err != nil {
 		panic(fmt.Errorf("listen failed %v", err))
 	}
+	if fd, err := lis.File(); err == nil {
+		syscall.SetsockoptInt(int(fd.Fd()), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+	} else {
+		panic(err)
+	}
+
 	ch := make(chan *Transport, 10)
 	go func() {
 		for {
@@ -253,8 +255,7 @@ func newServer(tags string) (net.Listener, chan *Transport) {
 	return lis, ch
 }
 
-func newClient(tags string) *Transport {
-	addr := "127.0.0.1:9998"
+func newClient(addr, tags string) *Transport {
 	config := newconfig("client", tagOpaqueStart+11, tagOpaqueStart+20)
 	config["tags"] = tags
 
@@ -427,6 +428,12 @@ func verify(counts map[string]uint64, args ...interface{}) bool {
 	return true
 }
 
+var testBindAddrs chan string
+
 func init() {
+	testBindAddrs = make(chan string, 1000)
+	for i := 0; i < cap(testBindAddrs); i++ {
+		testBindAddrs <- fmt.Sprintf("127.0.0.1:%v", 9000+i)
+	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 }

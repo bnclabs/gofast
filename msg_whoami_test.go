@@ -8,10 +8,9 @@ import "fmt"
 var _ = fmt.Sprintf("dummy")
 
 func TestWaiEncode(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	out := make([]byte, 1024)
@@ -28,10 +27,9 @@ func TestWaiEncode(t *testing.T) {
 }
 
 func TestWaiDecode(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ver, out := testVersion(1), make([]byte, 1024)
@@ -48,10 +46,9 @@ func TestWaiDecode(t *testing.T) {
 }
 
 func TestWhoamiMisc(t *testing.T) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	wai := NewWhoami(transc)
@@ -67,10 +64,9 @@ func TestWhoamiMisc(t *testing.T) {
 }
 
 func BenchmarkWaiEncode(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	out := make([]byte, 1024)
@@ -85,10 +81,9 @@ func BenchmarkWaiEncode(b *testing.B) {
 }
 
 func BenchmarkWaiDecode(b *testing.B) {
-	// init server
-	lis, serverch := newServer("")
-	// init client
-	transc := newClient("").Handshake()
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
 	ver, out := testVersion(1), make([]byte, 1024)

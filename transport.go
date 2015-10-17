@@ -411,7 +411,7 @@ func (t *Transport) Post(msg Message, flush bool) error {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 	stream := t.getstream(nil)
-	defer t.putstream(stream, true /*tellrx*/)
+	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
 	n := t.post(msg, stream, out)
 	return t.tx(out[:n], flush)
@@ -422,7 +422,7 @@ func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 	out := t.pktpool.Get().([]byte)
 	defer t.pktpool.Put(out)
 	stream := t.getstream(make(chan Message, 1))
-	defer t.putstream(stream, true /*tellrx*/)
+	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
 	var ok bool
 	n := t.request(msg, stream, out)
@@ -443,7 +443,7 @@ func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (stream *St
 	stream = t.getstream(ch)
 	n := t.start(msg, stream, out)
 	if err = t.tx(out[:n], false); err != nil {
-		t.putstream(stream, true /*tellrx*/)
+		t.putstream(stream.opaque, stream, true /*tellrx*/)
 	}
 	return
 }

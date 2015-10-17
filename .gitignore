@@ -1,3 +1,5 @@
 *.swp
 examples/bench/bench
 profs/
+tools/requests/*.svg
+tools/server/*.svg
