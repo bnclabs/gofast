@@ -102,35 +102,39 @@ end-of-stream:
 
 **configurations**
 
- "name"         - give a name for the transport.
- "buffersize"   - maximum size that a packet will need.
- "batchsize"    - number of packets to batch before writing to socket.
- "chansize"     - channel size to use for internal go-routines.
- "tags"         - comma separated list of tags to apply, in specified order.
- "opaque.start" - starting opaque range, inclusive.
- "opaque.end"   - ending opaque range, inclusive.
- "log.level"    - log level to use for DefaultLogger
- "log.file"     - log file to use for DefaultLogger, if empty stdout is used.
- "gzip.level"   - gzip compression level, if `tags` contain "gzip".
+<dl>
+    <dt>name</dt>         <dd>give a name for the transport.</dd>
+    <dt>buffersize</dt>   <dd>maximum size that a packet will need.</dd>
+    <dt>batchsize</dt>    <dd>number of packets to batch before writing to socket.</dd>
+    <dt>chansize</dt>     <dd>channel size to use for internal go-routines.</dd>
+    <dt>tags</dt>         <dd>comma separated list of tags to apply, in specified order.</dd>
+    <dt>opaque.start</dt> <dd>starting opaque range, inclusive.</dd>
+    <dt>opaque.end</dt>   <dd>ending opaque range, inclusive.</dd>
+    <dt>log.level</dt>    <dd>log level to use for DefaultLogger</dd>
+    <dt>log.file</dt>     <dd>log file to use for DefaultLogger, if empty stdout is used.</dd>
+    <dt>gzip.level</dt>   <dd>gzip compression level, if `tags` contain "gzip".</dd>
+</dl>
 
 **transport statistics**
 
- n_tx       - number of packets transmitted
- n_flushes  - number of times message-batches where flushed
- n_txbyte   - number of bytes transmitted on socket
- n_txpost   - number of post messages transmitted
- n_txreq    - number of request messages transmitted
- n_txresp   - number of response messages transmitted
- n_txstart  - number of start messages transmitted
- n_txstream - number of stream messages transmitted
- n_txfin    - number of finish messages transmitted
- n_rx       - number of packets received
- n_rxbyte   - number of bytes received from socket
- n_rxpost   - number of post messages received
- n_rxreq    - number of request messages received
- n_rxresp   - number of response messages received
- n_rxstart  - number of start messages received
- n_rxstream - number of stream messages received
- n_rxfin    - number of finish messages received
- n_rxbeats  - number of heartbeats received
- n_dropped  - number of dropped packets
+<dl>
+    <dt>n_tx</dt>       <dd>number of packets transmitted.</dd>
+    <dt>n_flushes</dt>  <dd>number of times message-batches where flushed.</dd>
+    <dt>n_txbyte</dt>   <dd>number of bytes transmitted on socket.</dd>
+    <dt>n_txpost</dt>   <dd>number of post messages transmitted.</dd>
+    <dt>n_txreq</dt>    <dd>number of request messages transmitted.</dd>
+    <dt>n_txresp</dt>   <dd>number of response messages transmitted.</dd>
+    <dt>n_txstart</dt>  <dd>number of start messages transmitted.</dd>
+    <dt>n_txstream</dt> <dd>number of stream messages transmitted.</dd>
+    <dt>n_txfin</dt>    <dd>number of finish messages transmitted.</dd>
+    <dt>n_rx</dt>       <dd>number of packets received.</dd>
+    <dt>n_rxbyte</dt>   <dd>number of bytes received from socket.</dd>
+    <dt>n_rxpost</dt>   <dd>number of post messages received.</dd>
+    <dt>n_rxreq</dt>    <dd>number of request messages received.</dd>
+    <dt>n_rxresp</dt>   <dd>number of response messages received.</dd>
+    <dt>n_rxstart</dt>  <dd>number of start messages received.</dd>
+    <dt>n_rxstream</dt> <dd>number of stream messages received.</dd>
+    <dt>n_rxfin</dt>    <dd>number of finish messages received.</dd>
+    <dt>n_rxbeats</dt>  <dd>number of heartbeats received.</dd>
+    <dt>n_dropped</dt>  <dd>number of dropped packets.</dd>
+</dl>
