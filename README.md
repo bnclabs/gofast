@@ -58,8 +58,7 @@ the stream by sending a 0xff:
             | 0xd9 0xd9f7  | end-packet |
 ```
 
-* `packet` shall always be encoded as CBOR byte-array of info-type,
-  Info26 (4-byte) length.
+* `packet` shall always be encoded as CBOR byte-array.
 * 0x91 denotes an array of single item, a special meaning for new
   request that expects a single response from peer.
 * 0x9f denotes an array of indefinite items, a special meaning
