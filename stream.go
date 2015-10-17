@@ -42,9 +42,10 @@ func (t *Transport) putstream(stream *Stream, tellrx bool) {
 
 // Response to a request.
 func (s *Stream) Response(msg Message, flush bool) error {
-	out := s.transport.pktpool.Get().([]byte)
-	defer s.transport.pktpool.Put(out)
+	obj := s.transport.pktpool.Get()
+	defer s.transport.pktpool.Put(obj)
 
+	out := obj.([]byte)
 	n := s.transport.response(msg, s, out)
 	s.transport.putstream(s, true /*tellrx*/)
 	return s.transport.tx(out[:n], flush)
@@ -52,8 +53,10 @@ func (s *Stream) Response(msg Message, flush bool) error {
 
 // Stream a message.
 func (s *Stream) Stream(msg Message, flush bool) (err error) {
-	out := s.transport.pktpool.Get().([]byte)
-	defer s.transport.pktpool.Put(out)
+	obj := s.transport.pktpool.Get()
+	defer s.transport.pktpool.Put(obj)
+
+	out := obj.([]byte)
 	n := s.transport.stream(msg, s, out)
 	if err = s.transport.tx(out[:n], flush); err != nil {
 		s.transport.putstream(s, true /*tellrx*/)
@@ -63,9 +66,10 @@ func (s *Stream) Stream(msg Message, flush bool) (err error) {
 
 // Close the stream.
 func (s *Stream) Close() error {
-	out := s.transport.pktpool.Get().([]byte)
-	defer s.transport.pktpool.Put(out)
+	obj := s.transport.pktpool.Get()
+	defer s.transport.pktpool.Put(obj)
 
+	out := obj.([]byte)
 	n := s.transport.finish(s, out)
 	s.transport.putstream(s, true /*tellrx*/)
 	return s.transport.tx(out[:n], true /*flush*/)

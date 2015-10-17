@@ -91,9 +91,9 @@ func doRequest(trans *gofast.Transport) {
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
-		"buffersize":   1024 * 1024 * 10,
-		"chansize":     1000,
-		"batchsize":    1000,
+		"buffersize":   1024 * 1,
+		"chansize":     100000,
+		"batchsize":    100,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,

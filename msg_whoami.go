@@ -8,22 +8,27 @@ import "strconv"
 // Whoami is predefined message to exchange peer information.
 type Whoami struct {
 	transport  *Transport
-	name       string
+	name       []byte
 	version    Version
 	buffersize int
-	tags       string
+	tags       []byte
 }
 
 func NewWhoami(t *Transport) *Whoami {
 	val := whoamipool.Get()
 	msg := val.(*Whoami)
 	msg.transport = t
-	msg.name = t.name
+	if msg.name == nil {
+		msg.name = make([]byte, 16)
+	}
+	msg.name = append(msg.name[:0], str2bytes(t.name)...)
 	msg.version = t.version
 	msg.buffersize = t.config["buffersize"].(int)
-	msg.tags = ""
+	if msg.tags == nil {
+		msg.tags = make([]byte, 0, 16)
+	}
 	if tags, ok := t.config["tags"]; ok {
-		msg.tags = tags.(string)
+		msg.tags = append(msg.tags[:0], str2bytes(tags.(string))...)
 	}
 	return msg
 }
@@ -34,10 +39,10 @@ func (msg *Whoami) Id() uint64 {
 
 func (msg *Whoami) Encode(out []byte) int {
 	n := arrayStart(out)
-	n += valtext2cbor(msg.name, out[n:])
+	n += valbytes2cbor(msg.name, out[n:])
 	n += msg.version.Marshal(out[n:])
 	n += valuint642cbor(uint64(msg.buffersize), out[n:])
-	n += valtext2cbor(msg.tags, out[n:])
+	n += valbytes2cbor(msg.tags, out[n:])
 	n += breakStop(out[n:])
 	return n
 }
@@ -51,7 +56,10 @@ func (msg *Whoami) Decode(in []byte) {
 	// name
 	ln, m := cborItemLength(in[n:])
 	n += m
-	msg.name = string(in[n : n+ln])
+	if msg.name == nil {
+		msg.name = make([]byte, ln)
+	}
+	msg.name = append(msg.name[:0], in[n:n+ln]...)
 	n += ln
 	// version
 	if msg.version == nil {
@@ -66,7 +74,10 @@ func (msg *Whoami) Decode(in []byte) {
 	// tags
 	ln, m = cborItemLength(in[n:])
 	n += m
-	msg.tags = string(in[n : n+ln])
+	if msg.tags == nil {
+		msg.tags = make([]byte, ln)
+	}
+	msg.tags = append(msg.tags[:0], in[n:n+ln]...)
 	n += ln
 }
 
@@ -75,7 +86,7 @@ func (msg *Whoami) String() string {
 }
 
 func (msg *Whoami) Repr() string {
-	items := [2]string{msg.name, strconv.Itoa(msg.buffersize)}
+	items := [2]string{string(msg.name), strconv.Itoa(msg.buffersize)}
 	return strings.Join(items[:], ", ")
 }
 

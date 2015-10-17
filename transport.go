@@ -249,7 +249,7 @@ func (t *Transport) Handshake() *Transport {
 
 	t.peerver = msg.version // TODO: should be atomic ?
 	// parse tag list, tags will be applied in the specified order.
-	for _, tag := range t.getTags(msg.tags, []string{}) {
+	for _, tag := range t.getTags(bytes2str(msg.tags), []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
 			tagid, enc, _ := factory(t, t.config)
 			t.tagenc[tagid] = enc

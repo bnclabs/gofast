@@ -10,7 +10,7 @@ var _ = fmt.Sprintf("dummy")
 func TestPingEncode(t *testing.T) {
 	out := make([]byte, 1024)
 	ref := []byte{
-		159, 107, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 255,
+		159, 75, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 255,
 	}
 	ping := NewPing("hello world")
 	if n := ping.Encode(out); bytes.Compare(ref, out[:n]) != 0 {

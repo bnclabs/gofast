@@ -4,13 +4,17 @@ import "sync"
 
 // Ping is predefined message to ping-pong with remote.
 type Ping struct {
-	echo string
+	echo []byte
 }
 
 func NewPing(echo string) *Ping {
 	val := pingpool.Get()
 	msg := val.(*Ping)
-	msg.echo = echo
+	if msg.echo == nil {
+		msg.echo = []byte(echo)
+	} else {
+		msg.echo = append(msg.echo[:0], str2bytes(echo)...)
+	}
 	return msg
 }
 
@@ -20,7 +24,7 @@ func (msg *Ping) Id() uint64 {
 
 func (msg *Ping) Encode(out []byte) int {
 	n := arrayStart(out)
-	n += valtext2cbor(msg.echo, out[n:])
+	n += valbytes2cbor(msg.echo, out[n:])
 	n += breakStop(out[n:])
 	return n
 }
@@ -33,7 +37,10 @@ func (msg *Ping) Decode(in []byte) {
 	n += 1
 	ln, m := cborItemLength(in[n:])
 	n += m
-	msg.echo = string(in[n : n+ln])
+	if msg.echo == nil {
+		msg.echo = make([]byte, ln)
+	}
+	msg.echo = append(msg.echo[:0], in[n:n+ln]...)
 	return
 }
 
@@ -42,7 +49,7 @@ func (msg *Ping) String() string {
 }
 
 func (msg *Ping) Repr() string {
-	return msg.echo
+	return string(msg.echo)
 }
 
 var pingpool *sync.Pool

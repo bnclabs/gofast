@@ -2,6 +2,8 @@ package gofast
 
 import "testing"
 import "fmt"
+import "bytes"
+import "runtime"
 import "compress/flate"
 import "sort"
 import "net"
@@ -22,8 +24,8 @@ func TestTransport(t *testing.T) {
 	// test
 	if ref := "server"; transv.Name() != ref {
 		t.Errorf("expected %v, got %v", ref, transv.Name())
-	} else if _, ok := transc.tagenc[tagGzip]; !ok && len(transc.tagenc) != 1 {
-		t.Errorf("expected gzip, got %v", transc.tagenc)
+	} else if tags, ok := transc.tagenc[tagGzip]; !ok && len(transc.tagenc) != 1 {
+		t.Errorf("expected gzip, got %v, %v", tags, len(transc.tagenc))
 	} else if ref := "client"; ref != transc.Name() {
 		t.Errorf("expected %v, got %v", ref, transc.Name())
 	} else if !transc.PeerVersion().Equal(&ver) {
@@ -114,8 +116,8 @@ func TestHeartbeat(t *testing.T) {
 		t.Errorf("mismatch %v, %v", c_counts["n_rxbyte"], s_counts["n_txbyte"])
 	} else if c_counts["n_txbyte"] != s_counts["n_rxbyte"] {
 		t.Errorf("mismatch %v, %v", c_counts["n_txbyte"], s_counts["n_rxbyte"])
-	} else if c_counts["n_flushes"] != s_counts["n_rx"] {
-		t.Errorf("mismatch %v, %v", c_counts["n_flushes"], s_counts["n_rx"])
+	} else if x, y := c_counts["n_flushes"], s_counts["n_rx"]; x != y && x != (y+1) {
+		t.Errorf("mismatch %v, %v", x, y)
 	} else if !verify(s_counts, "n_rxbeats", "n_rxpost") {
 		t.Errorf("mismatch %v, %v", s_counts["n_rxbeats"], s_counts["n_rxpost"])
 	} else if n := s_counts["n_rxpost"]; n != 99 && n != 100 {
@@ -141,8 +143,8 @@ func TestPing(t *testing.T) {
 	refs := "hello world"
 	if ping, err := transc.Ping(refs); err != nil {
 		t.Error(err)
-	} else if ping.echo != refs {
-		t.Errorf("expected atleast %v, got %v", refs, ping.echo)
+	} else if bytes.Compare(ping.echo, []byte(refs)) != 0 {
+		t.Errorf("expected atleast %v, got %v", refs, string(ping.echo))
 	}
 	counts := transc.Counts()
 	if ref, n := uint64(2), counts["n_flushes"]; n != ref {
@@ -173,8 +175,8 @@ func TestWhoami(t *testing.T) {
 	wai, err := transc.Whoami()
 	if err != nil {
 		t.Error(err)
-	} else if wai.name != "server" {
-		t.Errorf("expected %v, got %v", "server", wai.name)
+	} else if string(wai.name) != "server" {
+		t.Errorf("expected %v, got %v", "server", string(wai.name))
 	}
 	counts := transc.Counts()
 	if ref, n := uint64(2), counts["n_flushes"]; n != ref {
@@ -423,4 +425,8 @@ func verify(counts map[string]uint64, args ...interface{}) bool {
 		}
 	}
 	return true
+}
+
+func init() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 }

@@ -16,8 +16,8 @@ func TestWaiEncode(t *testing.T) {
 
 	out := make([]byte, 1024)
 	ref := []byte{
-		159, 102, 99, 108, 105, 101, 110, 116, 1, 26, 0, 160, 0, 0,
-		96, 255}
+		159, 70, 99, 108, 105, 101, 110, 116, 1, 26, 0, 160, 0, 0, 64, 255,
+	}
 	wai := NewWhoami(transc)
 	if n := wai.Encode(out); bytes.Compare(ref, out[:n]) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
@@ -93,7 +93,7 @@ func BenchmarkWaiDecode(b *testing.B) {
 
 	ver, out := testVersion(1), make([]byte, 1024)
 	ref := NewWhoami(transc)
-	ref.tags = "gzip"
+	ref.tags = []byte("gzip")
 	n := ref.Encode(out)
 	wai := &Whoami{}
 	wai.version, wai.transport = &ver, transc
