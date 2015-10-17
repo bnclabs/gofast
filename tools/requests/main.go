@@ -61,7 +61,7 @@ func main() {
 	for i := 0; i < options.conns; i++ {
 		wg.Add(1)
 		go func() {
-			config := newconfig("client", 267, 277)
+			config := newconfig("client", 3000, 4000)
 			config["tags"] = ""
 			conn, err := net.Dial("tcp", options.addr)
 			if err != nil {

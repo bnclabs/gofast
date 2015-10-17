@@ -69,7 +69,7 @@ func main() {
 }
 
 func runserver(lis net.Listener) {
-	config := newconfig("server", 256, 266)
+	config := newconfig("server", 1000, 2000)
 	config["tags"] = ""
 	for {
 		if conn, err := lis.Accept(); err == nil {
