@@ -17,6 +17,8 @@ programming model, for distributed applications.
 * concurrent request on a single connection, improves throughput
   when latency is high.
 * configurable batching of packets scheduled for transmission.
+* periodic flusher for un-bounded batching.
+* send periodic heartbeat to remote node.
 * add transport level compression like `gzip`, `lzw` ...
 * ~50K ping/pong exchange on a single connection.
 * sub-μs protocol overhead.
