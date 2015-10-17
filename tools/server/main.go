@@ -3,11 +3,16 @@ package main
 import "time"
 import "runtime"
 import "flag"
+import "io"
+import "os"
+import "log"
+import "bufio"
 import "sort"
 import "strings"
 import "net"
 import "fmt"
 import "compress/flate"
+import "runtime/pprof"
 
 import "github.com/prataprc/gofast"
 
@@ -28,14 +33,44 @@ func main() {
 	argParse()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	config := newconfig("server", 256, 266)
-	config["tags"] = ""
+	// start cpu profile.
+	fname := "server.pprof"
+	fd, err := os.Create(fname)
+	if err != nil {
+		log.Fatalf("unable to create %q: %v\n", fname, err)
+	}
+	defer fd.Close()
+	pprof.StartCPUProfile(fd)
+	defer pprof.StopCPUProfile()
 
 	lis, err := net.Listen("tcp", options.addr)
 	if err != nil {
 		panic(fmt.Errorf("listen failed %v", err))
 	}
 	fmt.Printf("listening on %v\n", options.addr)
+
+	go runserver(lis)
+
+	fmt.Printf("Press CTRL-D to exit\n")
+	reader := bufio.NewReader(os.Stdin)
+	_, err = reader.ReadString('\n')
+	for err != io.EOF {
+		_, err = reader.ReadString('\n')
+	}
+
+	// take memory profile.
+	fname = "server.mprof"
+	fd, err = os.Create(fname)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fd.Close()
+	pprof.WriteHeapProfile(fd)
+}
+
+func runserver(lis net.Listener) {
+	config := newconfig("server", 256, 266)
+	config["tags"] = ""
 	for {
 		if conn, err := lis.Accept(); err == nil {
 			ver := testVersion(1)
@@ -48,7 +83,9 @@ func main() {
 				tick := time.Tick(1 * time.Second)
 				for {
 					<-tick
-					printCounts(trans.Counts())
+					if options.log == "debug" {
+						printCounts(trans.Counts())
+					}
 					if _, err := trans.Ping("ok"); err != nil {
 						trans.Close()
 						return

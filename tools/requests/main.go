@@ -3,12 +3,18 @@ package main
 import "sync"
 import "runtime"
 import "flag"
+import "reflect"
+import "unsafe"
+import "os"
+import "log"
 import "sort"
 import "time"
 import "strings"
+import "strconv"
 import "net"
 import "fmt"
 import "compress/flate"
+import "runtime/pprof"
 
 import "github.com/prataprc/gofast"
 
@@ -40,6 +46,16 @@ func main() {
 	argParse()
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	// start cpu profile.
+	fname := "requests.pprof"
+	fd, err := os.Create(fname)
+	if err != nil {
+		log.Fatalf("unable to create %q: %v\n", fname, err)
+	}
+	defer fd.Close()
+	pprof.StartCPUProfile(fd)
+	defer pprof.StopCPUProfile()
+
 	var wg sync.WaitGroup
 	n_trans := make([]*gofast.Transport, 0)
 	for i := 0; i < options.conns; i++ {
@@ -69,6 +85,15 @@ func main() {
 	n, m := av.Count(), time.Duration(av.Mean())
 	v, s := time.Duration(av.Variance()), time.Duration(av.Sd())
 	fmt.Printf(fmsg, n, m, v, s)
+
+	// take memory profile.
+	fname = "requests.mprof"
+	fd, err = os.Create(fname)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fd.Close()
+	pprof.WriteHeapProfile(fd)
 }
 
 func doRequest(trans *gofast.Transport) {
@@ -77,9 +102,16 @@ func doRequest(trans *gofast.Transport) {
 	for i := 0; i < options.routines; i++ {
 		wg.Add(1)
 		go func() {
+			var echo [64]byte
+			n := copy(echo[:], "ping")
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
-				trans.Ping("hello world")
+				s := bytes2str(strconv.AppendInt(echo[n:], int64(j), 10))
+				if ping, err := trans.Ping(s); err != nil {
+					log.Fatal(err)
+				} else if got := ping.Repr(); got != s {
+					log.Fatalf("expected %v, got %v\n", s, got)
+				}
 				av.Add(uint64(time.Since(since)))
 			}
 			wg.Done()
@@ -147,4 +179,13 @@ func addCounts(n_trans ...*gofast.Transport) map[string]uint64 {
 		}
 	}
 	return counts
+}
+
+func bytes2str(bytes []byte) string {
+	if bytes == nil {
+		return ""
+	}
+	sl := (*reflect.SliceHeader)(unsafe.Pointer(&bytes))
+	st := &reflect.StringHeader{Data: sl.Data, Len: sl.Len}
+	return *(*string)(unsafe.Pointer(st))
 }
