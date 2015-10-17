@@ -4,6 +4,7 @@ import "sync"
 import "runtime"
 import "flag"
 import "sort"
+import "time"
 import "strings"
 import "net"
 import "fmt"
@@ -32,6 +33,8 @@ func argParse() {
 		"number of concurrent routines")
 	flag.Parse()
 }
+
+var av = &Average{}
 
 func main() {
 	argParse()
@@ -62,6 +65,10 @@ func main() {
 	}
 	wg.Wait()
 	printCounts(addCounts(n_trans...))
+	fmsg := "request stats: n:%v mean:%v var:%v sd:%v\n"
+	n, m := av.Count(), time.Duration(av.Mean())
+	v, s := time.Duration(av.Variance()), time.Duration(av.Sd())
+	fmt.Printf(fmsg, n, m, v, s)
 }
 
 func doRequest(trans *gofast.Transport) {
@@ -71,7 +78,9 @@ func doRequest(trans *gofast.Transport) {
 		wg.Add(1)
 		go func() {
 			for j := 0; j < options.count; j++ {
+				since := time.Now()
 				trans.Ping("hello world")
+				av.Add(uint64(time.Since(since)))
 			}
 			wg.Done()
 		}()
