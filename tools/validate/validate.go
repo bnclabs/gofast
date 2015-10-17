@@ -1,3 +1,5 @@
+// +build ignore
+
 package main
 
 import "fmt"
@@ -37,13 +39,14 @@ func main() {
 		log.Fatalf("net dial failed: %v\n", err)
 	}
 	config = newconfig("client", 256, 266)
-	trans, err := gofast.NewTransport(conn, testVersion(1), nil, config)
+	ver := testVersion(1)
+	trans, err := gofast.NewTransport(conn, &ver, nil, config)
 	if err != nil {
 		log.Fatalf("client side NewTransport failed: %v\n", err)
 	}
 	// handshake with remote
 	transinfo(trans)
-	trans.VersionHandler(testVerhandler).Handshake()
+	trans.Handshake()
 	transinfo(trans)
 	// start validation
 	if options.post > 0 {
@@ -57,7 +60,7 @@ func main() {
 func validatePost(trans *gofast.Transport) {
 	time.Now()
 	for i := 0; i < options.post; i++ {
-		hb := NewHeartbeat(i)
+		hb := gofast.NewHeartbeat(i)
 		trans.Post(hb)
 	}
 	return
@@ -110,6 +113,16 @@ func (v testVersion) Value() interface{} {
 	return int(v)
 }
 
+func (v *testVersion) Marshal(out []byte) int {
+	return valuint642cbor(uint64(*v), out)
+}
+
+func (v *testVersion) Unmarshal(in []byte) int {
+	ln, n := cborItemLength(in)
+	*v = testVersion(ln)
+	return n
+}
+
 func testVerhandler(val interface{}) gofast.Version {
 	if ver, ok := val.(uint64); ok {
 		return testVersion(ver)
@@ -137,4 +150,22 @@ func transinfo(trans *gofast.Transport) {
 	a, b := trans.LocalAddr(), trans.RemoteAddr()
 	c, d := trans.PeerVersion(), trans.Silentsince()
 	fmt.Printf("%v -- l:%v ; r:%v ; p:%v ; a:%v\n", trans.Name(), a, b, c, d)
+}
+
+func bytes2str(bytes []byte) string {
+	if bytes == nil {
+		return ""
+	}
+	sl := (*reflect.SliceHeader)(unsafe.Pointer(&bytes))
+	st := &reflect.StringHeader{Data: sl.Data, Len: sl.Len}
+	return *(*string)(unsafe.Pointer(st))
+}
+
+func str2bytes(str string) []byte {
+	if str == "" {
+		return nil
+	}
+	st := (*reflect.StringHeader)(unsafe.Pointer(&str))
+	sl := &reflect.SliceHeader{Data: st.Data, Len: st.Len, Cap: st.Len}
+	return *(*[]byte)(unsafe.Pointer(sl))
 }
