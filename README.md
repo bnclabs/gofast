@@ -5,6 +5,8 @@ programming model, for distributed applications.
 [![Coverage Status](https://coveralls.io/repos/prataprc/gofast/badge.png?branch=master&service=github)](https://coveralls.io/github/prataprc/gofast?branch=master)
 [![GoDoc](https://godoc.org/github.com/prataprc/gofast?status.png)](https://godoc.org/github.com/prataprc/gofast)
 
+Aims at following goal.
+
 * [CBOR, Concise Binary Object Representation](http://cbor.io/) based protocol
   framing, avoid yet another protocol frame.
 * well formed gofast packets are fully CBOR compliant.
@@ -13,11 +15,11 @@ programming model, for distributed applications.
   messages like peers, that is both nodes can:
   * ``POST`` messages to remote node.
   * ``REQUEST`` a ``RESPONSE`` from remote node.
-  * start a bi-direction ``STREAM`` with remote node.
+  * start one or more bi-direction ``STREAM`` with remote node.
 * concurrent request on a single connection, improves throughput
   when latency is high.
 * configurable batching of packets scheduled for transmission.
-* periodic flusher for un-bounded batching.
+* periodic flusher for un-bounded/residue batching.
 * send periodic heartbeat to remote node.
 * add transport level compression like `gzip`, `lzw` ...
 * ~50K ping/pong exchange on a single connection.
