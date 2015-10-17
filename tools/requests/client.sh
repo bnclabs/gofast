@@ -6,7 +6,7 @@ echo "building client ..."
 go build;
 
 echo "time taken...."
-time ./requests -addr $1 -conns 16 -routines 10 -count 10000
+time ./requests -addr $1 -conns 16 -routines 100 -count 10000
 echo
 
 echo "building client profile information ..."
