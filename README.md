@@ -23,6 +23,9 @@ programming model, for distributed applications.
 * ~50K ping/pong exchange on a single connection.
 * sub-μs protocol overhead.
 * scales with number of connection and number of cores.
+* ~1M ping/pong exchange with 4 clients - 8 connections, 100 routines,
+  8M exchange, from each client on 32 core (HT enabled) server
+  grade machine.
 * and most importantly - does not attempt to solve all the
   world's problem.
 
