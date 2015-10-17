@@ -15,7 +15,7 @@ func TestWaiEncode(t *testing.T) {
 
 	out := make([]byte, 1024)
 	ref := []byte{
-		159, 70, 99, 108, 105, 101, 110, 116, 1, 26, 0, 160, 0, 0, 64, 255,
+		159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2, 0, 64, 255,
 	}
 	wai := NewWhoami(transc)
 	if n := wai.Encode(out); bytes.Compare(ref, out[:n]) != 0 {
@@ -55,7 +55,7 @@ func TestWhoamiMisc(t *testing.T) {
 	if wai.String() != "Whoami" {
 		t.Errorf("expected Whoami, got %v", wai.String())
 	}
-	if ref := "client, 10485760"; ref != wai.Repr() {
+	if ref := "client, 512"; ref != wai.Repr() {
 		t.Errorf("expected %v, got %v", ref, wai.Repr())
 	}
 	lis.Close()

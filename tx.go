@@ -132,17 +132,27 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 
 func (t *Transport) doTx() {
 	batchsize := t.config["batchsize"].(int)
+	buffersize := t.config["buffersize"].(int)
 	batch := make([]*txproto, 0, 64)
+	tcpwrite_buf := make([]byte, batchsize*buffersize)
 	drainbuffers := func() {
 		atomic.AddUint64(&t.n_flushes, 1)
+		var err error
+		m, n := 0, 0
+		// consolidate
 		for _, arg := range batch {
-			arg.n, arg.err = 0, nil
-			if ln := len(arg.packet); ln > 0 { // don't send it empty
-				n, err := t.conn.Write(arg.packet)
-				arg.n, arg.err = n, err
-				atomic.AddUint64(&t.n_tx, 1)
-				atomic.AddUint64(&t.n_txbyte, uint64(n))
-			}
+			n += copy(tcpwrite_buf[n:], arg.packet)
+			atomic.AddUint64(&t.n_tx, 1)
+		}
+		// send
+		m, err = t.conn.Write(tcpwrite_buf[:n])
+		if m != n {
+			err = fmt.Errorf("wrote only %d, expected %d", m, n)
+		}
+		atomic.AddUint64(&t.n_txbyte, uint64(m))
+		// unblock the callers.
+		for _, arg := range batch {
+			arg.n, arg.err = len(arg.packet), err
 			arg.respch <- arg
 		}
 		log.Debugf("%v drained %v packets\n", t.logprefix, len(batch))

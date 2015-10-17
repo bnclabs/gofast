@@ -33,11 +33,11 @@ func TestTransport(t *testing.T) {
 		t.Errorf("expected %v, got %v", s, addr)
 	} else if !verify(c_counts, "n_flushes", "n_rx", "n_rxreq", "n_tx", 1) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 41) {
+	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 39) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
 	} else if !verify(s_counts, "n_flushes", "n_rx", "n_rxreq", "n_tx", 1) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
-	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 41) {
+	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 39) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
 	}
 	lis.Close()
@@ -210,9 +210,9 @@ func BenchmarkTransCounts(b *testing.B) {
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
-		"buffersize":   1024 * 1024 * 10,
-		"chansize":     1000,
-		"batchsize":    1000,
+		"buffersize":   512,
+		"chansize":     100000,
+		"batchsize":    256,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,

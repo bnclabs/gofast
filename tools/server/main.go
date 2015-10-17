@@ -99,9 +99,9 @@ func runserver(lis net.Listener) {
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
-		"buffersize":   1024 * 1,
+		"buffersize":   512,
 		"chansize":     100000,
-		"batchsize":    100,
+		"batchsize":    256,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
