@@ -103,10 +103,11 @@ func doRequest(trans *gofast.Transport) {
 		wg.Add(1)
 		go func() {
 			var echo [64]byte
-			n := copy(echo[:], "ping")
+			n := copy(echo[:], "ping-")
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
-				s := bytes2str(strconv.AppendInt(echo[n:], int64(j), 10))
+				tmp := strconv.AppendInt(echo[n:n], int64(j), 10)
+				s := bytes2str(echo[:n+len(tmp)])
 				if ping, err := trans.Ping(s); err != nil {
 					log.Fatal(err)
 				} else if got := ping.Repr(); got != s {
