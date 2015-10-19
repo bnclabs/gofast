@@ -410,7 +410,7 @@ func (t *Transport) Post(msg Message, flush bool) error {
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
 	n := t.post(msg, stream, out)
-	return t.tx(out[:n], flush)
+	return t.txasync(out[:n], flush)
 }
 
 // Request a response from peer.
