@@ -2,4 +2,10 @@
 examples/bench/bench
 profs/
 tools/requests/*.svg
+tools/requests/*.mprof
+tools/requests/*.pprof
+tools/requests/requests
 tools/server/*.svg
+tools/server/*.mprof
+tools/server/*.pprof
+tools/server/server

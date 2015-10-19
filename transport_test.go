@@ -2,7 +2,6 @@ package gofast
 
 import "testing"
 import "fmt"
-import "bytes"
 import "syscall"
 import "runtime"
 import "compress/flate"
@@ -138,7 +137,7 @@ func TestPing(t *testing.T) {
 	refs := "hello world"
 	if ping, err := transc.Ping(refs); err != nil {
 		t.Error(err)
-	} else if bytes.Compare(ping.echo, []byte(refs)) != 0 {
+	} else if ping.echo != refs {
 		t.Errorf("expected atleast %v, got %v", refs, string(ping.echo))
 	}
 	counts := transc.Counts()

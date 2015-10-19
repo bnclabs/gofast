@@ -41,10 +41,9 @@ func TestPingMisc(t *testing.T) {
 
 func BenchmarkPingEncode(b *testing.B) {
 	out := make([]byte, 1024)
+	ping := NewPing("hello world")
 	for i := 0; i < b.N; i++ {
-		ping := NewPing("hello world")
 		ping.Encode(out)
-		pingpool.Put(ping)
 	}
 }
 
@@ -52,9 +51,8 @@ func BenchmarkPingDecode(b *testing.B) {
 	out := make([]byte, 1024)
 	ref := NewPing("made in india")
 	n := ref.Encode(out)
+	ping := NewPing("")
 	for i := 0; i < b.N; i++ {
-		ping := NewPing("")
 		ping.Decode(out[:n])
-		pingpool.Put(ping)
 	}
 }
