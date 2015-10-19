@@ -7,6 +7,15 @@ import "fmt"
 
 var rxpool = sync.Pool{New: func() interface{} { return &rxpacket{} }}
 
+func fromrxpool() *rxpacket { // always use this to get from pool
+	rxpkt := rxpool.Get().(*rxpacket)
+	// initialize
+	rxpkt.packet, rxpkt.payload = nil, nil
+	rxpkt.opaque = 0
+	rxpkt.request, rxpkt.start, rxpkt.finish = false, false, false
+	return rxpkt
+}
+
 type rxpacket struct {
 	packet  []byte
 	payload []byte
@@ -53,7 +62,8 @@ func (t *Transport) syncRx() {
 		if msg == nil {
 			return
 		}
-		log.Debugf("%v received msg %#v\n", t.logprefix, msg)
+		fmsg := "%v received msg %#v streamok:%v\n"
+		log.Debugf(fmsg, t.logprefix, msg, streamok)
 		if streamok == false { // post, request, stream-start
 			if rxpkt.request {
 				func() {
@@ -135,6 +145,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 				t.pktpool.Put(rxpkt.packet)
 				rxpool.Put(rxpkt)
 			}
+			rxpkt, err = nil, fmt.Errorf("%v", r)
 		}
 	}()
 
@@ -144,7 +155,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
 	} else if err != nil || n != 9 {
-		log.Infof("%v reading prefix: %v,%v\n", t.logprefix, n, err)
+		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
 	} else if pad[0] != 0xd9 || pad[1] != 0xd9 || pad[2] != 0xf7 { // prefix
@@ -153,7 +164,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		log.Errorf("%v\n", err)
 		return
 	}
-	//fmt.Println("doRx() io.ReadFull() first", pad)
+	log.Debugf("%v doRx() io.ReadFull() first %v\n", t.logprefix, pad)
 	// check cbor-prefix
 	n = 3
 	request, start := pad[n] == 0x91, pad[n] == 0x9f
@@ -164,7 +175,6 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	n += m
 	// read the full packet
 	packet := t.pktpool.Get().([]byte)
-	defer func() { t.pktpool.Put(packet) }()
 	n = copy(packet, pad[n:9])
 	if m, err = io.ReadFull(conn, packet[n:ln]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
@@ -175,37 +185,46 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		return
 	}
 	atomic.AddUint64(&t.n_rxbyte, uint64(9+m))
-	//fmt.Println("doRx() io.ReadFull() second")
-	rxpkt = rxpool.Get().(*rxpacket)
-	rxpkt.packet = t.pktpool.Get().([]byte)
-	// opaque
-	opaque, payload := readtp(packet)
-	rxpkt.request, rxpkt.start, rxpkt.opaque = request, start, opaque
-	if payload[0] == 0xff { // end-of-stream
+	log.Debugf("%v doRx() io.ReadFull() second %v\n", t.logprefix, packet[:ln])
+	rxpkt = fromrxpool()
+	rxpkt.packet = packet
+	// first tag is opaque
+	rxpkt.opaque, rxpkt.payload = readtp(rxpkt.packet)
+	rxpkt.request, rxpkt.start = request, start
+	if rxpkt.payload[0] == 0xff { // end-of-stream
 		rxpkt.finish = true
 		return
 	}
 	// tags
 	var tag uint64
-	tag, rxpkt.payload = readtp(payload)
-	rxpkt.packet, packet = packet, rxpkt.packet // swap
-	for tag != tagMsg && len(payload) > 0 {
-		n = t.tagdec[tag](rxpkt.payload, packet)
-		tag, rxpkt.payload = readtp(packet)
-		rxpkt.packet, packet = packet, rxpkt.packet // swap
+	tag, rxpkt.payload = readtp(rxpkt.payload)
+	for tag != tagMsg && len(rxpkt.payload) > 0 {
+		func() {
+			defer t.pktpool.Put(rxpkt.packet)
+			packet = t.pktpool.Get().([]byte)
+			n = t.tagdec[tag](rxpkt.payload, packet)
+			tag, rxpkt.payload = readtp(packet[:n])
+			rxpkt.packet = packet
+		}()
 	}
 	return rxpkt, nil
 }
 
 func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
-	if msgdata[0] != 0xbf {
-		log.Warnf("%v ##%d invalid hdr-data\n", t.logprefix, opaque)
+	msglen := len(msgdata)
+	if msglen > 0 {
+		if msgdata[0] != 0xbf {
+			log.Warnf("%v ##%d invalid hdr-data\n", t.logprefix, opaque)
+			return nil
+		}
+	} else {
+		log.Warnf("%v ##%d insufficient message length\n", t.logprefix, opaque)
 		return nil
 	}
 	n := 1
 	var v, id int
 	var data []byte
-	for msgdata[n] != 0xff {
+	for (n < msglen-1) && msgdata[n] != 0xff {
 		tag, k := cborItemLength(msgdata[n:])
 		n += k
 		switch tag {
@@ -220,6 +239,10 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		default:
 			log.Warnf("%v unknown tag in header %v,%v\n", t.logprefix, n, tag)
 		}
+	}
+	if n >= msglen {
+		log.Warnf("%v ##%d insufficient data length\n", t.logprefix, opaque)
+		return nil
 	}
 	n += 1 // skip the breakstop (0xff)
 

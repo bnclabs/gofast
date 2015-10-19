@@ -53,7 +53,7 @@ func BenchmarkPingDecode(b *testing.B) {
 	ref := NewPing("made in india")
 	n := ref.Encode(out)
 	for i := 0; i < b.N; i++ {
-		ping := pingpool.Get().(*Ping)
+		ping := NewPing("")
 		ping.Decode(out[:n])
 		pingpool.Put(ping)
 	}

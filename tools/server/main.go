@@ -79,6 +79,7 @@ func runserver(lis net.Listener) {
 				panic("NewTransport server failed")
 			}
 			go func(trans *gofast.Transport) {
+				trans.FlushPeriod(100 * time.Millisecond)
 				fmt.Println("new transport", conn.RemoteAddr(), conn.LocalAddr())
 				tick := time.Tick(1 * time.Second)
 				for {
@@ -101,7 +102,7 @@ func newconfig(name string, start, end int) map[string]interface{} {
 		"name":         name,
 		"buffersize":   512,
 		"chansize":     100000,
-		"batchsize":    256,
+		"batchsize":    100,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,

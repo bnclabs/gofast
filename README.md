@@ -19,7 +19,7 @@ Aims at following goal.
 * concurrent request on a single connection, improves throughput
   when latency is high.
 * configurable batching of packets scheduled for transmission.
-* periodic flusher for un-bounded/residue batching.
+* periodic flusher for batching response and streams.
 * send periodic heartbeat to remote node.
 * add transport level compression like `gzip`, `lzw` ...
 * sub-μs protocol overhead.
@@ -62,6 +62,7 @@ the stream by sending a 0xff:
 ```
 
 * `packet` shall always be encoded as CBOR byte-array.
+* the maximum length of a packet can be 4GB.
 * 0x91 denotes an array of single item, a special meaning for new
   request that expects a single response from peer.
 * 0x9f denotes an array of indefinite items, a special meaning

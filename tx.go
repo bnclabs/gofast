@@ -83,7 +83,7 @@ func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
 	n += breakStop(ping[n:])
 
 	for tag, fn := range t.tagenc { // roll up tags
-		if m = fn(ping[:n], pong); n == 0 { // skip tag
+		if m = fn(ping[:n], pong); m == 0 { // skip tag
 			continue
 		}
 		n = tag2cbor(tag, ping)
@@ -92,25 +92,41 @@ func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
 
 	m = tag2cbor(stream.opaque, pong) // finally roll up opaque
 	m += valbytes2cbor(ping[:n], pong[m:])
-	return valbytes2cbor(pong[:m], ping) // packet encoded as CBOR byte array
+	n = valbytes2cbor(pong[:m], ping) // packet encoded as CBOR byte array
+	return n
 }
 
 var txpool = sync.Pool{New: func() interface{} { return &txproto{} }}
+var txasyncpool = sync.Pool{New: func() interface{} { return &txproto{} }}
 
 type txproto struct {
 	packet []byte // request
 	flush  bool
+	async  bool
 	n      int // response
 	err    error
 	respch chan *txproto
 }
 
-func (t *Transport) tx(packet []byte, flush bool) (err error) {
-	arg := txpool.Get().(*txproto)
-	defer txpool.Put(arg)
+func fromtxpool(async bool) (arg *txproto) {
+	if async {
+		arg = txasyncpool.Get().(*txproto)
+		arg.flush, arg.async = false, false
+		arg.n, arg.err, arg.respch = 0, nil, nil
+	} else {
+		arg = txpool.Get().(*txproto)
+		arg.packet, arg.flush, arg.async = nil, false, false
+		arg.n, arg.err, arg.respch = 0, nil, nil
+	}
+	return arg
+}
 
-	log.Debugf("%v tx packet %v %v\n", t.logprefix, packet, len(t.txch))
-	arg.packet, arg.flush, arg.respch = packet, flush, make(chan *txproto, 1)
+func (t *Transport) tx(packet []byte, flush bool) (err error) {
+	arg := fromtxpool(false /*async*/)
+	defer func() { arg.packet = nil; txpool.Put(arg) }()
+
+	arg.packet, arg.flush, arg.async = packet, flush, false
+	arg.respch = make(chan *txproto, 1)
 	select {
 	case t.txch <- arg:
 		select {
@@ -130,6 +146,25 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 	return nil
 }
 
+func (t *Transport) txasync(out []byte, flush bool) (err error) {
+	arg := fromtxpool(true /*async*/)
+	if arg.packet == nil {
+		arg.packet = t.pktpool.Get().([]byte)
+	}
+	arg.packet = arg.packet[:cap(arg.packet)]
+
+	n := copy(arg.packet, out)
+	arg.packet = arg.packet[:n]
+
+	arg.flush, arg.async = flush, true
+	select {
+	case t.txch <- arg:
+	case <-t.killch:
+		return fmt.Errorf("transport closed")
+	}
+	return nil
+}
+
 func (t *Transport) doTx() {
 	batchsize := t.config["batchsize"].(int)
 	buffersize := t.config["buffersize"].(int)
@@ -139,21 +174,29 @@ func (t *Transport) doTx() {
 		atomic.AddUint64(&t.n_flushes, 1)
 		var err error
 		m, n := 0, 0
-		// consolidate
+		// consolidate.
 		for _, arg := range batch {
 			n += copy(tcpwrite_buf[n:], arg.packet)
 			atomic.AddUint64(&t.n_tx, 1)
 		}
-		// send
-		m, err = t.conn.Write(tcpwrite_buf[:n])
-		if m != n {
-			err = fmt.Errorf("wrote only %d, expected %d", m, n)
+		// send.
+		if n > 0 {
+			fmsg := "%v doTx() socket write %v:%v\n"
+			log.Debugf(fmsg, t.logprefix, n, tcpwrite_buf[:n])
+			m, err = t.conn.Write(tcpwrite_buf[:n])
+			if m != n {
+				err = fmt.Errorf("wrote only %d, expected %d", m, n)
+			}
 		}
 		atomic.AddUint64(&t.n_txbyte, uint64(m))
 		// unblock the callers.
 		for _, arg := range batch {
 			arg.n, arg.err = len(arg.packet), err
-			arg.respch <- arg
+			if arg.async {
+				txpool.Put(arg)
+			} else {
+				arg.respch <- arg
+			}
 		}
 		log.Debugf("%v drained %v packets\n", t.logprefix, len(batch))
 		batch = batch[:0] // reset the batch

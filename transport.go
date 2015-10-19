@@ -31,6 +31,7 @@
 //                 | 0xd9 0xd9f7  | end-packet |
 //
 //     * `packet` shall always be encoded as CBOR byte-array.
+//     * the maximum length of a packet can be 4GB.
 //     * 0x91 denotes an array of single item, a special meaning for new
 //       request that expects a single response from peer.
 //     * 0x9f denotes an array of indefinite items, a special meaning
@@ -460,7 +461,14 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	log.Debugf("%v local streams (%v,%v) pre-created\n", t.logprefix, start, end)
 	t.strmpool = make(chan *Stream, end-start+1) // inclusive
 	for opaque := start; opaque <= end; opaque++ {
-		t.strmpool <- t.newstream(uint64(opaque), false)
+		t.strmpool <- &Stream{
+			transport: t,
+			remote:    false,
+			opaque:    uint64(opaque),
+			Rxch:      nil,
+		}
+		fmsg := "%v ##%d(remote:%v) stream created ...\n"
+		log.Verbosef(fmsg, t.logprefix, opaque, false)
 	}
 }
 

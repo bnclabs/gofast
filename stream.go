@@ -10,8 +10,15 @@ type Stream struct {
 	remote    bool
 }
 
-func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
+func fromrxstrmpool() *Stream {
 	stream := rxstrmpool.Get().(*Stream)
+	stream.transport, stream.Rxch, stream.opaque = nil, nil, 0
+	stream.remote = false
+	return stream
+}
+
+func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
+	stream := fromrxstrmpool()
 	fmsg := "%v ##%d(remote:%v) stream created ...\n"
 	log.Verbosef(fmsg, t.logprefix, opaque, remote)
 	// reset all fields (it is coming from a pool)
@@ -53,7 +60,7 @@ func (s *Stream) Response(msg Message, flush bool) error {
 
 	out := obj.([]byte)
 	n := s.transport.response(msg, s, out)
-	return s.transport.tx(out[:n], flush)
+	return s.transport.txasync(out[:n], flush)
 }
 
 // Stream a message.
@@ -63,7 +70,7 @@ func (s *Stream) Stream(msg Message, flush bool) (err error) {
 
 	out := obj.([]byte)
 	n := s.transport.stream(msg, s, out)
-	if err = s.transport.tx(out[:n], flush); err != nil {
+	if err = s.transport.txasync(out[:n], flush); err != nil {
 		s.transport.putstream(s.opaque, s, true /*tellrx*/)
 	}
 	return
@@ -77,7 +84,7 @@ func (s *Stream) Close() error {
 	out := obj.([]byte)
 	n := s.transport.finish(s, out)
 	s.transport.putstream(s.opaque, s, true /*tellrx*/)
-	return s.transport.tx(out[:n], true /*flush*/)
+	return s.transport.txasync(out[:n], true /*flush*/)
 }
 
 // Transport return the underlying transport carrying this stream.

@@ -71,8 +71,10 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		trans.Handshake()
 		n_trans = append(n_trans, trans)
 		go func(trans *gofast.Transport) {
+			trans.FlushPeriod(100 * time.Millisecond)
 			doRequest(trans)
 			wg.Done()
 			trans.Close()
@@ -106,11 +108,13 @@ func doRequest(trans *gofast.Transport) {
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
 				tmp := strconv.AppendInt(echo[n:n], int64(j), 10)
-				s := bytes2str(echo[:n+len(tmp)])
+				s := string(echo[:n+len(tmp)])
 				if ping, err := trans.Ping(s); err != nil {
-					log.Fatal(err)
+					fmt.Printf("%v\n", err)
+					panic("exit")
 				} else if got := ping.Repr(); got != s {
-					log.Fatalf("expected %v, got %v\n", s, got)
+					fmt.Printf("expected %v, got %v\n", s, got)
+					panic("exit")
 				}
 				av.Add(uint64(time.Since(since)))
 			}
@@ -125,7 +129,7 @@ func newconfig(name string, start, end int) map[string]interface{} {
 		"name":         name,
 		"buffersize":   512,
 		"chansize":     100000,
-		"batchsize":    256,
+		"batchsize":    32,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
