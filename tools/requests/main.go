@@ -100,15 +100,19 @@ func main() {
 func doRequest(trans *gofast.Transport) {
 	var wg sync.WaitGroup
 
+	var n = 500
+	var echo [512]byte
+	for i := 0; i < n; i++ {
+		echo[i] = 'a'
+	}
+
 	for i := 0; i < options.routines; i++ {
 		wg.Add(1)
 		go func() {
-			var echo [64]byte
-			n := copy(echo[:], "ping-")
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
 				tmp := strconv.AppendInt(echo[n:n], int64(j), 10)
-				s := string(echo[:n+len(tmp)])
+				s := string(echo[:500+len(tmp)])
 				if ping, err := trans.Ping(s); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
@@ -127,7 +131,7 @@ func doRequest(trans *gofast.Transport) {
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
-		"buffersize":   512,
+		"buffersize":   1024,
 		"chansize":     100000,
 		"batchsize":    100,
 		"tags":         "",

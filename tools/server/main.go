@@ -100,7 +100,7 @@ func runserver(lis net.Listener) {
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
-		"buffersize":   512,
+		"buffersize":   1024,
 		"chansize":     100000,
 		"batchsize":    100,
 		"tags":         "",
