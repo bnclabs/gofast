@@ -70,10 +70,9 @@ func BenchmarkWaiEncode(b *testing.B) {
 	transv := <-serverch
 
 	out := make([]byte, 1024)
+	wai := NewWhoami(transc)
 	for i := 0; i < b.N; i++ {
-		wai := NewWhoami(transc)
 		wai.Encode(out)
-		whoamipool.Put(wai)
 	}
 	lis.Close()
 	transc.Close()
@@ -88,7 +87,7 @@ func BenchmarkWaiDecode(b *testing.B) {
 
 	ver, out := testVersion(1), make([]byte, 1024)
 	ref := NewWhoami(transc)
-	ref.tags = []byte("gzip")
+	ref.tags = "gzip"
 	n := ref.Encode(out)
 	wai := &Whoami{}
 	wai.version, wai.transport = &ver, transc

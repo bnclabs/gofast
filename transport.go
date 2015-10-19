@@ -249,7 +249,7 @@ func (t *Transport) Handshake() *Transport {
 
 	t.peerver = msg.version // TODO: should be atomic ?
 	// parse tag list, tags will be applied in the specified order.
-	for _, tag := range t.getTags(bytes2str(msg.tags), []string{}) {
+	for _, tag := range t.getTags(msg.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
 			tagid, enc, _ := factory(t, t.config)
 			t.tagenc[tagid] = enc
@@ -313,10 +313,8 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 			<-tick
 			msg := NewHeartbeat(count)
 			if t.Post(msg, true /*flush*/) != nil {
-				t.Free(msg)
 				return
 			}
-			t.Free(msg)
 			count++
 			log.Debugf("%v posted heartbeat %v\n", t.logprefix, count)
 		}
@@ -387,7 +385,6 @@ func (t *Transport) Counts() map[string]uint64 {
 // Whoami will return remote information.
 func (t *Transport) Whoami() (*Whoami, error) {
 	msg := NewWhoami(t)
-	defer t.Free(msg)
 	resp, err := t.Request(msg, true /*flush*/)
 	if err != nil {
 		return nil, err
@@ -398,7 +395,6 @@ func (t *Transport) Whoami() (*Whoami, error) {
 // Ping pong with peer.
 func (t *Transport) Ping(echo string) (*Ping, error) {
 	msg := NewPing(echo)
-	defer t.Free(msg)
 	resp, err := t.Request(msg, true /*flush*/)
 	if err != nil {
 		return nil, err

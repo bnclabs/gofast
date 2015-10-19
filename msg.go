@@ -39,7 +39,6 @@ type Version interface {
 }
 
 func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
-	defer t.Free(msg)
 	switch m := msg.(type) {
 	case *Heartbeat:
 		atomic.StoreInt64(&t.aliveat, time.Now().UnixNano())
@@ -47,7 +46,6 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 
 	case *Ping:
 		rv := NewPing(m.echo) // respond back
-		defer t.Free(rv)
 		if err := stream.Response(rv, false /*flush*/); err != nil {
 			log.Errorf("%v response-ping: %v\n", t.logprefix, err)
 		}
@@ -55,7 +53,6 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 	case *Whoami:
 		t.peerver = m.version // TODO: make this atomic
 		rv := NewWhoami(t)    // respond back
-		defer t.Free(rv)
 		if err := stream.Response(rv, true /*flush*/); err != nil {
 			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)
 		}
