@@ -129,7 +129,7 @@ func newconfig(name string, start, end int) map[string]interface{} {
 		"name":         name,
 		"buffersize":   512,
 		"chansize":     100000,
-		"batchsize":    32,
+		"batchsize":    100,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
