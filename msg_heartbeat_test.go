@@ -39,10 +39,9 @@ func TestHbMisc(t *testing.T) {
 
 func BenchmarkHbEncode(b *testing.B) {
 	out := make([]byte, 1024)
+	hb := NewHeartbeat(10000000)
 	for i := 0; i < b.N; i++ {
-		hb := NewHeartbeat(10000000)
 		hb.Encode(out)
-		hbpool.Put(hb)
 	}
 }
 
@@ -50,9 +49,8 @@ func BenchmarkHbDecode(b *testing.B) {
 	out := make([]byte, 1024)
 	ref := NewHeartbeat(10000000)
 	n := ref.Encode(out)
+	hb := NewHeartbeat(1000000)
 	for i := 0; i < b.N; i++ {
-		hb := NewHeartbeat(0)
 		hb.Decode(out[:n])
-		hbpool.Put(hb)
 	}
 }

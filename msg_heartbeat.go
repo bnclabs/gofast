@@ -1,6 +1,5 @@
 package gofast
 
-import "sync"
 import "strconv"
 
 // Heartbeat is predefined heartbeat message.
@@ -9,10 +8,7 @@ type Heartbeat struct {
 }
 
 func NewHeartbeat(count uint64) *Heartbeat {
-	val := hbpool.Get()
-	msg := val.(*Heartbeat)
-	msg.count = count
-	return msg
+	return &Heartbeat{count: count}
 }
 
 func (msg *Heartbeat) Id() uint64 {
@@ -40,10 +36,4 @@ func (msg *Heartbeat) String() string {
 
 func (msg *Heartbeat) Repr() string {
 	return msg.String() + ":" + strconv.Itoa(int(msg.count))
-}
-
-var hbpool *sync.Pool
-
-func init() {
-	hbpool = &sync.Pool{New: func() interface{} { return &Heartbeat{} }}
 }

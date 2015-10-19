@@ -120,7 +120,7 @@ func TestHeartbeat(t *testing.T) {
 		t.Errorf("neither 100, nor 99: %v", n)
 	}
 
-	ref, since := (200 * time.Millisecond), transc.Silentsince()
+	ref, since := (200 * time.Millisecond), transv.Silentsince()
 	if since > ref {
 		t.Errorf("expected less than %v, got %v", ref, since)
 	}
@@ -212,11 +212,11 @@ func newconfig(name string, start, end int) map[string]interface{} {
 		"name":         name,
 		"buffersize":   512,
 		"chansize":     100000,
-		"batchsize":    256,
+		"batchsize":    1,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
-		"log.level":    "error",
+		"log.level":    "ignore",
 		"gzip.file":    flate.BestSpeed,
 	}
 }
@@ -433,7 +433,7 @@ var testBindAddrs chan string
 func init() {
 	testBindAddrs = make(chan string, 1000)
 	for i := 0; i < cap(testBindAddrs); i++ {
-		testBindAddrs <- fmt.Sprintf("127.0.0.1:%v", 9000+i)
+		testBindAddrs <- fmt.Sprintf("127.0.0.1:%v", 9100+i)
 	}
 	runtime.GOMAXPROCS(runtime.NumCPU())
 }
