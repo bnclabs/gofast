@@ -56,7 +56,7 @@ func (t *Transport) syncRx() {
 			if rxpkt.request {
 				func() {
 					stream = t.newstream(rxpkt.opaque, true /*remote*/)
-					defer rxstrmpool.Put(stream)
+					defer t.p_rxstrm.Put(stream)
 					t.handlers[msg.Id()](stream, msg)
 					atomic.AddUint64(&t.n_rxreq, 1)
 				}()

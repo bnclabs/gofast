@@ -148,6 +148,7 @@ type Transport struct {
 	p_txacmd *sync.Pool
 	p_rxdata *sync.Pool
 	p_txdata *sync.Pool
+	p_rxstrm *sync.Pool
 	msgpools map[uint64]*sync.Pool
 
 	// configuration
@@ -230,6 +231,9 @@ func NewTransport(
 	}
 	t.p_txdata = &sync.Pool{
 		New: func() interface{} { return make([]byte, buffersize) },
+	}
+	t.p_rxstrm = &sync.Pool{
+		New: func() interface{} { return &Stream{} },
 	}
 
 	t.setOpaqueRange(uint64(opqstart), uint64(opqend))
@@ -525,6 +529,13 @@ func fromtxpool(async bool, pool *sync.Pool) (arg *txproto) {
 		arg.n, arg.err, arg.respch = 0, nil, nil
 	}
 	return arg
+}
+
+func fromrxstrm(pool *sync.Pool) *Stream {
+	stream := pool.Get().(*Stream)
+	stream.transport, stream.Rxch, stream.opaque = nil, nil, 0
+	stream.remote = false
+	return stream
 }
 
 type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)

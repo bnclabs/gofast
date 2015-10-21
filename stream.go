@@ -1,7 +1,5 @@
 package gofast
 
-import "sync"
-
 // Stream for a newly started stream on the transport.
 type Stream struct {
 	transport *Transport
@@ -10,15 +8,8 @@ type Stream struct {
 	remote    bool
 }
 
-func fromrxstrmpool() *Stream {
-	stream := rxstrmpool.Get().(*Stream)
-	stream.transport, stream.Rxch, stream.opaque = nil, nil, 0
-	stream.remote = false
-	return stream
-}
-
 func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
-	stream := fromrxstrmpool()
+	stream := fromrxstrm(t.p_rxstrm)
 	fmsg := "%v ##%d(remote:%v) stream created ...\n"
 	log.Verbosef(fmsg, t.logprefix, opaque, remote)
 	// reset all fields (it is coming from a pool)
@@ -90,10 +81,4 @@ func (s *Stream) Close() error {
 // Transport return the underlying transport carrying this stream.
 func (s *Stream) Transport() *Transport {
 	return s.transport
-}
-
-var rxstrmpool *sync.Pool
-
-func init() {
-	rxstrmpool = &sync.Pool{New: func() interface{} { return &Stream{} }}
 }
