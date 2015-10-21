@@ -100,8 +100,8 @@ func main() {
 func doRequest(trans *gofast.Transport) {
 	var wg sync.WaitGroup
 
-	var n = 500
-	var echo [512]byte
+	var n = 50
+	var echo [62]byte
 	for i := 0; i < n; i++ {
 		echo[i] = 'a'
 	}
@@ -112,7 +112,7 @@ func doRequest(trans *gofast.Transport) {
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
 				tmp := strconv.AppendInt(echo[n:n], int64(j), 10)
-				s := string(echo[:500+len(tmp)])
+				s := string(echo[:n+len(tmp)])
 				if ping, err := trans.Ping(s); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
