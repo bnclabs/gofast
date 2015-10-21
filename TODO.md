@@ -10,6 +10,8 @@
   * transport.go:Stream().
   * tx.go:test sending gzipped messages.
   * util.go:bytes2str().
+* replace pktpool with pools, one for each routine.
+* try to remove select{} blocks as much as possible.
 * support snappy compression.
 * document programming model in README page.
 * add snappy compression.
