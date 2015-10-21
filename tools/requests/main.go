@@ -23,6 +23,7 @@ var options struct {
 	routines int
 	conns    int
 	addr     string
+	payload  int
 	log      string
 }
 
@@ -37,6 +38,8 @@ func argParse() {
 		"number of concurrent routines")
 	flag.StringVar(&options.log, "log", "error",
 		"number of concurrent routines")
+	flag.IntVar(&options.payload, "payload", 10,
+		"payload size to ping pong.")
 	flag.Parse()
 }
 
@@ -100,9 +103,9 @@ func main() {
 func doRequest(trans *gofast.Transport) {
 	var wg sync.WaitGroup
 
-	var n = 50
-	var echo [62]byte
-	for i := 0; i < n; i++ {
+	pd := options.payload
+	echo := make([]byte, pd+12)
+	for i := 0; i < pd; i++ {
 		echo[i] = 'a'
 	}
 
@@ -111,8 +114,8 @@ func doRequest(trans *gofast.Transport) {
 		go func() {
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
-				tmp := strconv.AppendInt(echo[n:n], int64(j), 10)
-				s := string(echo[:n+len(tmp)])
+				tmp := strconv.AppendInt(echo[pd:pd], int64(j), 10)
+				s := string(echo[:pd+len(tmp)])
 				if ping, err := trans.Ping(s); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
