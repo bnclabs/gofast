@@ -1,20 +1,8 @@
 package gofast
 
-import "sync"
 import "sync/atomic"
 import "io"
 import "fmt"
-
-var rxpool = sync.Pool{New: func() interface{} { return &rxpacket{} }}
-
-func fromrxpool() *rxpacket { // always use this to get from pool
-	rxpkt := rxpool.Get().(*rxpacket)
-	// initialize
-	rxpkt.packet, rxpkt.payload = nil, nil
-	rxpkt.opaque = 0
-	rxpkt.request, rxpkt.start, rxpkt.finish = false, false, false
-	return rxpkt
-}
 
 type rxpacket struct {
 	packet  []byte
@@ -45,7 +33,7 @@ func (t *Transport) syncRx() {
 
 	handlepkt := func(rxpkt *rxpacket) {
 		defer t.pktpool.Put(rxpkt.packet)
-		defer rxpool.Put(rxpkt)
+		defer t.p_rxcmd.Put(rxpkt)
 
 		stream, streamok := livestreams[rxpkt.opaque]
 
@@ -143,7 +131,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 			log.Errorf("%v malformed packet: %v\n", t.logprefix, r)
 			if rxpkt != nil {
 				t.pktpool.Put(rxpkt.packet)
-				rxpool.Put(rxpkt)
+				t.p_rxcmd.Put(rxpkt)
 			}
 			rxpkt, err = nil, fmt.Errorf("%v", r)
 		}
@@ -186,7 +174,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	}
 	atomic.AddUint64(&t.n_rxbyte, uint64(9+m))
 	log.Debugf("%v doRx() io.ReadFull() second %v\n", t.logprefix, packet[:ln])
-	rxpkt = fromrxpool()
+	rxpkt = fromrxpool(t.p_rxcmd)
 	rxpkt.packet = packet
 	// first tag is opaque
 	rxpkt.opaque, rxpkt.payload = readtp(rxpkt.packet)

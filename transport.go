@@ -131,20 +131,23 @@ type Transport struct {
 	name     string
 	version  Version
 	peerver  Version
-	tagenc   map[uint64]tagfn // tagid -> func
-	tagdec   map[uint64]tagfn // tagid -> func
-	strmpool chan *Stream
+	tagenc   map[uint64]tagfn   // tagid -> func
+	tagdec   map[uint64]tagfn   // tagid -> func
 	messages map[uint64]Message // msgid -> message
 	handlers map[uint64]RequestCallback
-
-	conn    Transporter
-	aliveat int64
-	txch    chan *txproto
-	rxch    chan interface{}
-	killch  chan bool
+	conn     Transporter
+	aliveat  int64
+	txch     chan *txproto
+	rxch     chan interface{}
+	killch   chan bool
 
 	// mempools
+	strmpool chan *Stream // for locally initiated streams
 	pktpool  *sync.Pool
+	p_rxcmd  *sync.Pool
+	p_txcmd  *sync.Pool
+	p_rxdata *sync.Pool
+	p_txdata *sync.Pool
 	msgpools map[uint64]*sync.Pool
 
 	// configuration
@@ -216,6 +219,10 @@ func NewTransport(
 	t.pktpool = &sync.Pool{
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
+	t.p_rxcmd = &sync.Pool{
+		New: func() interface{} { return &rxpacket{} },
+	}
+
 	t.setOpaqueRange(uint64(opqstart), uint64(opqend))
 	t.subscribeMessage(&Whoami{}, t.msghandler)
 	t.subscribeMessage(&Ping{}, t.msghandler)
@@ -487,6 +494,15 @@ func (t *Transport) subscribeMessage(
 
 	log.Verbosef("%v subscribed %v\n", t.logprefix, msg)
 	return t
+}
+
+func fromrxpool(pool *sync.Pool) *rxpacket { // always use this to get from pool
+	rxpkt := pool.Get().(*rxpacket)
+	// initialize
+	rxpkt.packet, rxpkt.payload = nil, nil
+	rxpkt.opaque = 0
+	rxpkt.request, rxpkt.start, rxpkt.finish = false, false, false
+	return rxpkt
 }
 
 type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)
