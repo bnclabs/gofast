@@ -143,7 +143,6 @@ type Transport struct {
 
 	// mempools
 	strmpool chan *Stream // for locally initiated streams
-	pktpool  *sync.Pool
 	p_rxcmd  *sync.Pool
 	p_txcmd  *sync.Pool
 	p_rxdata *sync.Pool
@@ -216,11 +215,17 @@ func NewTransport(
 
 	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
 	t.logprefix = fmt.Sprintf("GFST[%v; %v<->%v]", name, laddr, raddr)
-	t.pktpool = &sync.Pool{
-		New: func() interface{} { return make([]byte, buffersize) },
-	}
 	t.p_rxcmd = &sync.Pool{
 		New: func() interface{} { return &rxpacket{} },
+	}
+	//t.p_txcmd = &sync.Pool{
+	//	New: func() interface{} { return &rxpacket{} },
+	//}
+	t.p_rxdata = &sync.Pool{
+		New: func() interface{} { return make([]byte, buffersize) },
+	}
+	t.p_txdata = &sync.Pool{
+		New: func() interface{} { return make([]byte, buffersize) },
 	}
 
 	t.setOpaqueRange(uint64(opqstart), uint64(opqend))
@@ -411,8 +416,8 @@ func (t *Transport) Ping(echo string) (*Ping, error) {
 
 // Post request to peer.
 func (t *Transport) Post(msg Message, flush bool) error {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
+	out := t.p_txdata.Get().([]byte)
+	defer t.p_txdata.Put(out)
 	stream := t.getstream(nil)
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
@@ -422,8 +427,8 @@ func (t *Transport) Post(msg Message, flush bool) error {
 
 // Request a response from peer.
 func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
+	out := t.p_txdata.Get().([]byte)
+	defer t.p_txdata.Put(out)
 	stream := t.getstream(make(chan Message, 1))
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
@@ -440,8 +445,8 @@ func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 
 // Request a bi-directional stream with peer.
 func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (stream *Stream, err error) {
-	out := t.pktpool.Get().([]byte)
-	defer t.pktpool.Put(out)
+	out := t.p_txdata.Get().([]byte)
+	defer t.p_txdata.Put(out)
 
 	stream = t.getstream(ch)
 	n := t.start(msg, stream, out)

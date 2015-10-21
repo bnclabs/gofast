@@ -63,12 +63,12 @@ func (t *Transport) finish(stream *Stream, out []byte) (n int) {
 
 func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
 	// data
-	x := t.pktpool.Get()
-	defer t.pktpool.Put(x)
+	x := t.p_txdata.Get()
+	defer t.p_txdata.Put(x)
 	// create another buffer and rotate with `ping` buffer
 	// and roll up the tags
-	y := t.pktpool.Get()
-	defer t.pktpool.Put(y)
+	y := t.p_txdata.Get()
+	defer t.p_txdata.Put(y)
 
 	data, pong := x.([]byte), y.([]byte)
 
@@ -149,7 +149,7 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 func (t *Transport) txasync(out []byte, flush bool) (err error) {
 	arg := fromtxpool(true /*async*/)
 	if arg.packet == nil {
-		arg.packet = t.pktpool.Get().([]byte)
+		arg.packet = t.p_txdata.Get().([]byte)
 	}
 	arg.packet = arg.packet[:cap(arg.packet)]
 

@@ -32,7 +32,7 @@ func (t *Transport) syncRx() {
 	}
 
 	handlepkt := func(rxpkt *rxpacket) {
-		defer t.pktpool.Put(rxpkt.packet)
+		defer t.p_rxdata.Put(rxpkt.packet)
 		defer t.p_rxcmd.Put(rxpkt)
 
 		stream, streamok := livestreams[rxpkt.opaque]
@@ -130,7 +130,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		if r := recover(); r != nil {
 			log.Errorf("%v malformed packet: %v\n", t.logprefix, r)
 			if rxpkt != nil {
-				t.pktpool.Put(rxpkt.packet)
+				t.p_rxdata.Put(rxpkt.packet)
 				t.p_rxcmd.Put(rxpkt)
 			}
 			rxpkt, err = nil, fmt.Errorf("%v", r)
@@ -162,7 +162,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	ln, m := cborItemLength(pad[n:])
 	n += m
 	// read the full packet
-	packet := t.pktpool.Get().([]byte)
+	packet := t.p_rxdata.Get().([]byte)
 	n = copy(packet, pad[n:9])
 	if m, err = io.ReadFull(conn, packet[n:ln]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
@@ -188,8 +188,8 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	tag, rxpkt.payload = readtp(rxpkt.payload)
 	for tag != tagMsg && len(rxpkt.payload) > 0 {
 		func() {
-			defer t.pktpool.Put(rxpkt.packet)
-			packet = t.pktpool.Get().([]byte)
+			defer t.p_rxdata.Put(rxpkt.packet)
+			packet = t.p_rxdata.Get().([]byte)
 			n = t.tagdec[tag](rxpkt.payload, packet)
 			tag, rxpkt.payload = readtp(packet[:n])
 			rxpkt.packet = packet

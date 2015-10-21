@@ -55,8 +55,8 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 
 // Response to a request.
 func (s *Stream) Response(msg Message, flush bool) error {
-	obj := s.transport.pktpool.Get()
-	defer s.transport.pktpool.Put(obj)
+	obj := s.transport.p_txdata.Get()
+	defer s.transport.p_txdata.Put(obj)
 
 	out := obj.([]byte)
 	n := s.transport.response(msg, s, out)
@@ -65,8 +65,8 @@ func (s *Stream) Response(msg Message, flush bool) error {
 
 // Stream a message.
 func (s *Stream) Stream(msg Message, flush bool) (err error) {
-	obj := s.transport.pktpool.Get()
-	defer s.transport.pktpool.Put(obj)
+	obj := s.transport.p_txdata.Get()
+	defer s.transport.p_txdata.Put(obj)
 
 	out := obj.([]byte)
 	n := s.transport.stream(msg, s, out)
@@ -78,8 +78,8 @@ func (s *Stream) Stream(msg Message, flush bool) (err error) {
 
 // Close the stream.
 func (s *Stream) Close() error {
-	obj := s.transport.pktpool.Get()
-	defer s.transport.pktpool.Put(obj)
+	obj := s.transport.p_txdata.Get()
+	defer s.transport.p_txdata.Put(obj)
 
 	out := obj.([]byte)
 	n := s.transport.finish(s, out)
