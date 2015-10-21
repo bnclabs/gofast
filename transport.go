@@ -145,6 +145,7 @@ type Transport struct {
 	strmpool chan *Stream // for locally initiated streams
 	p_rxcmd  *sync.Pool
 	p_txcmd  *sync.Pool
+	p_txacmd *sync.Pool
 	p_rxdata *sync.Pool
 	p_txdata *sync.Pool
 	msgpools map[uint64]*sync.Pool
@@ -218,9 +219,12 @@ func NewTransport(
 	t.p_rxcmd = &sync.Pool{
 		New: func() interface{} { return &rxpacket{} },
 	}
-	//t.p_txcmd = &sync.Pool{
-	//	New: func() interface{} { return &rxpacket{} },
-	//}
+	t.p_txcmd = &sync.Pool{
+		New: func() interface{} { return &txproto{} },
+	}
+	t.p_txacmd = &sync.Pool{ // async commands
+		New: func() interface{} { return &txproto{} },
+	}
 	t.p_rxdata = &sync.Pool{
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
@@ -508,6 +512,19 @@ func fromrxpool(pool *sync.Pool) *rxpacket { // always use this to get from pool
 	rxpkt.opaque = 0
 	rxpkt.request, rxpkt.start, rxpkt.finish = false, false, false
 	return rxpkt
+}
+
+func fromtxpool(async bool, pool *sync.Pool) (arg *txproto) {
+	if async {
+		arg = pool.Get().(*txproto)
+		arg.flush, arg.async = false, false
+		arg.n, arg.err, arg.respch = 0, nil, nil
+	} else {
+		arg = pool.Get().(*txproto)
+		arg.packet, arg.flush, arg.async = nil, false, false
+		arg.n, arg.err, arg.respch = 0, nil, nil
+	}
+	return arg
 }
 
 type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)

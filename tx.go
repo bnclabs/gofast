@@ -1,6 +1,5 @@
 package gofast
 
-import "sync"
 import "fmt"
 import "sync/atomic"
 
@@ -96,9 +95,6 @@ func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
 	return n
 }
 
-var txpool = sync.Pool{New: func() interface{} { return &txproto{} }}
-var txasyncpool = sync.Pool{New: func() interface{} { return &txproto{} }}
-
 type txproto struct {
 	packet []byte // request
 	flush  bool
@@ -108,22 +104,9 @@ type txproto struct {
 	respch chan *txproto
 }
 
-func fromtxpool(async bool) (arg *txproto) {
-	if async {
-		arg = txasyncpool.Get().(*txproto)
-		arg.flush, arg.async = false, false
-		arg.n, arg.err, arg.respch = 0, nil, nil
-	} else {
-		arg = txpool.Get().(*txproto)
-		arg.packet, arg.flush, arg.async = nil, false, false
-		arg.n, arg.err, arg.respch = 0, nil, nil
-	}
-	return arg
-}
-
 func (t *Transport) tx(packet []byte, flush bool) (err error) {
-	arg := fromtxpool(false /*async*/)
-	defer func() { arg.packet = nil; txpool.Put(arg) }()
+	arg := fromtxpool(false /*async*/, t.p_txcmd)
+	defer func() { arg.packet = nil; t.p_txcmd.Put(arg) }()
 
 	arg.packet, arg.flush, arg.async = packet, flush, false
 	arg.respch = make(chan *txproto, 1)
@@ -147,7 +130,7 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 }
 
 func (t *Transport) txasync(out []byte, flush bool) (err error) {
-	arg := fromtxpool(true /*async*/)
+	arg := fromtxpool(true /*async*/, t.p_txacmd)
 	if arg.packet == nil {
 		arg.packet = t.p_txdata.Get().([]byte)
 	}
@@ -193,7 +176,7 @@ func (t *Transport) doTx() {
 		for _, arg := range batch {
 			arg.n, arg.err = len(arg.packet), err
 			if arg.async {
-				txpool.Put(arg)
+				t.p_txacmd.Put(arg)
 			} else {
 				arg.respch <- arg
 			}
