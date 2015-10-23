@@ -1,4 +1,4 @@
-* add test cases:
+* add testcases to improve code coverage.
   * test case for cbor.go:valtext2cbor().
   * rx.go:test receiving start-stream.
   * rx.go:test receiving Close() stream.
@@ -10,12 +10,11 @@
   * transport.go:Stream().
   * tx.go:test sending gzipped messages.
   * util.go:bytes2str().
-* replace pktpool with pools, one for each routine.
-* try to remove select{} blocks as much as possible.
-* support snappy compression.
+* tools/posts similar to tools/requests
+* tools/streams similar to tools/requests
+* add tools/{posts,requests,streams} to travis-ci.
 * document programming model in README page.
-* add snappy compression.
-* add tools/requests as part of travis-ci.
 * run mprof and optimize on escaping variables.
-* add testcases to improve code coverage.
+* check whether select{} blocks are costly ?
+* support snappy compression.
 * try gofast on raspberry-pi.

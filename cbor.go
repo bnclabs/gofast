@@ -183,11 +183,23 @@ func cborItemLength(buf []byte) (int, int) {
 	if y := cborInfo(buf[0]); y < cborInfo24 {
 		return int(y), 1
 	} else if y == cborInfo24 {
+		if len(buf) < 2 {
+			return -1, -1
+		}
 		return int(buf[1]), 2
 	} else if y == cborInfo25 {
+		if len(buf) < 3 {
+			return -1, -1
+		}
 		return int(binary.BigEndian.Uint16(buf[1:])), 3
 	} else if y == cborInfo26 {
+		if len(buf) < 5 {
+			return -1, -1
+		}
 		return int(binary.BigEndian.Uint32(buf[1:])), 5
+	}
+	if len(buf) < 9 {
+		return -1, -1
 	}
 	return int(binary.BigEndian.Uint64(buf[1:])), 9 // info27
 }

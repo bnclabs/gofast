@@ -5,6 +5,8 @@ package gofast
 import "reflect"
 import "unsafe"
 import "strings"
+import "bytes"
+import "fmt"
 
 func bytes2str(bytes []byte) string {
 	if bytes == nil {
@@ -47,6 +49,15 @@ func msgfactory(msg Message) func() interface{} {
 		typeOfMsg := reflect.ValueOf(msg).Elem().Type()
 		return reflect.New(typeOfMsg).Interface()
 	}
+}
+
+func getStackTrace(skip int, stack []byte) string {
+	var buf bytes.Buffer
+	lines := strings.Split(string(stack), "\n")
+	for _, call := range lines[skip*2:] {
+		buf.WriteString(fmt.Sprintf("%s\n", call))
+	}
+	return buf.String()
 }
 
 // CborMap2golangMap transforms [][2]interface{} to map[string]interface{}

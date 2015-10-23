@@ -1,6 +1,7 @@
 package gofast
 
 import "testing"
+import "reflect"
 import "fmt"
 import "syscall"
 import "runtime"
@@ -190,12 +191,166 @@ func TestWhoami(t *testing.T) {
 	transv.Close()
 }
 
+func TestTransPost(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	msg := &testMessage{1234}
+	donech := make(chan bool, 2)
+	transc.SubscribeMessage(
+		&testMessage{},
+		func(s *Stream, m Message) chan Message {
+			if s != nil {
+				t.Errorf("expected nil, got %v", s)
+			} else if !reflect.DeepEqual(m, msg) {
+				t.Errorf("expected %v, got %v", msg, m)
+			}
+			donech <- true
+			return nil
+		})
+	transv.SubscribeMessage(
+		&testMessage{},
+		func(s *Stream, m Message) chan Message {
+			if s != nil {
+				t.Errorf("expected nil, got %v", s)
+			} else if !reflect.DeepEqual(m, msg) {
+				t.Errorf("expected %v, got %v", msg, m)
+			}
+			transv.Post(m, true)
+			return nil
+		})
+	transc.Post(msg, true)
+	<-donech
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestTransRequest(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	msg := &testMessage{1234}
+	transc.SubscribeMessage(&testMessage{}, nil)
+	transv.SubscribeMessage(
+		&testMessage{},
+		func(s *Stream, m Message) chan Message {
+			s.Response(m, true)
+			return nil
+		})
+	if resp, err := transc.Request(msg, true); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(resp, msg) {
+		t.Errorf("expected %v, got %v", msg, resp)
+	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestClientStream(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	start, n := uint64(1235), uint64(100)
+	msg := &testMessage{1234}
+	refch := make(chan Message)
+	transc.SubscribeMessage(&testMessage{}, nil)
+	transv.SubscribeMessage(
+		&testMessage{},
+		func(s *Stream, m Message) chan Message {
+			refch <- m
+			return refch
+		})
+	stream, err := transc.Stream(msg, true, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	for i := uint64(0); i < n; i++ {
+		if err = stream.Stream(&testMessage{start + i}, true); err != nil {
+			t.Error(err)
+		}
+	}
+	if err = stream.Close(); err != nil {
+		t.Error(err)
+	}
+
+	// validate
+	i := uint64(1234)
+	for msg := range refch {
+		r := &testMessage{i}
+		if !reflect.DeepEqual(msg, r) {
+			t.Errorf("expected %#v, got %#v", r, msg)
+		}
+		i++
+	}
+	if ref := uint64(1234) + 100 + 1; i != ref {
+		t.Errorf("expected %v, got %v", ref, i)
+	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestServerStream(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	start, n := uint64(1235), uint64(100)
+	msg := &testMessage{1234}
+	refch := make(chan Message)
+	transc.SubscribeMessage(
+		&testMessage{},
+		func(s *Stream, m Message) chan Message {
+			refch <- m
+			return refch
+		})
+	transv.SubscribeMessage(&testMessage{}, nil)
+	stream, err := transv.Stream(msg, true, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	for i := uint64(0); i < n; i++ {
+		if err = stream.Stream(&testMessage{start + i}, true); err != nil {
+			t.Error(err)
+		}
+	}
+	if err = stream.Close(); err != nil {
+		t.Error(err)
+	}
+
+	// validate
+	i := uint64(1234)
+	for msg := range refch {
+		r := &testMessage{i}
+		if !reflect.DeepEqual(msg, r) {
+			t.Errorf("expected %#v, got %#v", r, msg)
+		}
+		i++
+	}
+	if ref := uint64(1234) + 100 + 1; i != ref {
+		t.Errorf("expected %v, got %v", ref, i)
+	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
 func BenchmarkTransCounts(b *testing.B) {
 	addr := <-testBindAddrs
 	lis, serverch := newServer(addr, "")      // init server
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		transc.Counts()
 	}

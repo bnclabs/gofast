@@ -509,6 +509,15 @@ func (t *Transport) subscribeMessage(
 	return t
 }
 
+func (t *Transport) requestCallback(stream *Stream, msg Message) chan Message {
+	id := msg.Id()
+	if fn := t.handlers[id]; fn != nil {
+		return fn(stream, msg)
+	}
+	log.Warnf("request-callback registered nil for msg:(%v,%T)\n", id, msg)
+	return nil
+}
+
 func fromrxpool(pool *sync.Pool) *rxpacket { // always use this to get from pool
 	rxpkt := pool.Get().(*rxpacket)
 	// initialize

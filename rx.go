@@ -3,6 +3,7 @@ package gofast
 import "sync/atomic"
 import "io"
 import "fmt"
+import "runtime/debug"
 
 type rxpacket struct {
 	packet  []byte
@@ -57,15 +58,15 @@ func (t *Transport) syncRx() {
 				func() {
 					stream = t.newstream(rxpkt.opaque, true /*remote*/)
 					defer t.p_rxstrm.Put(stream)
-					t.handlers[msg.Id()](stream, msg)
+					t.requestCallback(stream, msg)
 					atomic.AddUint64(&t.n_rxreq, 1)
 				}()
-			} else if rxpkt.start {
+			} else if rxpkt.start { // stream
 				stream = t.newstream(rxpkt.opaque, true /*remote*/)
-				stream.Rxch = t.handlers[msg.Id()](stream, msg)
+				stream.Rxch = t.requestCallback(stream, msg)
 				livestreams[stream.opaque] = stream
 				atomic.AddUint64(&t.n_rxstart, 1)
-			} else {
+			} else { // post
 				t.handlers[msg.Id()](nil /*stream*/, msg)
 				atomic.AddUint64(&t.n_rxpost, 1)
 			}
@@ -129,6 +130,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("%v malformed packet: %v\n", t.logprefix, r)
+			log.Errorf(getStackTrace(1, debug.Stack()))
 			if rxpkt != nil {
 				t.p_rxdata.Put(rxpkt.packet)
 				t.p_rxcmd.Put(rxpkt)
@@ -137,12 +139,13 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		}
 	}()
 
-	var n int
+	var n, m int
 	var pad [9]byte
-	if n, err = io.ReadFull(conn, pad[:9]); err == io.EOF {
+	rd := 8
+	if n, err = io.ReadFull(conn, pad[:8]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
-	} else if err != nil || n != 9 {
+	} else if err != nil || n != 8 {
 		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
@@ -159,11 +162,25 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	if request || start {
 		n += 1
 	}
-	ln, m := cborItemLength(pad[n:])
+
+	ln, m := cborItemLength(pad[n:rd])
+	if ln == -1 { // we only read optimitically 8 bytes.
+		if m, err = io.ReadFull(conn, pad[8:9]); err == io.EOF {
+			log.Infof("%v doRx() received EOF\n", t.logprefix)
+			return
+		} else if err != nil || m != 1 {
+			log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, m, err)
+			atomic.AddUint64(&t.n_dropped, uint64(m))
+			return
+		} else {
+			rd += 1
+		}
+	}
 	n += m
+
 	// read the full packet
 	packet := t.p_rxdata.Get().([]byte)
-	n = copy(packet, pad[n:9])
+	n = copy(packet, pad[n:rd])
 	if m, err = io.ReadFull(conn, packet[n:ln]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
@@ -172,7 +189,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
 	}
-	atomic.AddUint64(&t.n_rxbyte, uint64(9+m))
+	atomic.AddUint64(&t.n_rxbyte, uint64(rd+m))
 	log.Debugf("%v doRx() io.ReadFull() second %v\n", t.logprefix, packet[:ln])
 	rxpkt = fromrxpool(t.p_rxcmd)
 	rxpkt.packet = packet
@@ -274,11 +291,13 @@ func (t *Transport) getch(ch chan interface{}) interface{} {
 }
 
 func (t *Transport) putmsg(ch chan Message, msg Message) bool {
-	select {
-	case ch <- msg:
-		return true
-	case <-t.killch:
-		return false
+	if ch != nil {
+		select {
+		case ch <- msg:
+			return true
+		case <-t.killch:
+			return false
+		}
 	}
 	return false
 }
@@ -286,6 +305,8 @@ func (t *Transport) putmsg(ch chan Message, msg Message) bool {
 func readtp(payload []byte) (uint64, []byte) {
 	tag, n := cborItemLength(payload)
 	if tag == tagMsg {
+		return uint64(tag), payload[n:]
+	} else if payload[n] == 0xff {
 		return uint64(tag), payload[n:]
 	}
 	ln, m := cborItemLength(payload[n:])
