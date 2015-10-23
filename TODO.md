@@ -1,13 +1,5 @@
 * add testcases to improve code coverage.
-  * test case for cbor.go:valtext2cbor().
-  * rx.go:test receiving start-stream.
-  * rx.go:test receiving Close() stream.
-  * rx.go:test receiving msg for on going stream.
-  * rx.go:getch().
   * rx.go:test receiving gzipped messages.
-  * stream.go:Stream().
-  * stream.go:Close().
-  * transport.go:Stream().
   * tx.go:test sending gzipped messages.
   * util.go:bytes2str().
 * tools/posts similar to tools/requests

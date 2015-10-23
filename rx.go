@@ -3,7 +3,6 @@ package gofast
 import "sync/atomic"
 import "io"
 import "fmt"
-import "runtime/debug"
 
 type rxpacket struct {
 	packet  []byte
@@ -38,15 +37,19 @@ func (t *Transport) syncRx() {
 
 		stream, streamok := livestreams[rxpkt.opaque]
 
-		if rxpkt.finish {
+		if streamok && rxpkt.finish {
 			fmsg := "%v ##%d stream closed by remote ...\n"
 			log.Debugf(fmsg, t.logprefix, stream.opaque)
 			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
 			delete(livestreams, rxpkt.opaque)
 			atomic.AddUint64(&t.n_rxfin, 1)
 			return
+		} else if rxpkt.finish {
+			fmsg := "%v ##%d uknown stream-fin from remote ...\n"
+			log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
+			return
 		}
-
+		// not a fin message, decode message
 		msg := t.unmessage(rxpkt.opaque, rxpkt.payload)
 		if msg == nil {
 			return
@@ -72,12 +75,10 @@ func (t *Transport) syncRx() {
 			}
 			return
 		}
-		// response, stream, finish
+		// response, stream, finish is handled above
 		t.putmsg(stream.Rxch, msg)
 		if rxpkt.request {
 			atomic.AddUint64(&t.n_rxresp, 1)
-		} else if rxpkt.finish {
-			atomic.AddUint64(&t.n_rxfin, 1)
 		} else {
 			atomic.AddUint64(&t.n_rxstream, 1)
 		}
@@ -127,17 +128,19 @@ func (t *Transport) doRx() {
 }
 
 func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Errorf("%v malformed packet: %v\n", t.logprefix, r)
-			log.Errorf(getStackTrace(1, debug.Stack()))
-			if rxpkt != nil {
-				t.p_rxdata.Put(rxpkt.packet)
-				t.p_rxcmd.Put(rxpkt)
-			}
-			rxpkt, err = nil, fmt.Errorf("%v", r)
-		}
-	}()
+	// TODO: ideally this function and the called ones from here should be
+	// hardened enought that it shall never panic.
+	//defer func() {
+	//	if r := recover(); r != nil {
+	//		log.Errorf("%v malformed packet: %v\n", t.logprefix, r)
+	//		log.Errorf(getStackTrace(1, debug.Stack()))
+	//		if rxpkt != nil {
+	//			t.p_rxdata.Put(rxpkt.packet)
+	//			t.p_rxcmd.Put(rxpkt)
+	//		}
+	//		rxpkt, err = nil, fmt.Errorf("%v", r)
+	//	}
+	//}()
 
 	var n, m int
 	var pad [9]byte
@@ -174,6 +177,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 			return
 		} else {
 			rd += 1
+			ln, m = cborItemLength(pad[n:rd])
 		}
 	}
 	n += m
@@ -278,16 +282,6 @@ func (t *Transport) putch(ch chan interface{}, val interface{}) bool {
 		return false
 	}
 	return false
-}
-
-func (t *Transport) getch(ch chan interface{}) interface{} {
-	select {
-	case val := <-ch:
-		return val
-	case <-t.killch:
-		return nil
-	}
-	return nil
 }
 
 func (t *Transport) putmsg(ch chan Message, msg Message) bool {

@@ -4,13 +4,19 @@ package gofast
 
 import "testing"
 import "reflect"
+import "strings"
 import "fmt"
+import "runtime/debug"
 
 var _ = fmt.Sprintf("dummy")
 
 func TestBytes2Str(t *testing.T) {
 	if bytes2str(nil) != "" {
 		t.Errorf("fail bytes2str(nil)")
+	}
+	ref := "hello world"
+	if s := bytes2str(str2bytes(ref)); s != ref {
+		t.Errorf("expected %v, got %v", ref, s)
 	}
 }
 
@@ -54,13 +60,12 @@ func TestCsv2strings(t *testing.T) {
 	}
 }
 
-//func TestCborMap2Golang(t *testing.T) {
-//	ref := map[string]interface{}{"a": 10, "b": []interface{}{true, false, nil}}
-//	val := CborMap2golangMap(GolangMap2cborMap(ref))
-//	if !reflect.DeepEqual(ref, val) {
-//		t.Errorf("expected %v, got %v", ref, val)
-//	}
-//}
+func TestStackTrace(t *testing.T) {
+	s := getStackTrace(0, debug.Stack())
+	if !strings.Contains(s, "getStackTrace") {
+		t.Errorf("stack-trace %v", s)
+	}
+}
 
 func BenchmarkBytes2Str(b *testing.B) {
 	bs := []byte("hello world")

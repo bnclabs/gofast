@@ -18,6 +18,10 @@ func TestIsReservedMsg(t *testing.T) {
 }
 
 const msgTest = msgEnd + 1
+const msgEmpty = msgTest + 1
+const msgLarge = msgTest + 1
+
+//-- test message
 
 type testMessage struct {
 	count uint64
@@ -48,4 +52,57 @@ func (msg *testMessage) String() string {
 
 func (msg *testMessage) Repr() string {
 	return msg.String() + ":" + strconv.Itoa(int(msg.count))
+}
+
+//-- empty message
+
+type emptyMessage struct {
+}
+
+func (msg *emptyMessage) Id() uint64 {
+	return msgEmpty
+}
+
+func (msg *emptyMessage) Encode(out []byte) int {
+	n := 0
+	n += valbytes2cbor([]byte{}, out[n:])
+	return n
+}
+
+func (msg *emptyMessage) Decode(in []byte) {
+}
+
+func (msg *emptyMessage) String() string {
+	return "emptyMessage"
+}
+
+func (msg *emptyMessage) Repr() string {
+	return msg.String()
+}
+
+//-- empty message
+
+type largeMessage struct {
+	data [65 * 1024]byte
+}
+
+func (msg *largeMessage) Id() uint64 {
+	return msgLarge
+}
+
+func (msg *largeMessage) Encode(out []byte) int {
+	n := 0
+	n += valbytes2cbor(msg.data[:], out[n:])
+	return n
+}
+
+func (msg *largeMessage) Decode(in []byte) {
+}
+
+func (msg *largeMessage) String() string {
+	return "largeMessage"
+}
+
+func (msg *largeMessage) Repr() string {
+	return msg.String()
 }

@@ -228,6 +228,71 @@ func TestTransPost(t *testing.T) {
 	transv.Close()
 }
 
+func TestTransPostEmpty(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "")      // init server
+	transc := newClient(addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	msg := &emptyMessage{}
+	donech := make(chan bool, 2)
+	transc.SubscribeMessage(
+		&emptyMessage{},
+		func(s *Stream, m Message) chan Message {
+			if s != nil {
+				t.Errorf("expected nil, got %v", s)
+			} else if !reflect.DeepEqual(m, msg) {
+				t.Errorf("expected %v, got %v", msg, m)
+			}
+			donech <- true
+			return nil
+		})
+	transv.SubscribeMessage(
+		&emptyMessage{},
+		func(s *Stream, m Message) chan Message {
+			if s != nil {
+				t.Errorf("expected nil, got %v", s)
+			} else if !reflect.DeepEqual(m, msg) {
+				t.Errorf("expected %v, got %v", msg, m)
+			}
+			transv.Post(m, true)
+			return nil
+		})
+	transc.Post(msg, true)
+	<-donech
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestTransPostLarge(t *testing.T) {
+	addr := <-testBindAddrs
+	sconf := newconfig("server", tagOpaqueStart, tagOpaqueStart+10)
+	sconf["buffersize"] = 1024 * 1204
+	cconf := newconfig("client", tagOpaqueStart+11, tagOpaqueStart+20)
+	cconf["buffersize"] = 1024 * 1204
+	lis, serverch := newServerConfig(addr, sconf)      // init server
+	transc := newClientConfig(addr, cconf).Handshake() // init client
+	transv := <-serverch
+	// test
+	msg := &largeMessage{}
+	transc.SubscribeMessage(&largeMessage{}, nil)
+	transv.SubscribeMessage(
+		&largeMessage{},
+		func(s *Stream, m Message) chan Message {
+			s.Response(m, true)
+			return nil
+		})
+	if resp, err := transc.Request(msg, true); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(resp, msg) {
+		t.Errorf("expected %v, got %v", msg, resp)
+	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
 func TestTransRequest(t *testing.T) {
 	addr := <-testBindAddrs
 	lis, serverch := newServer(addr, "")      // init server
@@ -344,6 +409,45 @@ func TestServerStream(t *testing.T) {
 	transv.Close()
 }
 
+func TestTransGzip(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "gzip")      // init server
+	transc := newClient(addr, "gzip").Handshake() // init client
+	transv := <-serverch
+	// test
+	msg := &testMessage{1234}
+	transc.SubscribeMessage(&testMessage{}, nil)
+	transv.SubscribeMessage(
+		&testMessage{},
+		func(s *Stream, m Message) chan Message {
+			s.Response(m, true)
+			return nil
+		})
+	if resp, err := transc.Request(msg, true); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(resp, msg) {
+		t.Errorf("expected %v, got %v", msg, resp)
+	}
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestJunkRx(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer(addr, "gzip")      // init server
+	transc := newClient(addr, "gzip").Handshake() // init client
+	transv := <-serverch
+	// test
+	if _, err := transc.conn.Write([]byte("junk")); err != nil {
+		t.Error(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
 func BenchmarkTransCounts(b *testing.B) {
 	addr := <-testBindAddrs
 	lis, serverch := newServer(addr, "")      // init server
@@ -378,6 +482,12 @@ func newconfig(name string, start, end int) map[string]interface{} {
 func newServer(addr, tags string) (*net.TCPListener, chan *Transport) {
 	config := newconfig("server", tagOpaqueStart, tagOpaqueStart+10)
 	config["tags"] = tags
+	return newServerConfig(addr, config)
+}
+
+func newServerConfig(
+	addr string,
+	config map[string]interface{}) (*net.TCPListener, chan *Transport) {
 
 	la, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
@@ -388,7 +498,8 @@ func newServer(addr, tags string) (*net.TCPListener, chan *Transport) {
 		panic(fmt.Errorf("listen failed %v", err))
 	}
 	if fd, err := lis.File(); err == nil {
-		syscall.SetsockoptInt(int(fd.Fd()), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+		syscall.SetsockoptInt(
+			int(fd.Fd()), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
 	} else {
 		panic(err)
 	}
@@ -412,6 +523,12 @@ func newServer(addr, tags string) (*net.TCPListener, chan *Transport) {
 func newClient(addr, tags string) *Transport {
 	config := newconfig("client", tagOpaqueStart+11, tagOpaqueStart+20)
 	config["tags"] = tags
+	return newClientConfig(addr, config)
+}
+
+func newClientConfig(
+	addr string,
+	config map[string]interface{}) *Transport {
 
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
