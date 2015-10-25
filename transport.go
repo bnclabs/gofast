@@ -1,108 +1,28 @@
 //  Copyright (c) 2014 Couchbase, Inc.
 
-// Package gofast implements a high performance symmetric protocol
-// for on the wire data transport.
+// Package gofast implements a high performance symmetric protocol for on the
+// wire data transport.
 //
-// frame-format:
+// opaque-space, is range of uint64 values reserved for tagging packets. They
+// shall be supplied via configuration while instantiating the transport.
 //
-//    A frame is encoded as finite length CBOR map with predefined list
-//    of keys, for example, "id", "data" etc... keys are typically encoded
-//    as numbers so that they can be efficiently packed. This implies that
-//    each of the predefined keys shall be assigned a unique number.
+// messages, are golang objects implementing the Message{} interface. Message
+// objects need to be subscribed with transport before they are exchanged over
+// the transport. It is also expected that distributed systems must
+// pre-define messages and their Ids.
 //
-// an exchange shall be initiated either by client or server,
-// exchange can be:
+// transport instantiation steps:
 //
-//     post-request, client post a packet and expects no response:
+//		t := NewTransport(conn, &ver, nil, config)
+//		t.SubscribeMessage(&msg1, handler1) // subscribe message
+//		t.SubscribeMessage(&msg2, handler2) // subscribe another message
+//		t.Handshake()
+//		t.FlushPeriod(tm)				  // optional
+//		t.SendHeartbeat(tm)				  // optional
 //
-//          | 0xd9 0xd9f7 | packet |
-//
-//     request-response, client make a request and expects a
-//     single response:
-//
-//          | 0xd9 0xd9f7 | 0x91 | packet |
-//
-//     bi-directional streaming, where client and server will have to close
-//     the stream by sending a 0xff.
-//
-//          | 0xd9 0xd9f7  | 0x9f | packet1    |
-//                 | 0xd9 0xd9f7  | packet2    |
-//                 ...
-//                 | 0xd9 0xd9f7  | end-packet |
-//
-//     * `packet` shall always be encoded as CBOR byte-array.
-//     * the maximum length of a packet can be 4GB.
-//     * 0x91 denotes an array of single item, a special meaning for new
-//       request that expects a single response from peer.
-//     * 0x9f denotes an array of indefinite items, a special meaning
-//       for a new stream that starts a bi-directional exchange.
-//
-// except for post-request, the exchange between client and server is always
-// symmetrical.
-//
-// packet-format:
-//
-//    a single block of binary blob in CBOR format, transmitted
-//    from client to server or server to client:
-//
-//       | tag1 |         payload1               |
-//              | tag2 |      payload2           |
-//                     | tag3 |   payload3       |
-//                            | tag 4 | hdr-data |
-//
-//    * payload shall always be encoded as CBOR byte-array.
-//    * hdr-data shall always be encoded as CBOR map.
-//    * tags are uint64 numbers that will either be prefixed
-//      to payload or hdr-data.
-//    * tag1, will always be a opaque number falling within a
-//      reserved tag-space called opaque-space.
-//    * tag2, tag3 can be one of the values predefined by this
-//      library.
-//    * the final embedded tag, in this case tag4, shall always
-//      be tagMsg (value 37).
-//
-//    end-of-stream:
-//
-//      | tag1  | 0xff |
-//
-//    * if packet denotes a stream-end, payload will be
-//      1-byte 0xff, and not encoded as byte-array.
-//
-//
-// configurations:
-//
-//  "name"         - give a name for the transport.
-//  "buffersize"   - maximum size that a packet will need.
-//  "batchsize"    - number of packets to batch before writing to socket.
-//  "chansize"     - channel size to use for internal go-routines.
-//  "tags"         - comma separated list of tags to apply, in specified order.
-//  "opaque.start" - starting opaque range, inclusive.
-//  "opaque.end"   - ending opaque range, inclusive.
-//  "log.level"    - log level to use for DefaultLogger
-//  "log.file"     - log file to use for DefaultLogger, if empty stdout is used.
-//  "gzip.level"   - gzip compression level, if `tags` contain "gzip".
-//
-// transport statistics:
-//
-//  n_tx       - number of packets transmitted
-//  n_flushes  - number of times message-batches where flushed
-//  n_txbyte   - number of bytes transmitted on socket
-//  n_txpost   - number of post messages transmitted
-//  n_txreq    - number of request messages transmitted
-//  n_txresp   - number of response messages transmitted
-//  n_txstart  - number of start messages transmitted
-//  n_txstream - number of stream messages transmitted
-//  n_txfin    - number of finish messages transmitted
-//  n_rx       - number of packets received
-//  n_rxbyte   - number of bytes received from socket
-//  n_rxpost   - number of post messages received
-//  n_rxreq    - number of request messages received
-//  n_rxresp   - number of response messages received
-//  n_rxstart  - number of start messages received
-//  n_rxstream - number of stream messages received
-//  n_rxfin    - number of finish messages received
-//  n_rxbeats  - number of heartbeats received
-//  n_dropped  - number of dropped packets
+// incoming messages are created from *sync.Pool, handlers (like handler1 and
+// handler2 in the above eg.) can return the message back to the pool using
+// the Free() method on the transport.
 package gofast
 
 import "sync"
@@ -114,10 +34,12 @@ import "time"
 
 type tagfn func(in, out []byte) int
 
-// RequestCallback for a new incoming peer, to be supplied by application.
+// RequestCallback handler called for an incoming post, request or stream;
+// to be supplied by application before using the transport.
 type RequestCallback func(*Stream, Message) chan Message
 
-// Transporter interface to send and receive packets.
+// Transporter interface to send and receive packets, connection object
+// shall implement this interface.
 type Transporter interface { // facilitates unit testing
 	Read(b []byte) (n int, err error)
 	Write(b []byte) (n int, err error)
@@ -179,14 +101,9 @@ type Transport struct {
 
 //---- transport initialization APIs
 
-// NewTransport creates a new transport over a connection,
+// NewTransport encapsulate a transport over this connection,
 // one connection one transport.
-func NewTransport(
-	conn Transporter,
-	version Version,
-	logg Logger,
-	config map[string]interface{}) (*Transport, error) {
-
+func NewTransport(conn Transporter, version Version, logg Logger, config map[string]interface{}) (*Transport, error) {
 	name := config["name"].(string)
 	buffersize := config["buffersize"].(int)
 	opqstart := config["opaque.start"].(int)
@@ -254,13 +171,13 @@ func NewTransport(
 	log.Verbosef("%v pre-initialized ...\n", t.logprefix)
 
 	go t.doTx()
-	go t.syncRx() // will spawn another go-routine doRx().
+	go t.syncRx() // shall spawn another go-routine doRx().
 
 	log.Infof("%v started ...\n", t.logprefix)
 	return t, nil
 }
 
-// Handshake with remote, should be called imm. after NewTransport().
+// Handshake with remote, shall be called after NewTransport().
 func (t *Transport) Handshake() *Transport {
 	msg, err := t.Whoami()
 	if err != nil {
@@ -268,7 +185,7 @@ func (t *Transport) Handshake() *Transport {
 	}
 
 	t.peerver = msg.version // TODO: should be atomic ?
-	// parse tag list, tags will be applied in the specified order.
+	// parse tag list, tags shall be applied in the specified order.
 	for _, tag := range t.getTags(msg.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
 			tagid, enc, _ := factory(t, t.config)
@@ -292,7 +209,7 @@ func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Tran
 	return t.subscribeMessage(msg, handler)
 }
 
-// Close this tranport, connection will be closed as well.
+// Close this tranport, connection shall be closed as well.
 func (t *Transport) Close() error {
 	defer func() { recover() }()
 	// closing kill-channel should accomplish the following,
@@ -367,14 +284,14 @@ func (t *Transport) PeerVersion() Version {
 	return t.peerver
 }
 
-// Free will return the message back to the pool, should be
+// Free shall return the message back to the pool, should be
 // called on messages received via RequestCallback callback and
 // via Stream.Rxch.
 func (t *Transport) Free(msg Message) {
 	t.msgpools[msg.Id()].Put(msg)
 }
 
-// Counts will return the stat counts for this transport.
+// Counts shall return the stat counts for this transport.
 func (t *Transport) Counts() map[string]uint64 {
 	stats := map[string]uint64{
 		"n_tx":       atomic.LoadUint64(&t.n_tx),
@@ -402,7 +319,7 @@ func (t *Transport) Counts() map[string]uint64 {
 
 //---- transport APIs
 
-// Whoami will return remote information.
+// Whoami shall return remote transport's information.
 func (t *Transport) Whoami() (*Whoami, error) {
 	msg := NewWhoami(t)
 	resp, err := t.Request(msg, true /*flush*/)

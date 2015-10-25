@@ -2,7 +2,9 @@ package gofast
 
 import "strconv"
 
-// Heartbeat is predefined heartbeat message.
+// Heartbeat is predefined message, used by transport
+// to send periodic heartbeat to remote. Refer to
+// SendHeartbeat() method on the transport.
 type Heartbeat struct {
 	count uint64
 }

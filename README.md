@@ -100,9 +100,8 @@ end-of-stream:
  | tag1  | 0xff |
 ```
 
-* if packet denotes a stream-end, payload will be
- 1-byte 0xff, and not encoded as byte-array.
-
+* if packet denotes a stream-end, payload will be 1-byte 0xff,
+  and not encoded as byte-array.
 
 **configurations**
 
@@ -140,5 +139,5 @@ end-of-stream:
     <dt>n_rxstream</dt> <dd>number of stream messages received.</dd>
     <dt>n_rxfin</dt>    <dd>number of finish messages received.</dd>
     <dt>n_rxbeats</dt>  <dd>number of heartbeats received.</dd>
-    <dt>n_dropped</dt>  <dd>number of dropped packets.</dd>
+    <dt>n_dropped</dt>  <dd>number of dropped bytes.</dd>
 </dl>

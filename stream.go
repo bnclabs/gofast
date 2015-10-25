@@ -1,6 +1,7 @@
 package gofast
 
-// Stream for a newly started stream on the transport.
+// Stream for a newly started stream on the transport. Refer to
+// Stream() method on the transport.
 type Stream struct {
 	transport *Transport
 	Rxch      chan Message
@@ -44,7 +45,7 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	}
 }
 
-// Response to a request.
+// Response to a request, to batch the response pass flush as false.
 func (s *Stream) Response(msg Message, flush bool) error {
 	obj := s.transport.p_txdata.Get()
 	defer s.transport.p_txdata.Put(obj)
@@ -54,7 +55,7 @@ func (s *Stream) Response(msg Message, flush bool) error {
 	return s.transport.txasync(out[:n], flush)
 }
 
-// Stream a message.
+// Stream a single message, to batch the message pass flush as false.
 func (s *Stream) Stream(msg Message, flush bool) (err error) {
 	obj := s.transport.p_txdata.Get()
 	defer s.transport.p_txdata.Put(obj)
@@ -67,7 +68,7 @@ func (s *Stream) Stream(msg Message, flush bool) (err error) {
 	return
 }
 
-// Close the stream.
+// Close this stream.
 func (s *Stream) Close() error {
 	obj := s.transport.p_txdata.Get()
 	defer s.transport.p_txdata.Put(obj)

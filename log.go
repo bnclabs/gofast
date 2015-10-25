@@ -10,7 +10,7 @@ import "strings"
 
 // Logger interface for gofast logging, applications can
 // supply a logger object implementing this interface or
-// gofast will fall back to the defaul logger.
+// gofast will fall back to the DefaultLogger{}.
 type Logger interface {
 	Fatalf(format string, v ...interface{})
 	Errorf(format string, v ...interface{})
@@ -22,7 +22,9 @@ type Logger interface {
 }
 
 // DefaultLogger with default log-file as os.Stdout and,
-// default log-level is LogLevelInfo.
+// default log-level as LogLevelInfo. Applications can
+// supply a Logger{} object when instantiating the
+// Transport.
 type DefaultLogger struct {
 	level  logLevel
 	output io.Writer

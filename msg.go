@@ -3,14 +3,14 @@ package gofast
 import "sync/atomic"
 import "time"
 
-// Message interface specification for all messages are
-// exchanged via gofast.
+// Message interface, to be implemented by all messages that are
+// exchanged via gofast-transport.
 type Message interface {
 	// Id return a unique message identifier.
 	Id() uint64
 	// Encode message to binary blob.
 	Encode(out []byte) int
-	// Decode this messae from a binary blob.
+	// Decode this message from a binary blob.
 	Decode(in []byte)
 	// String representation of this message, used for logging.
 	String() string
@@ -24,7 +24,7 @@ const (
 	msgEnd              = 0xf // reserve end.
 )
 
-// Version interface for all messages that are exchanged via gofast.
+// Version interface to exchange and manage transport's version.
 type Version interface {
 	// Less than supplied version.
 	Less(ver Version) bool
@@ -34,7 +34,7 @@ type Version interface {
 	String() string
 	// Marshal version into array of bytes.
 	Marshal(out []byte) (n int)
-	// Unmarshal array of bytes (originally returned by Encode).
+	// Unmarshal array of bytes to version object.
 	Unmarshal(out []byte) (n int)
 }
 
