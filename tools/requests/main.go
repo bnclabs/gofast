@@ -19,6 +19,7 @@ import "runtime/pprof"
 import "github.com/prataprc/gofast"
 
 var options struct {
+	do       string
 	count    int
 	routines int
 	conns    int
@@ -28,6 +29,8 @@ var options struct {
 }
 
 func argParse() {
+	flag.StringVar(&options.do, "do", "post",
+		"post / request / stream benchmark to do")
 	flag.IntVar(&options.conns, "conns", 1,
 		"number of connections to use")
 	flag.IntVar(&options.routines, "routines", 1,
@@ -59,8 +62,28 @@ func main() {
 	pprof.StartCPUProfile(fd)
 	defer pprof.StopCPUProfile()
 
+	switch options.do {
+	case "post":
+		doTransport(doPost)
+	case "request":
+		doTransport(doRequest)
+	case "stream":
+	}
+
+	// take memory profile.
+	fname = "requests.mprof"
+	fd, err = os.Create(fname)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer fd.Close()
+	pprof.WriteHeapProfile(fd)
+}
+
+func doTransport(callb func(trans *gofast.Transport)) {
 	var wg sync.WaitGroup
-	n_trans := make([]*gofast.Transport, 0)
+
+	n_trans := make([]*gofast.Transport, 0, 16)
 	for i := 0; i < options.conns; i++ {
 		wg.Add(1)
 		ver := testVersion(1)
@@ -74,11 +97,12 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		trans.SubscribeMessage(&msgPost{}, nil)
 		trans.Handshake()
 		n_trans = append(n_trans, trans)
 		go func(trans *gofast.Transport) {
 			trans.FlushPeriod(100 * time.Millisecond)
-			doRequest(trans)
+			callb(trans)
 			wg.Done()
 			trans.Close()
 		}(trans)
@@ -89,25 +113,44 @@ func main() {
 	n, m := av.Count(), time.Duration(av.Mean())
 	v, s := time.Duration(av.Variance()), time.Duration(av.Sd())
 	fmt.Printf(fmsg, n, m, v, s)
+}
 
-	// take memory profile.
-	fname = "requests.mprof"
-	fd, err = os.Create(fname)
-	if err != nil {
-		log.Fatal(err)
+func doPost(trans *gofast.Transport) {
+	var wg sync.WaitGroup
+
+	for i := 0; i < options.routines; i++ {
+		wg.Add(1)
+		go func() {
+			for j := 0; j < options.count; j++ {
+				data := make([]byte, options.payload+12)
+				for i := 0; i < options.payload; i++ {
+					data[i] = 'a'
+				}
+				pd := options.payload
+				since := time.Now()
+				tmp := strconv.AppendInt(data[pd:pd], int64(j), 10)
+				msg := newMsgPost(data[:pd+len(tmp)])
+				if err := trans.Post(msg, false); err != nil {
+					fmt.Printf("%v\n", err)
+					panic("exit")
+				}
+				av.Add(uint64(time.Since(since)))
+			}
+			wg.Done()
+		}()
 	}
-	defer fd.Close()
-	pprof.WriteHeapProfile(fd)
+	wg.Wait()
+	time.Sleep(1 * time.Second)
 }
 
 func doRequest(trans *gofast.Transport) {
 	var wg sync.WaitGroup
 
-	pd := options.payload
-	echo := make([]byte, pd+12)
-	for i := 0; i < pd; i++ {
+	echo := make([]byte, options.payload+12)
+	for i := 0; i < options.payload; i++ {
 		echo[i] = 'a'
 	}
+	pd := options.payload
 
 	for i := 0; i < options.routines; i++ {
 		wg.Add(1)
@@ -129,6 +172,7 @@ func doRequest(trans *gofast.Transport) {
 		}()
 	}
 	wg.Wait()
+	time.Sleep(1 * time.Second)
 }
 
 func newconfig(name string, start, end int) map[string]interface{} {
@@ -199,4 +243,34 @@ func bytes2str(bytes []byte) string {
 	sl := (*reflect.SliceHeader)(unsafe.Pointer(&bytes))
 	st := &reflect.StringHeader{Data: sl.Data, Len: sl.Len}
 	return *(*string)(unsafe.Pointer(st))
+}
+
+//-- post message for benchmarking
+
+type msgPost struct {
+	data []byte
+}
+
+func newMsgPost(data []byte) *msgPost {
+	return &msgPost{data: data}
+}
+
+func (msg *msgPost) Id() uint64 {
+	return 111
+}
+
+func (msg *msgPost) Encode(out []byte) int {
+	return valbytes2cbor(msg.data, out)
+}
+
+func (msg *msgPost) Decode(in []byte) {
+	ln, m := cborItemLength(in)
+	if msg.data == nil {
+		msg.data = make([]byte, options.payload)
+	}
+	copy(msg.data, in[m:m+ln])
+}
+
+func (msg *msgPost) String() string {
+	return "msgPost"
 }

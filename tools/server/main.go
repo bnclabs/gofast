@@ -17,11 +17,14 @@ import "runtime/pprof"
 import "github.com/prataprc/gofast"
 
 var options struct {
+	cpu  int
 	addr string
 	log  string
 }
 
 func argParse() {
+	flag.IntVar(&options.cpu, "cpu", runtime.NumCPU(),
+		"GOMAXPROCS")
 	flag.StringVar(&options.addr, "addr", "127.0.0.1:9998",
 		"number of concurrent routines")
 	flag.StringVar(&options.log, "log", "error",
@@ -31,7 +34,7 @@ func argParse() {
 
 func main() {
 	argParse()
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.GOMAXPROCS(options.cpu)
 
 	// start cpu profile.
 	fname := "server.pprof"
@@ -78,8 +81,20 @@ func runserver(lis net.Listener) {
 			if err != nil {
 				panic("NewTransport server failed")
 			}
+			trans.FlushPeriod(100 * time.Millisecond)
+			trans.SubscribeMessage(
+				&msgPost{},
+				func(s *gofast.Stream, msg gofast.Message) chan gofast.Message {
+					switch m := msg.(type) {
+					case *msgPost:
+						trans.Free(m)
+					default:
+						panic("unexpected message")
+					}
+					return nil
+				})
+			trans.Handshake()
 			go func(trans *gofast.Transport) {
-				trans.FlushPeriod(100 * time.Millisecond)
 				fmt.Println("new transport", conn.RemoteAddr(), conn.LocalAddr())
 				tick := time.Tick(1 * time.Second)
 				for {
@@ -146,4 +161,34 @@ func printCounts(counts map[string]uint64) {
 		s = append(s, fmt.Sprintf("%v:%v", key, counts[key]))
 	}
 	fmt.Println(strings.Join(s, ", "))
+}
+
+//-- post message for benchmarking
+
+type msgPost struct {
+	data []byte
+}
+
+func newMsgPost(data []byte) *msgPost {
+	return &msgPost{data: data}
+}
+
+func (msg *msgPost) Id() uint64 {
+	return 111
+}
+
+func (msg *msgPost) Encode(out []byte) int {
+	return valbytes2cbor(msg.data, out)
+}
+
+func (msg *msgPost) Decode(in []byte) {
+	ln, m := cborItemLength(in)
+	if msg.data == nil {
+		msg.data = make([]byte, 0, 64)
+	}
+	msg.data = append(msg.data[:0], in[m:m+ln]...)
+}
+
+func (msg *msgPost) String() string {
+	return "msgPost"
 }
