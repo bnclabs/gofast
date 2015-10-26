@@ -53,7 +53,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// start cpu profile.
-	fname := "requests.pprof"
+	fname := "client.pprof"
 	fd, err := os.Create(fname)
 	if err != nil {
 		log.Fatalf("unable to create %q: %v\n", fname, err)
@@ -71,7 +71,7 @@ func main() {
 	}
 
 	// take memory profile.
-	fname = "requests.mprof"
+	fname = "client.mprof"
 	fd, err = os.Create(fname)
 	if err != nil {
 		log.Fatal(err)

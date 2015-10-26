@@ -1,10 +1,10 @@
 *.swp
 examples/bench/bench
 profs/
-tools/requests/*.svg
-tools/requests/*.mprof
-tools/requests/*.pprof
-tools/requests/requests
+tools/client/*.svg
+tools/client/*.mprof
+tools/client/*.pprof
+tools/client/client
 tools/server/*.svg
 tools/server/*.mprof
 tools/server/*.pprof
