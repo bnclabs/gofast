@@ -31,13 +31,17 @@ func TestTransport(t *testing.T) {
 		t.Errorf("expected %v, got %v", ver, transc.peerver)
 	} else if s := transc.RemoteAddr().String(); s != addr {
 		t.Errorf("expected %v, got %v", s, addr)
-	} else if !verify(c_counts, "n_flushes", "n_rx", "n_rxreq", "n_tx", 1) {
+	} else if !verify(c_counts, "n_flushes", "n_rx", "n_tx", 2) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 39) {
+	} else if !verify(c_counts, "n_rxreq", "n_rxresp", 1) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(s_counts, "n_flushes", "n_rx", "n_rxreq", "n_tx", 1) {
+	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 78) {
+		t.Errorf("unexpected c_counts: %v", c_counts)
+	} else if !verify(s_counts, "n_flushes", "n_rx", "n_tx", 2) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
-	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 39) {
+	} else if !verify(s_counts, "n_rxreq", "n_rxresp", 1) {
+		t.Errorf("unexpected c_counts: %v", c_counts)
+	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 78) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
 	}
 	lis.Close()
@@ -100,13 +104,13 @@ func TestHeartbeat(t *testing.T) {
 	c_counts := transc.Counts()
 	s_counts := transv.Counts()
 
-	if !verify(c_counts, "n_txreq", "n_rxresp", "n_rx", 1) {
+	if !verify(c_counts, "n_txreq", "n_rxresp", 1, "n_rx", 2) {
 		t.Errorf("unexpected c_counts %v", c_counts)
 	} else if limit := uint64(5); c_counts["n_flushes"] < limit {
 		t.Errorf("atleast %v, got %v", limit, c_counts["n_flushes"])
 	} else if !verify(c_counts, "n_tx", "n_flushes") {
 		t.Errorf("failed c_counts: %v", c_counts)
-	} else if !verify(s_counts, "n_rxreq", "n_txresp", "n_flushes", "n_tx", 1) {
+	} else if !verify(s_counts, "n_rxreq", "n_txresp", 1, "n_flushes", "n_tx", 2) {
 		t.Errorf("unexpected s_counts %v", s_counts)
 	} else if c_counts["n_rxbyte"] != s_counts["n_txbyte"] {
 		t.Errorf("mismatch %v, %v", c_counts["n_rxbyte"], s_counts["n_txbyte"])
@@ -142,13 +146,13 @@ func TestPing(t *testing.T) {
 		t.Errorf("expected atleast %v, got %v", refs, string(ping.echo))
 	}
 	counts := transc.Counts()
-	if ref, n := uint64(2), counts["n_flushes"]; n != ref {
+	if ref, n := uint64(3), counts["n_flushes"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if n = counts["n_rx"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_tx"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
-	} else if n = counts["n_txreq"]; n != ref {
-		t.Errorf("expected atleast %v, got %v", ref, n)
-	} else if n = counts["n_rx"]; n != ref {
+	} else if ref, n = 2, counts["n_txreq"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_rxresp"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
@@ -173,13 +177,13 @@ func TestWhoami(t *testing.T) {
 		t.Errorf("expected %v, got %v", "server", string(wai.name))
 	}
 	counts := transc.Counts()
-	if ref, n := uint64(2), counts["n_flushes"]; n != ref {
+	if ref, n := uint64(3), counts["n_flushes"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_tx"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
-	} else if n = counts["n_txreq"]; n != ref {
-		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_rx"]; n != ref {
+		t.Errorf("expected atleast %v, got %v", ref, n)
+	} else if ref, n = 2, counts["n_txreq"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_rxresp"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
@@ -513,7 +517,7 @@ func newServerConfig(
 				if err != nil {
 					panic("NewTransport server failed")
 				}
-				ch <- trans
+				ch <- trans.Handshake()
 			}
 		}
 	}()

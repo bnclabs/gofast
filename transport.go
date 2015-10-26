@@ -62,6 +62,10 @@ type Transport struct {
 	txch     chan *txproto
 	rxch     chan interface{}
 	killch   chan bool
+	// 0 no handshake
+	// 1 oneway handshake
+	// 2 bidirectional handshake
+	xchngok int64
 
 	// mempools
 	strmpool chan *Stream // for locally initiated streams
@@ -196,6 +200,10 @@ func (t *Transport) Handshake() *Transport {
 	}
 	fmsg := "%v handshake completed with peer: %#v ...\n"
 	log.Verbosef(fmsg, t.logprefix, msg)
+	atomic.AddInt64(&t.xchngok, 1)
+	for atomic.LoadInt64(&t.xchngok) < 2 { // wait till remote handshake
+		time.Sleep(100 * time.Millisecond)
+	}
 	return t
 }
 

@@ -55,6 +55,8 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 		rv := NewWhoami(t)    // respond back
 		if err := stream.Response(rv, true /*flush*/); err != nil {
 			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)
+		} else {
+			atomic.AddInt64(&t.xchngok, 1)
 		}
 
 	default:
