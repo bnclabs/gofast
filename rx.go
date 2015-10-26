@@ -2,6 +2,7 @@ package gofast
 
 import "sync/atomic"
 import "io"
+import "strings"
 import "fmt"
 
 type rxpacket struct {
@@ -127,6 +128,8 @@ func (t *Transport) doRx() {
 	log.Infof("%v doRx() ... stopped\n", t.logprefix)
 }
 
+var strclosed = "use of closed network connection"
+
 func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	// TODO: ideally this function and the called ones from here should be
 	// hardened enought that it shall never panic.
@@ -147,6 +150,10 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	rd := 8
 	if n, err = io.ReadFull(conn, pad[:8]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
+		return
+	} else if err != nil && strings.Contains(err.Error(), strclosed) {
+		log.Infof("%v doRx() Closed connection", t.logprefix)
+		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
 	} else if err != nil || n != 8 {
 		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
@@ -171,8 +178,13 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		if m, err = io.ReadFull(conn, pad[8:9]); err == io.EOF {
 			log.Infof("%v doRx() received EOF\n", t.logprefix)
 			return
+		} else if err != nil && strings.Contains(err.Error(), strclosed) {
+			log.Infof("%v doRx() Closed connection", t.logprefix)
+			atomic.AddUint64(&t.n_dropped, uint64(m))
+			return
 		} else if err != nil || m != 1 {
-			log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, m, err)
+			fmt.Println(strings.Contains(err.Error(), strclosed))
+			log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, m, err.Error())
 			atomic.AddUint64(&t.n_dropped, uint64(m))
 			return
 		} else {
@@ -187,6 +199,10 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	n = copy(packet, pad[n:rd])
 	if m, err = io.ReadFull(conn, packet[n:ln]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
+		return
+	} else if err != nil && strings.Contains(err.Error(), strclosed) {
+		log.Infof("%v doRx() Closed connection", t.logprefix)
+		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
 	} else if err != nil || m != (ln-n) {
 		log.Infof("%v reading packet %v,%v:%v\n", t.logprefix, ln, n, err)

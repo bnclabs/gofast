@@ -1,3 +1,5 @@
+* what if exchange starts before handshake ?
+* fix "use of closed network connection" problem.
 * tools/posts similar to tools/requests
 * tools/streams similar to tools/requests
 * add tools/{posts,requests,streams} to travis-ci.
