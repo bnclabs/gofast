@@ -1,9 +1,10 @@
 package gofast
 
 import "sync/atomic"
-import "io"
 import "strings"
+import "io"
 import "fmt"
+import "net"
 
 type rxpacket struct {
 	packet  []byte
@@ -128,8 +129,6 @@ func (t *Transport) doRx() {
 	log.Infof("%v doRx() ... stopped\n", t.logprefix)
 }
 
-var strclosed = "use of closed network connection"
-
 func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	// TODO: ideally this function and the called ones from here should be
 	// hardened enought that it shall never panic.
@@ -151,7 +150,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	if n, err = io.ReadFull(conn, pad[:8]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
-	} else if err != nil && strings.Contains(err.Error(), strclosed) {
+	} else if err != nil && isConnClosed(err) {
 		log.Infof("%v doRx() Closed connection", t.logprefix)
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
@@ -178,12 +177,11 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		if m, err = io.ReadFull(conn, pad[8:9]); err == io.EOF {
 			log.Infof("%v doRx() received EOF\n", t.logprefix)
 			return
-		} else if err != nil && strings.Contains(err.Error(), strclosed) {
+		} else if err != nil && isConnClosed(err) {
 			log.Infof("%v doRx() Closed connection", t.logprefix)
 			atomic.AddUint64(&t.n_dropped, uint64(m))
 			return
 		} else if err != nil || m != 1 {
-			fmt.Println(strings.Contains(err.Error(), strclosed))
 			log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, m, err.Error())
 			atomic.AddUint64(&t.n_dropped, uint64(m))
 			return
@@ -200,7 +198,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	if m, err = io.ReadFull(conn, packet[n:ln]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
-	} else if err != nil && strings.Contains(err.Error(), strclosed) {
+	} else if err != nil && isConnClosed(err) {
 		log.Infof("%v doRx() Closed connection", t.logprefix)
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
@@ -326,4 +324,14 @@ func readtp(payload []byte) (uint64, []byte) {
 
 func (r *rxpacket) String() string {
 	return fmt.Sprintf("##%d %v %v %v", r.opaque, r.request, r.start, r.finish)
+}
+
+func isConnClosed(err error) bool {
+	e, ok := err.(*net.OpError)
+	if ok && (e.Op == "close" || e.Op == "shutdown") {
+		return true
+	} else if strings.Contains(err.Error(), "use of closed network connection") {
+		return true
+	}
+	return false
 }
