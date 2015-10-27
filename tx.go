@@ -159,8 +159,10 @@ func (t *Transport) doTx() {
 		m, n := 0, 0
 		// consolidate.
 		for _, arg := range batch {
-			n += copy(tcpwrite_buf[n:], arg.packet)
-			atomic.AddUint64(&t.n_tx, 1)
+			if len(arg.packet) > 0 {
+				n += copy(tcpwrite_buf[n:], arg.packet)
+				atomic.AddUint64(&t.n_tx, 1)
+			}
 		}
 		// send.
 		if n > 0 {
