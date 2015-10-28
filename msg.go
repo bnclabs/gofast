@@ -39,6 +39,8 @@ type Version interface {
 }
 
 func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
+	defer t.Free(msg)
+
 	switch m := msg.(type) {
 	case *Heartbeat:
 		atomic.StoreInt64(&t.aliveat, time.Now().UnixNano())
