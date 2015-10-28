@@ -95,6 +95,7 @@ loop:
 		case rxpkt := <-t.rxch:
 			if rxpkt.stream != nil {
 				streamupdate(rxpkt.stream)
+				rxpkt.stream = nil
 			} else {
 				handlepkt(rxpkt)
 				atomic.AddUint64(&t.n_rx, 1)

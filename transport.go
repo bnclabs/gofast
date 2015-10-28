@@ -71,7 +71,6 @@ type Transport struct {
 	strmpool chan *Stream // for locally initiated streams
 	p_txcmd  *sync.Pool
 	p_txacmd *sync.Pool
-	//p_rxdata *sync.Pool TODO: not required cleanup
 	p_txdata *sync.Pool
 	p_rxstrm *sync.Pool
 	msgpools map[uint64]*sync.Pool
@@ -146,10 +145,6 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 	t.p_txacmd = &sync.Pool{ // async commands
 		New: func() interface{} { return &txproto{} },
 	}
-	// TODO: not required cleanup
-	//t.p_rxdata = &sync.Pool{
-	//	New: func() interface{} { return make([]byte, buffersize) },
-	//}
 	t.p_txdata = &sync.Pool{
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
