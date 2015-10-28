@@ -69,6 +69,7 @@ type Transport struct {
 
 	// mempools
 	strmpool chan *Stream // for locally initiated streams
+	p_rqrch  chan chan Message
 	p_txcmd  *sync.Pool
 	p_txacmd *sync.Pool
 	p_rxstrm *sync.Pool
@@ -120,6 +121,7 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 		tagenc:   make(map[uint64]tagfn),
 		tagdec:   make(map[uint64]tagfn),
 		strmpool: nil, // shall be initialized after setOpaqueRange() call
+		p_rqrch:  nil, // shall be initialized after setOpaqueRange() call
 		messages: make(map[uint64]Message),
 		handlers: make(map[uint64]RequestCallback),
 
@@ -355,8 +357,10 @@ func (t *Transport) Post(msg Message, flush bool) error {
 
 // Request a response from peer.
 func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
-	stream := t.getstream(make(chan Message, 1))
+	respch := <-t.p_rqrch
+	stream := t.getstream(respch)
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
+	defer func() { t.p_rqrch <- respch }()
 
 	var ok bool
 	n := t.request(msg, stream, stream.out)
@@ -366,6 +370,7 @@ func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 			err = fmt.Errorf("stream closed")
 		}
 	}
+	stream.Rxch = nil // so that p_rqrch channels are not closed !!
 	return
 }
 
@@ -392,6 +397,7 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	}
 	log.Debugf("%v local streams (%v,%v) pre-created\n", t.logprefix, start, end)
 	t.strmpool = make(chan *Stream, end-start+1) // inclusive
+	t.p_rqrch = make(chan chan Message, end-start+1)
 	for opaque := start; opaque <= end; opaque++ {
 		stream := &Stream{
 			transport: t,
@@ -403,6 +409,7 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 			tagout:    make([]byte, t.buffersize),
 		}
 		t.strmpool <- stream
+		t.p_rqrch <- make(chan Message, 1)
 		fmsg := "%v ##%d(remote:%v) stream created ...\n"
 		log.Verbosef(fmsg, t.logprefix, opaque, false)
 	}
