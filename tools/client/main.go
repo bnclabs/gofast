@@ -129,7 +129,7 @@ func doPost(trans *gofast.Transport) {
 		go func() {
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
-				if err := trans.Post(msg, true); err != nil {
+				if err := trans.Post(msg, false); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
 				}
@@ -158,7 +158,7 @@ func doRequest(trans *gofast.Transport) {
 		go func() {
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
-				if rmsg, err := trans.Request(msg, true); err != nil {
+				if rmsg, err := trans.Request(msg, false); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
 				} else {
