@@ -7,10 +7,14 @@ type Stream struct {
 	Rxch      chan Message
 	opaque    uint64
 	remote    bool
+	out       []byte
+	data      []byte
+	tagout    []byte
 }
 
+// constructor used for remote streams.
 func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
-	stream := fromrxstrm(t.p_rxstrm)
+	stream := t.fromrxstrm()
 	//fmsg := "%v ##%d(remote:%v) stream created ...\n"
 	//log.Verbosef(fmsg, t.logprefix, opaque, remote)
 	// reset all fields (it is coming from a pool)
@@ -50,22 +54,14 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 
 // Response to a request, to batch the response pass flush as false.
 func (s *Stream) Response(msg Message, flush bool) error {
-	obj := s.transport.p_txdata.Get()
-	defer s.transport.p_txdata.Put(obj)
-
-	out := obj.([]byte)
-	n := s.transport.response(msg, s, out)
-	return s.transport.txasync(out[:n], flush)
+	n := s.transport.response(msg, s, s.out)
+	return s.transport.txasync(s.out[:n], flush)
 }
 
 // Stream a single message, to batch the message pass flush as false.
 func (s *Stream) Stream(msg Message, flush bool) (err error) {
-	obj := s.transport.p_txdata.Get()
-	defer s.transport.p_txdata.Put(obj)
-
-	out := obj.([]byte)
-	n := s.transport.stream(msg, s, out)
-	if err = s.transport.txasync(out[:n], flush); err != nil {
+	n := s.transport.stream(msg, s, s.out)
+	if err = s.transport.txasync(s.out[:n], flush); err != nil {
 		s.transport.putstream(s.opaque, s, true /*tellrx*/)
 	}
 	return
@@ -73,13 +69,9 @@ func (s *Stream) Stream(msg Message, flush bool) (err error) {
 
 // Close this stream.
 func (s *Stream) Close() error {
-	obj := s.transport.p_txdata.Get()
-	defer s.transport.p_txdata.Put(obj)
-
-	out := obj.([]byte)
-	n := s.transport.finish(s, out)
+	n := s.transport.finish(s, s.out)
 	s.transport.putstream(s.opaque, s, true /*tellrx*/)
-	return s.transport.txasync(out[:n], true /*flush*/)
+	return s.transport.txasync(s.out[:n], true /*flush*/)
 }
 
 // Transport return the underlying transport carrying this stream.

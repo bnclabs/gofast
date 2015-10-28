@@ -71,7 +71,6 @@ type Transport struct {
 	strmpool chan *Stream // for locally initiated streams
 	p_txcmd  *sync.Pool
 	p_txacmd *sync.Pool
-	p_txdata *sync.Pool
 	p_rxstrm *sync.Pool
 	msgpools map[uint64]*sync.Pool
 
@@ -144,9 +143,6 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 	}
 	t.p_txacmd = &sync.Pool{ // async commands
 		New: func() interface{} { return &txproto{} },
-	}
-	t.p_txdata = &sync.Pool{
-		New: func() interface{} { return make([]byte, buffersize) },
 	}
 	t.p_rxstrm = &sync.Pool{
 		New: func() interface{} { return &Stream{} },
@@ -350,44 +346,38 @@ func (t *Transport) Ping(echo string) (*Ping, error) {
 
 // Post request to peer.
 func (t *Transport) Post(msg Message, flush bool) error {
-	out := t.p_txdata.Get().([]byte)
-	defer t.p_txdata.Put(out)
 	stream := t.getstream(nil)
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
-	n := t.post(msg, stream, out)
-	return t.txasync(out[:n], flush)
+	n := t.post(msg, stream, stream.out)
+	return t.txasync(stream.out[:n], flush)
 }
 
 // Request a response from peer.
 func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
-	out := t.p_txdata.Get().([]byte)
-	defer t.p_txdata.Put(out)
 	stream := t.getstream(make(chan Message, 1))
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
 	var ok bool
-	n := t.request(msg, stream, out)
-	if err = t.tx(out[:n], flush); err == nil {
-		if resp, ok = <-stream.Rxch; ok {
-			return
+	n := t.request(msg, stream, stream.out)
+	if err = t.tx(stream.out[:n], flush); err == nil {
+		resp, ok = <-stream.Rxch
+		if !ok {
+			err = fmt.Errorf("stream closed")
 		}
-		err = fmt.Errorf("stream closed")
 	}
 	return
 }
 
 // Request a bi-directional stream with peer.
-func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (stream *Stream, err error) {
-	out := t.p_txdata.Get().([]byte)
-	defer t.p_txdata.Put(out)
-
-	stream = t.getstream(ch)
-	n := t.start(msg, stream, out)
-	if err = t.tx(out[:n], false); err != nil {
+func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (*Stream, error) {
+	stream := t.getstream(ch)
+	n := t.start(msg, stream, stream.out)
+	if err := t.tx(stream.out[:n], false); err != nil {
 		t.putstream(stream.opaque, stream, true /*tellrx*/)
+		return nil, err
 	}
-	return
+	return stream, nil
 }
 
 //---- local APIs
@@ -403,12 +393,16 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	log.Debugf("%v local streams (%v,%v) pre-created\n", t.logprefix, start, end)
 	t.strmpool = make(chan *Stream, end-start+1) // inclusive
 	for opaque := start; opaque <= end; opaque++ {
-		t.strmpool <- &Stream{
+		stream := &Stream{
 			transport: t,
 			remote:    false,
 			opaque:    uint64(opaque),
 			Rxch:      nil,
+			out:       make([]byte, t.buffersize),
+			data:      make([]byte, t.buffersize),
+			tagout:    make([]byte, t.buffersize),
 		}
+		t.strmpool <- stream
 		fmsg := "%v ##%d(remote:%v) stream created ...\n"
 		log.Verbosef(fmsg, t.logprefix, opaque, false)
 	}
@@ -444,24 +438,36 @@ func (t *Transport) requestCallback(stream *Stream, msg Message) chan Message {
 	return nil
 }
 
-func fromtxpool(async bool, pool *sync.Pool) (arg *txproto) {
+func (t *Transport) fromrxstrm() *Stream {
+	stream := t.p_rxstrm.Get().(*Stream)
+	stream.transport, stream.Rxch, stream.opaque = nil, nil, 0
+	stream.remote = false
+	if stream.out == nil {
+		stream.out = make([]byte, t.buffersize)
+	}
+	if stream.data == nil {
+		stream.data = make([]byte, t.buffersize)
+	}
+	if stream.tagout == nil {
+		stream.tagout = make([]byte, t.buffersize)
+	}
+	return stream
+}
+
+func (t *Transport) fromtxpool(async bool, pool *sync.Pool) (arg *txproto) {
 	if async {
 		arg = pool.Get().(*txproto)
 		arg.flush, arg.async = false, false
 		arg.n, arg.err, arg.respch = 0, nil, nil
+		if arg.packet == nil {
+			arg.packet = make([]byte, t.buffersize)
+		}
 	} else {
 		arg = pool.Get().(*txproto)
 		arg.packet, arg.flush, arg.async = nil, false, false
 		arg.n, arg.err, arg.respch = 0, nil, nil
 	}
 	return arg
-}
-
-func fromrxstrm(pool *sync.Pool) *Stream {
-	stream := pool.Get().(*Stream)
-	stream.transport, stream.Rxch, stream.opaque = nil, nil, 0
-	stream.remote = false
-	return stream
 }
 
 type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)

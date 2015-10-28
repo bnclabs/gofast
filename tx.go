@@ -67,15 +67,7 @@ func (t *Transport) finish(stream *Stream, out []byte) (n int) {
 }
 
 func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
-	// data
-	x := t.p_txdata.Get()
-	defer t.p_txdata.Put(x)
-	// create another buffer and rotate with `ping` buffer
-	// and roll up the tags
-	y := t.p_txdata.Get()
-	defer t.p_txdata.Put(y)
-
-	data, pong := x.([]byte), y.([]byte)
+	data, pong := stream.data, stream.tagout
 
 	// tagMsg
 	n = tag2cbor(tagMsg, ping) // tagMsg
@@ -111,7 +103,7 @@ type txproto struct {
 }
 
 func (t *Transport) tx(packet []byte, flush bool) (err error) {
-	arg := fromtxpool(false /*async*/, t.p_txcmd)
+	arg := t.fromtxpool(false /*async*/, t.p_txcmd)
 	defer func() { arg.packet = nil; t.p_txcmd.Put(arg) }()
 
 	arg.packet, arg.flush, arg.async = packet, flush, false
@@ -136,10 +128,7 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 }
 
 func (t *Transport) txasync(out []byte, flush bool) (err error) {
-	arg := fromtxpool(true /*async*/, t.p_txacmd)
-	if arg.packet == nil {
-		arg.packet = t.p_txdata.Get().([]byte)
-	}
+	arg := t.fromtxpool(true /*async*/, t.p_txacmd)
 	arg.packet = arg.packet[:cap(arg.packet)]
 
 	n := copy(arg.packet, out)
