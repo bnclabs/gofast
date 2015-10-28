@@ -72,39 +72,71 @@ func main() {
 }
 
 func runserver(lis net.Listener) {
+	ver := testVersion(1)
 	config := newconfig("server", 1000, 2000)
 	config["tags"] = ""
 	for {
 		if conn, err := lis.Accept(); err == nil {
-			ver := testVersion(1)
+			fmt.Println("new transport", conn.RemoteAddr(), conn.LocalAddr())
 			trans, err := gofast.NewTransport(conn, &ver, nil, config)
 			if err != nil {
 				panic("NewTransport server failed")
 			}
-			trans.FlushPeriod(100 * time.Millisecond)
-			trans.SubscribeMessage(
-				&msgPost{},
-				func(s *gofast.Stream, msg gofast.Message) chan gofast.Message {
-					switch m := msg.(type) {
-					case *msgPost:
-						trans.Free(m)
-					default:
-						panic("unexpected message")
-					}
-					return nil
-				})
-			trans.Handshake()
 			go func(trans *gofast.Transport) {
-				fmt.Println("new transport", conn.RemoteAddr(), conn.LocalAddr())
+				trans.FlushPeriod(100 * time.Millisecond)
+				trans.SubscribeMessage(
+					&msgPost{},
+					func(s *gofast.Stream,
+						msg gofast.Message) chan gofast.Message {
+
+						trans.Free(msg)
+						return nil
+					})
+				trans.SubscribeMessage(
+					&msgReqsp{},
+					func(s *gofast.Stream,
+						msg gofast.Message) chan gofast.Message {
+
+						if err := s.Response(msg, false); err != nil {
+							log.Fatal(err)
+						}
+						trans.Free(msg)
+						return nil
+					})
+				trans.SubscribeMessage(
+					&msgStream{},
+					func(s *gofast.Stream,
+						msg gofast.Message) chan gofast.Message {
+
+						ch := make(chan gofast.Message, 100)
+						if err := s.Stream(msg, true); err != nil {
+							log.Println(err)
+						}
+						trans.Free(msg)
+						//fmt.Println("started", msg)
+						go func() {
+							for {
+								msg, ok := <-ch
+								if !ok {
+									//fmt.Println("closed", msg)
+									s.Close()
+									return
+								}
+								//fmt.Println("count", msg)
+								if err := s.Stream(msg, true); err != nil {
+									log.Println(err)
+								}
+								trans.Free(msg)
+							}
+						}()
+						return ch
+					})
+				trans.Handshake()
 				tick := time.Tick(1 * time.Second)
 				for {
 					<-tick
 					if options.log == "debug" {
 						printCounts(trans.Counts())
-					}
-					if _, err := trans.Ping("ok"); err != nil {
-						trans.Close()
-						return
 					}
 				}
 			}(trans)
@@ -116,7 +148,7 @@ func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
 		"buffersize":   1024,
-		"chansize":     100000,
+		"chansize":     1000,
 		"batchsize":    100,
 		"tags":         "",
 		"opaque.start": start,
@@ -191,4 +223,56 @@ func (msg *msgPost) Decode(in []byte) {
 
 func (msg *msgPost) String() string {
 	return "msgPost"
+}
+
+//-- reqsp message for benchmarking
+
+type msgReqsp struct {
+	data []byte
+}
+
+func (msg *msgReqsp) Id() uint64 {
+	return 112
+}
+
+func (msg *msgReqsp) Encode(out []byte) int {
+	return valbytes2cbor(msg.data, out)
+}
+
+func (msg *msgReqsp) Decode(in []byte) {
+	ln, m := cborItemLength(in)
+	if msg.data == nil {
+		msg.data = make([]byte, 0, 64)
+	}
+	msg.data = append(msg.data[:0], in[m:m+ln]...)
+}
+
+func (msg *msgReqsp) String() string {
+	return "msgReqsp"
+}
+
+//-- stream message for benchmarking
+
+type msgStream struct {
+	data []byte
+}
+
+func (msg *msgStream) Id() uint64 {
+	return 113
+}
+
+func (msg *msgStream) Encode(out []byte) int {
+	return valbytes2cbor(msg.data, out)
+}
+
+func (msg *msgStream) Decode(in []byte) {
+	ln, m := cborItemLength(in)
+	if msg.data == nil {
+		msg.data = make([]byte, 0, 64)
+	}
+	msg.data = append(msg.data[:0], in[m:m+ln]...)
+}
+
+func (msg *msgStream) String() string {
+	return "msgStream"
 }

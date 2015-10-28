@@ -1,6 +1,7 @@
 package main
 
 import "sync"
+import "sync/atomic"
 import "runtime"
 import "flag"
 import "reflect"
@@ -68,6 +69,7 @@ func main() {
 	case "request":
 		doTransport(doRequest)
 	case "stream":
+		doTransport(doStream)
 	}
 
 	// take memory profile.
@@ -83,10 +85,10 @@ func main() {
 func doTransport(callb func(trans *gofast.Transport)) {
 	var wg sync.WaitGroup
 
+	ver := testVersion(1)
 	n_trans := make([]*gofast.Transport, 0, 16)
 	for i := 0; i < options.conns; i++ {
 		wg.Add(1)
-		ver := testVersion(1)
 		config := newconfig("client", 3000, 4000)
 		config["tags"] = ""
 		conn, err := net.Dial("tcp", options.addr)
@@ -97,8 +99,6 @@ func doTransport(callb func(trans *gofast.Transport)) {
 		if err != nil {
 			panic(err)
 		}
-		trans.SubscribeMessage(&msgPost{}, nil)
-		trans.Handshake()
 		n_trans = append(n_trans, trans)
 		go func(trans *gofast.Transport) {
 			trans.FlushPeriod(100 * time.Millisecond)
@@ -118,19 +118,18 @@ func doTransport(callb func(trans *gofast.Transport)) {
 func doPost(trans *gofast.Transport) {
 	var wg sync.WaitGroup
 
+	trans.SubscribeMessage(&msgPost{}, nil).Handshake()
+	msg := &msgPost{data: make([]byte, options.payload)}
+	for i := 0; i < options.payload; i++ {
+		msg.data[i] = 'a'
+	}
+
 	for i := 0; i < options.routines; i++ {
 		wg.Add(1)
 		go func() {
 			for j := 0; j < options.count; j++ {
-				data := make([]byte, options.payload+12)
-				for i := 0; i < options.payload; i++ {
-					data[i] = 'a'
-				}
-				pd := options.payload
 				since := time.Now()
-				tmp := strconv.AppendInt(data[pd:pd], int64(j), 10)
-				msg := newMsgPost(data[:pd+len(tmp)])
-				if err := trans.Post(msg, false); err != nil {
+				if err := trans.Post(msg, true); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
 				}
@@ -140,31 +139,30 @@ func doPost(trans *gofast.Transport) {
 		}()
 	}
 	wg.Wait()
-	time.Sleep(1 * time.Second)
+	if _, err := trans.Whoami(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func doRequest(trans *gofast.Transport) {
 	var wg sync.WaitGroup
 
-	echo := make([]byte, options.payload+12)
+	trans.SubscribeMessage(&msgReqsp{}, nil).Handshake()
+	msg := &msgReqsp{data: make([]byte, options.payload)}
 	for i := 0; i < options.payload; i++ {
-		echo[i] = 'a'
+		msg.data[i] = 'a'
 	}
-	pd := options.payload
 
 	for i := 0; i < options.routines; i++ {
 		wg.Add(1)
 		go func() {
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
-				tmp := strconv.AppendInt(echo[pd:pd], int64(j), 10)
-				s := string(echo[:pd+len(tmp)])
-				if ping, err := trans.Ping(s); err != nil {
+				if rmsg, err := trans.Request(msg, true); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
-				} else if got := ping.Repr(); got != s {
-					fmt.Printf("expected %v, got %v\n", s, got)
-					panic("exit")
+				} else {
+					trans.Free(rmsg)
 				}
 				av.Add(uint64(time.Since(since)))
 			}
@@ -172,7 +170,63 @@ func doRequest(trans *gofast.Transport) {
 		}()
 	}
 	wg.Wait()
-	time.Sleep(1 * time.Second)
+}
+
+func doStream(trans *gofast.Transport) {
+	var wg sync.WaitGroup
+
+	trans.SubscribeMessage(&msgStream{}, nil).Handshake()
+
+	for i := 0; i < options.routines; i++ {
+		wg.Add(1)
+		go func() {
+			msg := &msgStream{data: make([]byte, 0, options.payload*2)}
+			ch := make(chan gofast.Message, 100)
+			since := time.Now()
+			stream, err := trans.Stream(msg, true, ch)
+			if err != nil {
+				log.Fatal(err)
+			}
+			//fmt.Println("started", msg)
+			var received int64
+			go func() {
+				for {
+					msg, ok := <-ch
+					if ok {
+						trans.Free(msg)
+						atomic.AddInt64(&received, 1)
+						if atomic.LoadInt64(&received) == int64(options.count+1) {
+							stream.Close()
+							break
+						}
+						//fmt.Println("received", msg)
+					} else {
+						break
+					}
+				}
+				wg.Done()
+			}()
+			av.Add(uint64(time.Since(since)))
+			for j := 0; j < options.count; j++ {
+				msg.data = msg.data[:cap(msg.data)]
+				for i := 0; i < options.payload; i++ {
+					msg.data[i] = 'a'
+				}
+				n := options.payload
+				tmp := strconv.AppendInt(msg.data[n:n], int64(j), 10)
+				msg.data = msg.data[:n+len(tmp)]
+
+				since := time.Now()
+				if err := stream.Stream(msg, true); err != nil {
+					fmt.Printf("%v\n", err)
+					panic("exit")
+				}
+				//fmt.Println("count", msg)
+				av.Add(uint64(time.Since(since)))
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func newconfig(name string, start, end int) map[string]interface{} {
@@ -251,10 +305,6 @@ type msgPost struct {
 	data []byte
 }
 
-func newMsgPost(data []byte) *msgPost {
-	return &msgPost{data: data}
-}
-
 func (msg *msgPost) Id() uint64 {
 	return 111
 }
@@ -266,11 +316,63 @@ func (msg *msgPost) Encode(out []byte) int {
 func (msg *msgPost) Decode(in []byte) {
 	ln, m := cborItemLength(in)
 	if msg.data == nil {
-		msg.data = make([]byte, options.payload)
+		msg.data = make([]byte, 0, options.payload)
 	}
-	copy(msg.data, in[m:m+ln])
+	msg.data = append(msg.data[:0], in[m:m+ln]...)
 }
 
 func (msg *msgPost) String() string {
 	return "msgPost"
+}
+
+//-- reqsp message for benchmarking
+
+type msgReqsp struct {
+	data []byte
+}
+
+func (msg *msgReqsp) Id() uint64 {
+	return 112
+}
+
+func (msg *msgReqsp) Encode(out []byte) int {
+	return valbytes2cbor(msg.data, out)
+}
+
+func (msg *msgReqsp) Decode(in []byte) {
+	ln, m := cborItemLength(in)
+	if msg.data == nil {
+		msg.data = make([]byte, 0, options.payload)
+	}
+	msg.data = append(msg.data[:0], in[m:m+ln]...)
+}
+
+func (msg *msgReqsp) String() string {
+	return "msgReqsp"
+}
+
+//-- stream message for benchmarking
+
+type msgStream struct {
+	data []byte
+}
+
+func (msg *msgStream) Id() uint64 {
+	return 113
+}
+
+func (msg *msgStream) Encode(out []byte) int {
+	return valbytes2cbor(msg.data, out)
+}
+
+func (msg *msgStream) Decode(in []byte) {
+	ln, m := cborItemLength(in)
+	if msg.data == nil {
+		msg.data = make([]byte, 0, options.payload)
+	}
+	copy(msg.data[:0], in[m:m+ln])
+}
+
+func (msg *msgStream) String() string {
+	return "msgStream"
 }
