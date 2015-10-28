@@ -20,6 +20,15 @@ type rxpacket struct {
 func (t *Transport) syncRx() {
 	chansize := t.config["chansize"].(int)
 	livestreams := make(map[uint64]*Stream)
+	defer func() {
+		// unblock routines waiting on this stream
+		for _, stream := range livestreams {
+			if stream.Rxch != nil {
+				close(stream.Rxch)
+			}
+		}
+		t.flushrxch()
+	}()
 
 	streamupdate := func(stream *Stream) {
 		_, ok := livestreams[stream.opaque]
@@ -27,7 +36,7 @@ func (t *Transport) syncRx() {
 			//log.Debugf("%v ##%d stream closed ...\n", t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
 			if stream.remote == false {
-				t.strmpool <- stream
+				t.strmpool <- stream // don't collect remote streams
 			}
 			return
 		}
@@ -104,6 +113,7 @@ loop:
 			break loop
 		}
 	}
+
 	log.Infof("%v syncRx() ... stopped\n", t.logprefix)
 }
 
@@ -280,6 +290,20 @@ func (t *Transport) putmsg(ch chan Message, msg Message) bool {
 		}
 	}
 	return false
+}
+
+func (t *Transport) flushrxch() {
+	// flush out pending messages from rxch
+	for {
+		select {
+		case rxpkt := <-t.rxch:
+			if rxpkt.stream != nil && rxpkt.stream.Rxch != nil {
+				close(rxpkt.stream.Rxch)
+			}
+		default:
+			return
+		}
+	}
 }
 
 func readtp(payload []byte) (uint64, []byte) {
