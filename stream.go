@@ -11,8 +11,8 @@ type Stream struct {
 
 func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
 	stream := fromrxstrm(t.p_rxstrm)
-	fmsg := "%v ##%d(remote:%v) stream created ...\n"
-	log.Verbosef(fmsg, t.logprefix, opaque, remote)
+	//fmsg := "%v ##%d(remote:%v) stream created ...\n"
+	//log.Verbosef(fmsg, t.logprefix, opaque, remote)
 	// reset all fields (it is coming from a pool)
 	stream.transport, stream.remote, stream.opaque = t, remote, opaque
 	stream.Rxch = nil
@@ -22,7 +22,7 @@ func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
 func (t *Transport) getstream(ch chan Message) *Stream { // called only be tx.
 	stream := <-t.strmpool
 	stream.Rxch = ch
-	t.putch(t.rxch, stream)
+	t.putch(t.rxch, rxpacket{stream: stream})
 	return stream
 }
 
@@ -44,7 +44,7 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	}
 	stream.Rxch = nil
 	if tellrx {
-		t.putch(t.rxch, stream)
+		t.putch(t.rxch, rxpacket{stream: stream})
 	}
 }
 

@@ -60,7 +60,7 @@ type Transport struct {
 	conn     Transporter
 	aliveat  int64
 	txch     chan *txproto
-	rxch     chan interface{}
+	rxch     chan rxpacket
 	killch   chan bool
 	// 0 no handshake
 	// 1 oneway handshake
@@ -69,17 +69,17 @@ type Transport struct {
 
 	// mempools
 	strmpool chan *Stream // for locally initiated streams
-	p_rxcmd  *sync.Pool
 	p_txcmd  *sync.Pool
 	p_txacmd *sync.Pool
-	p_rxdata *sync.Pool
+	//p_rxdata *sync.Pool TODO: not required cleanup
 	p_txdata *sync.Pool
 	p_rxstrm *sync.Pool
 	msgpools map[uint64]*sync.Pool
 
 	// configuration
-	config    map[string]interface{}
-	logprefix string
+	config     map[string]interface{}
+	buffersize int
+	logprefix  string
 
 	// statistics
 	n_tx       uint64 // number of packets transmitted
@@ -100,7 +100,8 @@ type Transport struct {
 	n_rxstream uint64 // number of stream messages received
 	n_rxfin    uint64 // number of finish messages received
 	n_rxbeats  uint64 // number of heartbeats received
-	n_dropped  uint64 // number of dropped packets
+	n_dropped  uint64 // number of dropped bytes
+	n_mdrops   uint64 // number of dropped messages
 }
 
 //---- transport initialization APIs
@@ -126,30 +127,29 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 
 		conn:   conn,
 		txch:   make(chan *txproto, chansize+batchsize),
-		rxch:   make(chan interface{}, chansize),
+		rxch:   make(chan rxpacket, chansize),
 		killch: make(chan bool),
 
 		msgpools: make(map[uint64]*sync.Pool),
 
-		config: config,
+		config:     config,
+		buffersize: buffersize,
 	}
 
 	setLogger(logg, t.config)
 
 	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
 	t.logprefix = fmt.Sprintf("GFST[%v; %v<->%v]", name, laddr, raddr)
-	t.p_rxcmd = &sync.Pool{
-		New: func() interface{} { return &rxpacket{} },
-	}
 	t.p_txcmd = &sync.Pool{
 		New: func() interface{} { return &txproto{} },
 	}
 	t.p_txacmd = &sync.Pool{ // async commands
 		New: func() interface{} { return &txproto{} },
 	}
-	t.p_rxdata = &sync.Pool{
-		New: func() interface{} { return make([]byte, buffersize) },
-	}
+	// TODO: not required cleanup
+	//t.p_rxdata = &sync.Pool{
+	//	New: func() interface{} { return make([]byte, buffersize) },
+	//}
 	t.p_txdata = &sync.Pool{
 		New: func() interface{} { return make([]byte, buffersize) },
 	}
@@ -243,14 +243,14 @@ func (t *Transport) Name() string {
 
 // FlushPeriod to periodically flush batched packets.
 func (t *Transport) FlushPeriod(ms time.Duration) {
-	now, tick := time.Now(), time.Tick(ms)
+	tick := time.Tick(ms)
 	go func() {
 		for {
 			<-tick
 			if t.tx([]byte{} /*empty*/, true /*flush*/) != nil {
 				return
 			}
-			log.Debugf("%v flushed after %v\n", t.logprefix, time.Since(now))
+			//log.Debugf("%v flushed ... \n", t.logprefix)
 		}
 	}()
 }
@@ -266,7 +266,7 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 				return
 			}
 			count++
-			log.Debugf("%v posted heartbeat %v\n", t.logprefix, count)
+			//log.Debugf("%v posted heartbeat %v\n", t.logprefix, count)
 		}
 	}()
 }
@@ -326,6 +326,7 @@ func (t *Transport) Counts() map[string]uint64 {
 		"n_rxfin":    atomic.LoadUint64(&t.n_rxfin),
 		"n_rxbeats":  atomic.LoadUint64(&t.n_rxbeats),
 		"n_dropped":  atomic.LoadUint64(&t.n_dropped),
+		"n_mdrops":   atomic.LoadUint64(&t.n_mdrops),
 	}
 	return stats
 }
@@ -446,15 +447,6 @@ func (t *Transport) requestCallback(stream *Stream, msg Message) chan Message {
 	}
 	log.Warnf("request-callback registered nil for msg:(%v,%T)\n", id, msg)
 	return nil
-}
-
-func fromrxpool(pool *sync.Pool) *rxpacket { // always use this to get from pool
-	rxpkt := pool.Get().(*rxpacket)
-	// initialize
-	rxpkt.packet, rxpkt.payload = nil, nil
-	rxpkt.opaque = 0
-	rxpkt.request, rxpkt.start, rxpkt.finish = false, false, false
-	return rxpkt
 }
 
 func fromtxpool(async bool, pool *sync.Pool) (arg *txproto) {

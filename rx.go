@@ -7,13 +7,13 @@ import "fmt"
 import "net"
 
 type rxpacket struct {
-	packet  []byte
-	payload []byte
+	stream  *Stream
+	msg     Message
 	opaque  uint64
 	post    bool
 	request bool
 	start   bool
-	stream  bool
+	strmsg  bool
 	finish  bool
 }
 
@@ -24,26 +24,23 @@ func (t *Transport) syncRx() {
 	streamupdate := func(stream *Stream) {
 		_, ok := livestreams[stream.opaque]
 		if stream.Rxch == nil && ok {
-			log.Debugf("%v ##%d stream closed ...\n", t.logprefix, stream.opaque)
+			//log.Debugf("%v ##%d stream closed ...\n", t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
 			if stream.remote == false {
 				t.strmpool <- stream
 			}
 			return
 		}
-		log.Verbosef("%v ##%d stream started ...\n", t.logprefix, stream.opaque)
+		//log.Verbosef("%v ##%d stream started ...\n", t.logprefix, stream.opaque)
 		livestreams[stream.opaque] = stream
 	}
 
-	handlepkt := func(rxpkt *rxpacket) {
-		defer t.p_rxdata.Put(rxpkt.packet)
-		defer t.p_rxcmd.Put(rxpkt)
-
+	handlepkt := func(rxpkt rxpacket) {
 		stream, streamok := livestreams[rxpkt.opaque]
 
 		if streamok && rxpkt.finish {
-			fmsg := "%v ##%d stream closed by remote ...\n"
-			log.Debugf(fmsg, t.logprefix, stream.opaque)
+			//fmsg := "%v ##%d stream closed by remote ...\n"
+			//log.Debugf(fmsg, t.logprefix, stream.opaque)
 			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
 			delete(livestreams, rxpkt.opaque)
 			atomic.AddUint64(&t.n_rxfin, 1)
@@ -53,39 +50,34 @@ func (t *Transport) syncRx() {
 			log.Warnf(fmsg, t.logprefix, rxpkt.opaque)
 			return
 		}
-		// not a fin message, decode message
-		msg := t.unmessage(rxpkt.opaque, rxpkt.payload)
-		if msg == nil {
-			return
-		}
-		fmsg := "%v received msg %#v streamok:%v\n"
-		log.Debugf(fmsg, t.logprefix, msg, streamok)
+		//fmsg := "%v received msg %#v streamok:%v\n"
+		//log.Debugf(fmsg, t.logprefix, rxpkt.msg, streamok)
 		if streamok == false { // post, request, stream-start
 			if rxpkt.post {
-				t.handlers[msg.Id()](nil /*stream*/, msg)
+				t.requestCallback(nil /*stream*/, rxpkt.msg)
 				atomic.AddUint64(&t.n_rxpost, 1)
 			} else if rxpkt.request {
 				func() {
 					stream = t.newstream(rxpkt.opaque, true /*remote*/)
 					defer t.p_rxstrm.Put(stream)
-					t.requestCallback(stream, msg)
+					t.requestCallback(stream, rxpkt.msg)
 					atomic.AddUint64(&t.n_rxreq, 1)
 				}()
 			} else if rxpkt.start { // stream
 				stream = t.newstream(rxpkt.opaque, true /*remote*/)
-				stream.Rxch = t.requestCallback(stream, msg)
+				stream.Rxch = t.requestCallback(stream, rxpkt.msg)
 				livestreams[stream.opaque] = stream
 				atomic.AddUint64(&t.n_rxstart, 1)
 			} else { // message for a closed stream.
-				atomic.AddUint64(&t.n_dropped, uint64(len(rxpkt.packet)))
+				atomic.AddUint64(&t.n_mdrops, 1)
 			}
 			return
 		}
 		// response and stream - finish is already handled above
-		t.putmsg(stream.Rxch, msg)
+		t.putmsg(stream.Rxch, rxpkt.msg)
 		if streamok && rxpkt.request { //means response
 			atomic.AddUint64(&t.n_rxresp, 1)
-		} else if rxpkt.stream {
+		} else if rxpkt.strmsg {
 			atomic.AddUint64(&t.n_rxstream, 1)
 		} else {
 			fmsg := "%v uknown rxpkt ##%d for stream ##%d ...\n"
@@ -100,15 +92,12 @@ func (t *Transport) syncRx() {
 loop:
 	for {
 		select {
-		case arg := <-t.rxch:
-			switch val := arg.(type) {
-			case *Stream:
-				streamupdate(val)
-			case *rxpacket:
-				if val != nil {
-					atomic.AddUint64(&t.n_rx, 1)
-					handlepkt(val)
-				}
+		case rxpkt := <-t.rxch:
+			if rxpkt.stream != nil {
+				streamupdate(rxpkt.stream)
+			} else {
+				handlepkt(rxpkt)
+				atomic.AddUint64(&t.n_rx, 1)
 			}
 		case <-t.killch:
 			break loop
@@ -118,42 +107,39 @@ loop:
 }
 
 func (t *Transport) doRx() {
-	defer func() { go t.Close() }()
+	defer func() {
+		go t.Close()
+	}()
 
 	log.Infof("%v doRx() started ...\n", t.logprefix)
+	pad := make([]byte, 9)
+	packet := make([]byte, t.buffersize)
+	tagouts := make(map[uint64][]byte, t.buffersize)
+	for _, factory := range tag_factory {
+		tag, _, _ := factory(t, t.config)
+		tagouts[tag] = make([]byte, t.buffersize)
+	}
+
 	for {
-		rxpkt, err := t.unframepkt(t.conn)
+		rxpkt, err := t.unframepkt(t.conn, pad, packet, tagouts)
 		if err != nil {
 			break
 		}
-		if rxpkt != nil {
-			log.Debugf("%v %v ; received pkt\n", t.logprefix, rxpkt)
-			if t.putch(t.rxch, rxpkt) == false {
-				break
-			}
+		//log.Debugf("%v %v ; received pkt\n", t.logprefix, rxpkt)
+		if t.putch(t.rxch, rxpkt) == false {
+			break
 		}
 	}
 	log.Infof("%v doRx() ... stopped\n", t.logprefix)
 }
 
-func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
-	// TODO: ideally this function and the called ones from here should be
-	// hardened enought that it shall never panic.
-	//defer func() {
-	//	if r := recover(); r != nil {
-	//		log.Errorf("%v malformed packet: %v\n", t.logprefix, r)
-	//		log.Errorf(getStackTrace(1, debug.Stack()))
-	//		if rxpkt != nil {
-	//			t.p_rxdata.Put(rxpkt.packet)
-	//			t.p_rxcmd.Put(rxpkt)
-	//		}
-	//		rxpkt, err = nil, fmt.Errorf("%v", r)
-	//	}
-	//}()
+func (t *Transport) unframepkt(
+	conn Transporter,
+	pad, packet []byte,
+	tagouts map[uint64][]byte) (rxpkt rxpacket, err error) {
 
 	var n, m int
-	var pad [9]byte
-	if n, err = io.ReadFull(conn, pad[:9]); err == io.EOF {
+	if n, err = io.ReadFull(conn, pad); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
 	} else if err != nil && isConnClosed(err) {
@@ -170,7 +156,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		log.Errorf("%v\n", err)
 		return
 	}
-	log.Debugf("%v doRx() io.ReadFull() first %v\n", t.logprefix, pad)
+	//log.Debugf("%v doRx() io.ReadFull() first %v\n", t.logprefix, pad)
 	// check cbor-prefix
 	n = 3
 	post, request := pad[n] == 0xc6, pad[n] == 0x91
@@ -181,8 +167,7 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	n += m
 
 	// read the full packet
-	packet := t.p_rxdata.Get().([]byte)
-	n = copy(packet, pad[n:9])
+	n = copy(packet, pad[n:])
 	if m, err = io.ReadFull(conn, packet[n:ln]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
@@ -196,29 +181,27 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		return
 	}
 	atomic.AddUint64(&t.n_rxbyte, uint64(9+m))
-	log.Debugf("%v doRx() io.ReadFull() second %v\n", t.logprefix, packet[:ln])
-	rxpkt = fromrxpool(t.p_rxcmd)
-	rxpkt.packet = packet[:ln]
+	//log.Debugf("%v doRx() io.ReadFull() second %v\n", t.logprefix, packet[:ln])
+
 	// first tag is opaque
-	rxpkt.opaque, rxpkt.payload = readtp(rxpkt.packet)
+	var payload []byte
+	rxpkt.opaque, payload = readtp(packet[:ln])
 	rxpkt.post, rxpkt.request = post, request
-	rxpkt.start, rxpkt.stream, rxpkt.finish = start, stream, finish
+	rxpkt.start, rxpkt.strmsg, rxpkt.finish = start, stream, finish
 	if rxpkt.finish /*rxpkt.payload[0] == 0xff*/ { // end-of-stream
 		return
 	}
 	// tags
 	var tag uint64
-	tag, rxpkt.payload = readtp(rxpkt.payload)
-	for tag != tagMsg && len(rxpkt.payload) > 0 {
-		func() {
-			defer t.p_rxdata.Put(rxpkt.packet)
-			packet = t.p_rxdata.Get().([]byte)
-			n = t.tagdec[tag](rxpkt.payload, packet)
-			tag, rxpkt.payload = readtp(packet[:n])
-			rxpkt.packet = packet
-		}()
+	tag, payload = readtp(payload)
+	for tag != tagMsg && len(payload) > 0 {
+		n = t.tagdec[tag](payload, tagouts[tag])
+		tag, payload = readtp(tagouts[tag][:n])
 	}
-	return rxpkt, nil
+	if finish == false {
+		rxpkt.msg = t.unmessage(rxpkt.opaque, payload)
+	}
+	return
 }
 
 func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
@@ -276,7 +259,7 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 	return msg
 }
 
-func (t *Transport) putch(ch chan interface{}, val interface{}) bool {
+func (t *Transport) putch(ch chan rxpacket, val rxpacket) bool {
 	select {
 	case ch <- val:
 		return true
