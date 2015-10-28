@@ -3,15 +3,17 @@ package gofast
 import "fmt"
 import "sync/atomic"
 
-// | 0xd9f7 | packet |
+// | 0xd9 0xd9f7 | 0xc6 | packet |
 func (t *Transport) post(msg Message, stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txpost, 1)
-	n = tag2cbor(tagCborPrefix, out)      // prefix
+	n = tag2cbor(tagCborPrefix, out) // prefix
+	out[n] = 0xc6
+	n++
 	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
-// | 0xd9f7 | 0x91 | packet |
+// | 0xd9 0xd9f7 | 0x91 | packet |
 func (t *Transport) request(msg Message, stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txreq, 1)
 	n = tag2cbor(tagCborPrefix, out) // prefix
@@ -21,7 +23,7 @@ func (t *Transport) request(msg Message, stream *Stream, out []byte) (n int) {
 	return n
 }
 
-// | 0xd9f7 | 0x91 | packet |
+// | 0xd9 0xd9f7 | 0x91 | packet |
 func (t *Transport) response(msg Message, stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txresp, 1)
 	n = tag2cbor(tagCborPrefix, out) // prefix
@@ -31,7 +33,7 @@ func (t *Transport) response(msg Message, stream *Stream, out []byte) (n int) {
 	return n
 }
 
-// | 0xd9f7 | 0x9f | packet1 |
+// | 0xd9 0xd9f7  | 0x9f | packet2    |
 func (t *Transport) start(msg Message, stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txstart, 1)
 	n = tag2cbor(tagCborPrefix, out)      // prefix
@@ -40,19 +42,23 @@ func (t *Transport) start(msg Message, stream *Stream, out []byte) (n int) {
 	return n
 }
 
-// | 0xd9f7 | packet2 |
+// | 0xd9 0xd9f7  | 0xc7 | packet2    |
 func (t *Transport) stream(msg Message, stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txstream, 1)
-	n = tag2cbor(tagCborPrefix, out)      // prefix
+	n = tag2cbor(tagCborPrefix, out) // prefix
+	out[n] = 0xc7
+	n += 1
 	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
-// | 0xd9f7 | packetN | 0xff |
+// | 0xd9 0xd9f7  | 0xc8 | end-packet |
 func (t *Transport) finish(stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txfin, 1)
 	var scratch [16]byte
-	n = tag2cbor(tagCborPrefix, out)         // prefix
+	n = tag2cbor(tagCborPrefix, out) // prefix
+	out[n] = 0xc8
+	n += 1
 	m := tag2cbor(stream.opaque, scratch[:]) // tag-opaque
 	scratch[m] = 0xff                        // 0xff (payload)
 	m += 1

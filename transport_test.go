@@ -4,7 +4,8 @@ import "testing"
 import "reflect"
 import "fmt"
 import "syscall"
-import "runtime"
+
+//import "runtime"
 import "compress/flate"
 import "sort"
 import "net"
@@ -478,7 +479,7 @@ func newconfig(name string, start, end int) map[string]interface{} {
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
-		"log.level":    "ignore",
+		"log.level":    "warn",
 		"gzip.file":    flate.BestSpeed,
 	}
 }
@@ -710,5 +711,5 @@ func init() {
 	for i := 0; i < cap(testBindAddrs); i++ {
 		testBindAddrs <- fmt.Sprintf("127.0.0.1:%v", 9100+i)
 	}
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	//runtime.GOMAXPROCS(runtime.NumCPU())
 }

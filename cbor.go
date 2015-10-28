@@ -49,17 +49,24 @@ const ( // pre-defined tag values
 	tagDecimalFraction               // decimal fraction as array of [2]num
 	tagBigFloat                      // as array of [2]num
 
-	// unassigned 6..20
+	// tag 6 (unassigned as per spec). says frame carries a POST request.
+	tagPost
+	// tag 7 (unassigned as per spec). says frame carries a STREAM message.
+	tagStream
+	// tag 8 (unassigned as per spec). says frame carries stream FINISH.
+	tagFinish
+
+	// unassigned 9..20
 
 	// TODO: tagBase64URL, tagBase64, tagBase16
-	tagBase64URL = iota + 15 // interpret []byte as base64 format
+	tagBase64URL = iota + 12 // interpret []byte as base64 format
 	tagBase64                // interpret []byte as base64 format
 	tagBase16                // interpret []byte as base16 format
 	tagCborEnc               // embedd another CBOR message
 
 	// unassigned 25..31
 
-	tagURI          = iota + 22 // defined in rfc3986
+	tagURI          = iota + 19 // defined in rfc3986
 	tagBase64URLEnc             // base64 encoded url as text strings
 	tagBase64Enc                // base64 encoded byte-string as text strings
 	tagRegexp                   // PCRE and ECMA262 regular expression
@@ -82,8 +89,8 @@ const ( // pre-defined tag values
 	tagLzw
 
 	// opaque-space 256..55798
-	tagOpaqueStart = iota + 235
-	tagOpaqueEnd   = iota + 55776
+	tagOpaqueStart = iota + 232
+	tagOpaqueEnd   = iota + 55773
 
 	tagCborPrefix
 

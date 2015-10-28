@@ -10,8 +10,10 @@ type rxpacket struct {
 	packet  []byte
 	payload []byte
 	opaque  uint64
+	post    bool
 	request bool
 	start   bool
+	stream  bool
 	finish  bool
 }
 
@@ -48,7 +50,7 @@ func (t *Transport) syncRx() {
 			return
 		} else if rxpkt.finish {
 			fmsg := "%v ##%d uknown stream-fin from remote ...\n"
-			log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
+			log.Warnf(fmsg, t.logprefix, rxpkt.opaque)
 			return
 		}
 		// not a fin message, decode message
@@ -59,7 +61,10 @@ func (t *Transport) syncRx() {
 		fmsg := "%v received msg %#v streamok:%v\n"
 		log.Debugf(fmsg, t.logprefix, msg, streamok)
 		if streamok == false { // post, request, stream-start
-			if rxpkt.request {
+			if rxpkt.post {
+				t.handlers[msg.Id()](nil /*stream*/, msg)
+				atomic.AddUint64(&t.n_rxpost, 1)
+			} else if rxpkt.request {
 				func() {
 					stream = t.newstream(rxpkt.opaque, true /*remote*/)
 					defer t.p_rxstrm.Put(stream)
@@ -71,18 +76,20 @@ func (t *Transport) syncRx() {
 				stream.Rxch = t.requestCallback(stream, msg)
 				livestreams[stream.opaque] = stream
 				atomic.AddUint64(&t.n_rxstart, 1)
-			} else { // post
-				t.handlers[msg.Id()](nil /*stream*/, msg)
-				atomic.AddUint64(&t.n_rxpost, 1)
+			} else { // message for a closed stream.
+				atomic.AddUint64(&t.n_dropped, uint64(len(rxpkt.packet)))
 			}
 			return
 		}
-		// response, stream, finish is handled above
+		// response and stream - finish is already handled above
 		t.putmsg(stream.Rxch, msg)
-		if rxpkt.request {
+		if streamok && rxpkt.request { //means response
 			atomic.AddUint64(&t.n_rxresp, 1)
-		} else {
+		} else if rxpkt.stream {
 			atomic.AddUint64(&t.n_rxstream, 1)
+		} else {
+			fmsg := "%v uknown rxpkt ##%d for stream ##%d ...\n"
+			log.Warnf(fmsg, t.logprefix, rxpkt.opaque, stream.opaque)
 		}
 	}
 
@@ -146,15 +153,14 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 
 	var n, m int
 	var pad [9]byte
-	rd := 8
-	if n, err = io.ReadFull(conn, pad[:8]); err == io.EOF {
+	if n, err = io.ReadFull(conn, pad[:9]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
 	} else if err != nil && isConnClosed(err) {
 		log.Infof("%v doRx() Closed connection", t.logprefix)
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
-	} else if err != nil || n != 8 {
+	} else if err != nil || n != 9 {
 		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
@@ -167,34 +173,16 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 	log.Debugf("%v doRx() io.ReadFull() first %v\n", t.logprefix, pad)
 	// check cbor-prefix
 	n = 3
-	request, start := pad[n] == 0x91, pad[n] == 0x9f
-	if request || start {
-		n += 1
-	}
+	post, request := pad[n] == 0xc6, pad[n] == 0x91
+	start, stream, finish := pad[n] == 0x9f, pad[n] == 0xc7, pad[n] == 0xc8
+	n += 1
 
-	ln, m := cborItemLength(pad[n:rd])
-	if ln == -1 { // we only read optimitically 8 bytes.
-		if m, err = io.ReadFull(conn, pad[8:9]); err == io.EOF {
-			log.Infof("%v doRx() received EOF\n", t.logprefix)
-			return
-		} else if err != nil && isConnClosed(err) {
-			log.Infof("%v doRx() Closed connection", t.logprefix)
-			atomic.AddUint64(&t.n_dropped, uint64(m))
-			return
-		} else if err != nil || m != 1 {
-			log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, m, err.Error())
-			atomic.AddUint64(&t.n_dropped, uint64(m))
-			return
-		} else {
-			rd += 1
-			ln, m = cborItemLength(pad[n:rd])
-		}
-	}
+	ln, m := cborItemLength(pad[n:])
 	n += m
 
 	// read the full packet
 	packet := t.p_rxdata.Get().([]byte)
-	n = copy(packet, pad[n:rd])
+	n = copy(packet, pad[n:9])
 	if m, err = io.ReadFull(conn, packet[n:ln]); err == io.EOF {
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
@@ -207,15 +195,15 @@ func (t *Transport) unframepkt(conn Transporter) (rxpkt *rxpacket, err error) {
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
 	}
-	atomic.AddUint64(&t.n_rxbyte, uint64(rd+m))
+	atomic.AddUint64(&t.n_rxbyte, uint64(9+m))
 	log.Debugf("%v doRx() io.ReadFull() second %v\n", t.logprefix, packet[:ln])
 	rxpkt = fromrxpool(t.p_rxcmd)
-	rxpkt.packet = packet
+	rxpkt.packet = packet[:ln]
 	// first tag is opaque
 	rxpkt.opaque, rxpkt.payload = readtp(rxpkt.packet)
-	rxpkt.request, rxpkt.start = request, start
-	if rxpkt.payload[0] == 0xff { // end-of-stream
-		rxpkt.finish = true
+	rxpkt.post, rxpkt.request = post, request
+	rxpkt.start, rxpkt.stream, rxpkt.finish = start, stream, finish
+	if rxpkt.finish /*rxpkt.payload[0] == 0xff*/ { // end-of-stream
 		return
 	}
 	// tags

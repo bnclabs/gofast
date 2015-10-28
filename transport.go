@@ -219,7 +219,12 @@ func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Tran
 
 // Close this tranport, connection shall be closed as well.
 func (t *Transport) Close() error {
-	defer func() { recover() }()
+	defer func() {
+		if r := recover(); r != nil {
+			fmsg := "%v transport.Close() recovered: %v\n"
+			log.Infof(fmsg, t.logprefix, r)
+		}
+	}()
 	// closing kill-channel should accomplish the following,
 	// a. prevent any more transmission on the connection.
 	// b. close all active streams.

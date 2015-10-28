@@ -13,7 +13,7 @@ func TestPost(t *testing.T) {
 	transv := <-serverch
 
 	ref := []byte{
-		217, 217, 247, 88, 29, 217, 1, 12, 88, 24, 216, 37, 191,
+		217, 217, 247, 198, 88, 29, 217, 1, 12, 88, 24, 216, 37, 191,
 		24, 39, 2, 24, 40, 78, 159, 70, 99, 108, 105, 101, 110, 116,
 		1, 25, 2, 0, 64, 255, 255,
 	}
@@ -105,7 +105,7 @@ func TestStream(t *testing.T) {
 	transv := <-serverch
 
 	ref := []byte{
-		217, 217, 247, 88, 29, 217, 1, 12, 88, 24, 216, 37, 191, 24, 39,
+		217, 217, 247, 199, 88, 29, 217, 1, 12, 88, 24, 216, 37, 191, 24, 39,
 		2, 24, 40, 78, 159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2, 0,
 		64, 255, 255,
 	}
@@ -127,7 +127,7 @@ func TestFinish(t *testing.T) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	ref := []byte{217, 217, 247, 68, 217, 1, 12, 255}
+	ref := []byte{217, 217, 247, 200, 68, 217, 1, 12, 255}
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
 	n := transc.finish(stream, out)

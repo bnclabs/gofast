@@ -27,10 +27,13 @@ func (t *Transport) getstream(ch chan Message) *Stream { // called only be tx.
 }
 
 func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
-	func() {
-		// Rxch could also be closed when transport is closed...
-		// Rxch could also be nil in case of post...
-		defer func() { recover() }()
+	// Rxch could also be closed when transport is closed...
+	// Rxch could also be nil in case of post...
+	defer func() {
+		if r := recover(); r != nil {
+			fmsg := "%v ##%v putstream recovered: %v\n"
+			log.Infof(fmsg, t.logprefix, opaque, r)
+		}
 	}()
 	if stream == nil {
 		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
