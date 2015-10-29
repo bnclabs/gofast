@@ -109,25 +109,20 @@ func runserver(lis net.Listener) {
 						msg gofast.Message) chan gofast.Message {
 
 						ch := make(chan gofast.Message, 100)
-						if err := s.Stream(msg, true); err != nil {
-							log.Println(err)
+						if err := s.Stream(msg, false); err != nil {
+							log.Fatal(err)
 						}
 						trans.Free(msg)
 						//fmt.Println("started", msg)
 						go func() {
-							for {
-								msg, ok := <-ch
-								if !ok {
-									//fmt.Println("closed", msg)
-									s.Close()
-									return
-								}
+							for msg := range ch {
 								//fmt.Println("count", msg)
-								if err := s.Stream(msg, true); err != nil {
-									log.Println(err)
+								if err := s.Stream(msg, false); err != nil {
+									log.Fatal(err)
 								}
 								trans.Free(msg)
 							}
+							s.Close()
 						}()
 						return ch
 					})

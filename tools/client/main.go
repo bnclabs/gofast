@@ -11,7 +11,6 @@ import "log"
 import "sort"
 import "time"
 import "strings"
-import "strconv"
 import "net"
 import "fmt"
 import "compress/flate"
@@ -176,11 +175,14 @@ func doStream(trans *gofast.Transport) {
 	var wg sync.WaitGroup
 
 	trans.SubscribeMessage(&msgStream{}, nil).Handshake()
+	msg := &msgStream{data: make([]byte, options.payload)}
+	for i := 0; i < options.payload; i++ {
+		msg.data[i] = 'a'
+	}
 
 	for i := 0; i < options.routines; i++ {
 		wg.Add(1)
 		go func() {
-			msg := &msgStream{data: make([]byte, 0, options.payload*2)}
 			ch := make(chan gofast.Message, 100)
 			since := time.Now()
 			stream, err := trans.Stream(msg, true, ch)
@@ -190,17 +192,12 @@ func doStream(trans *gofast.Transport) {
 			//fmt.Println("started", msg)
 			var received int64
 			go func() {
-				for {
-					msg, ok := <-ch
-					if ok {
-						trans.Free(msg)
-						atomic.AddInt64(&received, 1)
-						if atomic.LoadInt64(&received) == int64(options.count+1) {
-							stream.Close()
-							break
-						}
-						//fmt.Println("received", msg)
-					} else {
+				for msg := range ch {
+					//fmt.Println("received", msg)
+					trans.Free(msg)
+					atomic.AddInt64(&received, 1)
+					if atomic.LoadInt64(&received) == int64(options.count+1) {
+						stream.Close()
 						break
 					}
 				}
@@ -208,16 +205,8 @@ func doStream(trans *gofast.Transport) {
 			}()
 			av.Add(uint64(time.Since(since)))
 			for j := 0; j < options.count; j++ {
-				msg.data = msg.data[:cap(msg.data)]
-				for i := 0; i < options.payload; i++ {
-					msg.data[i] = 'a'
-				}
-				n := options.payload
-				tmp := strconv.AppendInt(msg.data[n:n], int64(j), 10)
-				msg.data = msg.data[:n+len(tmp)]
-
 				since := time.Now()
-				if err := stream.Stream(msg, true); err != nil {
+				if err := stream.Stream(msg, false); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
 				}
