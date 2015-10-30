@@ -3,6 +3,7 @@ package main
 import "time"
 import "runtime"
 import "flag"
+import "sync"
 import "io"
 import "os"
 import "log"
@@ -32,6 +33,9 @@ func argParse() {
 	flag.Parse()
 }
 
+var mu sync.Mutex
+var n_trans = make([]*gofast.Transport, 0, 100)
+
 func main() {
 	argParse()
 	runtime.GOMAXPROCS(options.cpu)
@@ -54,12 +58,16 @@ func main() {
 
 	go runserver(lis)
 
-	fmt.Printf("Press CTRL-D to exit\n")
+	fmt.Println("Press CTRL-D to exit")
 	reader := bufio.NewReader(os.Stdin)
 	_, err = reader.ReadString('\n')
 	for err != io.EOF {
 		_, err = reader.ReadString('\n')
 	}
+	fmt.Println("server exited")
+	mu.Lock()
+	printCounts(addCounts(n_trans...))
+	mu.Unlock()
 
 	// take memory profile.
 	fname = "server.mprof"
@@ -82,6 +90,9 @@ func runserver(lis net.Listener) {
 			if err != nil {
 				panic("NewTransport server failed")
 			}
+			mu.Lock()
+			n_trans = append(n_trans, trans)
+			mu.Unlock()
 			go func(trans *gofast.Transport) {
 				trans.FlushPeriod(100 * time.Millisecond)
 				trans.SubscribeMessage(
@@ -177,7 +188,24 @@ func (v *testVersion) Unmarshal(in []byte) int {
 	return n
 }
 
+func addCounts(n_trans ...*gofast.Transport) map[string]uint64 {
+	if len(n_trans) > 0 {
+		counts := n_trans[0].Counts()
+		for _, trans := range n_trans[1:] {
+			for k, v := range trans.Counts() {
+				counts[k] += v
+			}
+		}
+		return counts
+	}
+	return nil
+}
+
 func printCounts(counts map[string]uint64) {
+	if counts == nil {
+		fmt.Println("statistics is nil")
+		return
+	}
 	keys := []string{}
 	for key := range counts {
 		keys = append(keys, key)
@@ -185,9 +213,9 @@ func printCounts(counts map[string]uint64) {
 	sort.Sort(sort.StringSlice(keys))
 	s := []string{}
 	for _, key := range keys {
-		s = append(s, fmt.Sprintf("%v:%v", key, counts[key]))
+		s = append(s, fmt.Sprintf(`"%v":%v`, key, counts[key]))
 	}
-	fmt.Println(strings.Join(s, ", "))
+	fmt.Println("stats {", strings.Join(s, ", "), "}")
 }
 
 //-- post message for benchmarking

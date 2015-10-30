@@ -40,7 +40,7 @@ func argParse() {
 	flag.StringVar(&options.addr, "addr", "127.0.0.1:9998",
 		"number of concurrent routines")
 	flag.StringVar(&options.log, "log", "error",
-		"number of concurrent routines")
+		"log level")
 	flag.IntVar(&options.payload, "payload", 10,
 		"payload size to ping pong.")
 	flag.Parse()
@@ -62,14 +62,7 @@ func main() {
 	pprof.StartCPUProfile(fd)
 	defer pprof.StopCPUProfile()
 
-	switch options.do {
-	case "post":
-		doTransport(doPost)
-	case "request":
-		doTransport(doRequest)
-	case "stream":
-		doTransport(doStream)
-	}
+	doTransport()
 
 	// take memory profile.
 	fname = "client.mprof"
@@ -81,7 +74,7 @@ func main() {
 	pprof.WriteHeapProfile(fd)
 }
 
-func doTransport(callb func(trans *gofast.Transport)) {
+func doTransport() {
 	var wg sync.WaitGroup
 
 	ver := testVersion(1)
@@ -99,9 +92,38 @@ func doTransport(callb func(trans *gofast.Transport)) {
 			panic(err)
 		}
 		n_trans = append(n_trans, trans)
+
 		go func(trans *gofast.Transport) {
 			trans.FlushPeriod(100 * time.Millisecond)
-			callb(trans)
+			trans.SubscribeMessage(&msgPost{}, nil).Handshake()
+			msgpost := &msgPost{data: make([]byte, options.payload)}
+			for i := 0; i < options.payload; i++ {
+				msgpost.data[i] = 'a'
+			}
+			trans.SubscribeMessage(&msgReqsp{}, nil)
+			msgreq := &msgReqsp{data: make([]byte, options.payload)}
+			for i := 0; i < options.payload; i++ {
+				msgreq.data[i] = 'a'
+			}
+			trans.SubscribeMessage(&msgStream{}, nil)
+			msgstrm := &msgStream{data: make([]byte, options.payload)}
+			for i := 0; i < options.payload; i++ {
+				msgstrm.data[i] = 'a'
+			}
+
+			switch options.do {
+			case "post":
+				doPost(trans, options.routines, msgpost)
+			case "request":
+				doRequest(trans, options.routines, msgreq)
+			case "stream":
+				doStream(trans, options.routines, msgstrm)
+			case "random":
+				d, r := options.routines/3, options.routines%3
+				doPost(trans, d, msgpost)
+				doRequest(trans, d, msgreq)
+				doStream(trans, d+r, msgstrm)
+			}
 			wg.Done()
 			trans.Close()
 		}(trans)
@@ -114,16 +136,10 @@ func doTransport(callb func(trans *gofast.Transport)) {
 	fmt.Printf(fmsg, n, m, v, s)
 }
 
-func doPost(trans *gofast.Transport) {
+func doPost(trans *gofast.Transport, routines int, msg gofast.Message) {
 	var wg sync.WaitGroup
 
-	trans.SubscribeMessage(&msgPost{}, nil).Handshake()
-	msg := &msgPost{data: make([]byte, options.payload)}
-	for i := 0; i < options.payload; i++ {
-		msg.data[i] = 'a'
-	}
-
-	for i := 0; i < options.routines; i++ {
+	for i := 0; i < routines; i++ {
 		wg.Add(1)
 		go func() {
 			for j := 0; j < options.count; j++ {
@@ -143,16 +159,10 @@ func doPost(trans *gofast.Transport) {
 	}
 }
 
-func doRequest(trans *gofast.Transport) {
+func doRequest(trans *gofast.Transport, routines int, msg gofast.Message) {
 	var wg sync.WaitGroup
 
-	trans.SubscribeMessage(&msgReqsp{}, nil).Handshake()
-	msg := &msgReqsp{data: make([]byte, options.payload)}
-	for i := 0; i < options.payload; i++ {
-		msg.data[i] = 'a'
-	}
-
-	for i := 0; i < options.routines; i++ {
+	for i := 0; i < routines; i++ {
 		wg.Add(1)
 		go func() {
 			for j := 0; j < options.count; j++ {
@@ -171,16 +181,10 @@ func doRequest(trans *gofast.Transport) {
 	wg.Wait()
 }
 
-func doStream(trans *gofast.Transport) {
+func doStream(trans *gofast.Transport, routines int, msg gofast.Message) {
 	var wg sync.WaitGroup
 
-	trans.SubscribeMessage(&msgStream{}, nil).Handshake()
-	msg := &msgStream{data: make([]byte, options.payload)}
-	for i := 0; i < options.payload; i++ {
-		msg.data[i] = 'a'
-	}
-
-	for i := 0; i < options.routines; i++ {
+	for i := 0; i < routines; i++ {
 		wg.Add(1)
 		go func() {
 			ch := make(chan gofast.Message, 100)
@@ -198,6 +202,7 @@ func doStream(trans *gofast.Transport) {
 					atomic.AddInt64(&received, 1)
 					if atomic.LoadInt64(&received) == int64(options.count+1) {
 						stream.Close()
+						time.Sleep(4 * time.Second)
 						break
 					}
 				}
@@ -256,19 +261,6 @@ func (v *testVersion) Unmarshal(in []byte) int {
 	return n
 }
 
-func printCounts(counts map[string]uint64) {
-	keys := []string{}
-	for key := range counts {
-		keys = append(keys, key)
-	}
-	sort.Sort(sort.StringSlice(keys))
-	s := []string{}
-	for _, key := range keys {
-		s = append(s, fmt.Sprintf("%v:%v", key, counts[key]))
-	}
-	fmt.Println(strings.Join(s, ", "))
-}
-
 func addCounts(n_trans ...*gofast.Transport) map[string]uint64 {
 	counts := n_trans[0].Counts()
 	for _, trans := range n_trans[1:] {
@@ -277,6 +269,19 @@ func addCounts(n_trans ...*gofast.Transport) map[string]uint64 {
 		}
 	}
 	return counts
+}
+
+func printCounts(counts map[string]uint64) {
+	keys := []string{}
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Sort(sort.StringSlice(keys))
+	s := []string{}
+	for _, key := range keys {
+		s = append(s, fmt.Sprintf(`"%v":%v`, key, counts[key]))
+	}
+	fmt.Println("stats {", strings.Join(s, ", "), "}")
 }
 
 func bytes2str(bytes []byte) string {
