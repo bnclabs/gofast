@@ -5,7 +5,7 @@ programming model, for distributed applications.
 [![Coverage Status](https://coveralls.io/repos/prataprc/gofast/badge.png?branch=master&service=github)](https://coveralls.io/github/prataprc/gofast?branch=master)
 [![GoDoc](https://godoc.org/github.com/prataprc/gofast?status.png)](https://godoc.org/github.com/prataprc/gofast)
 
-Aims at following goal.
+Aims at following goal **under development**.
 
 * [CBOR, Concise Binary Object Representation](http://cbor.io/) based protocol
   framing, avoid yet another protocol frame.
@@ -27,6 +27,11 @@ Aims at following goal.
 * and most importantly - does not attempt to solve all the
   world's problem.
 
+dev-notes:
+
+* Transport{} is safe for concurrent access.
+* Stream{} is not safe for concurrent access.
+
 **frame-format**
 
 A frame is encoded as finite length CBOR map with predefined list
@@ -40,7 +45,7 @@ exchange can be one of the following.
 post-request, client post a packet and expects no response:
 
 ```text
-     | 0xd9 0xd9f7 | packet |
+     | 0xd9 0xd9f7 | 0xc6 | packet |
 ```
 
 request-response, client make a request and expects a single response:
@@ -55,10 +60,10 @@ the stream by sending a 0xff:
 
 ```text
 
-     | 0xd9 0xd9f7  | 0x9f | packet1    |
-            | 0xd9 0xd9f7  | packet2    |
+     | 0xd9 0xd9f7         | 0x9f | packet1    |
+            | 0xd9 0xd9f7  | 0xc7 | packet2    |
             ...
-            | 0xd9 0xd9f7  | end-packet |
+            | 0xd9 0xd9f7  | 0xc8 | end-packet |
 ```
 
 * `packet` shall always be encoded as CBOR byte-array.
@@ -139,5 +144,6 @@ end-of-stream:
     <dt>n_rxstream</dt> <dd>number of stream messages received.</dd>
     <dt>n_rxfin</dt>    <dd>number of finish messages received.</dd>
     <dt>n_rxbeats</dt>  <dd>number of heartbeats received.</dd>
-    <dt>n_dropped</dt>  <dd>number of dropped bytes.</dd>
+    <dt>n_dropped</dt>  <dd>bytes dropped.</dd>
+    <dt>n_dropped</dt>  <dd>messages dropped.</dd>
 </dl>
