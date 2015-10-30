@@ -55,8 +55,9 @@ func (t *Transport) syncRx() {
 			atomic.AddUint64(&t.n_rxfin, 1)
 			return
 		} else if rxpkt.finish {
-			fmsg := "%v ##%d uknown stream-fin from remote ...\n"
-			log.Warnf(fmsg, t.logprefix, rxpkt.opaque)
+			//fmsg := "%v ##%d uknown stream-fin from remote ...\n"
+			//log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
+			atomic.AddUint64(&t.n_mdrops, 1)
 			return
 		}
 		//fmsg := "%v received msg %#v streamok:%v\n"
@@ -91,6 +92,7 @@ func (t *Transport) syncRx() {
 		} else {
 			fmsg := "%v uknown rxpkt ##%d for stream ##%d ...\n"
 			log.Warnf(fmsg, t.logprefix, rxpkt.opaque, stream.opaque)
+			atomic.AddUint64(&t.n_mdrops, 1)
 		}
 	}
 
