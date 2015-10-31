@@ -480,7 +480,7 @@ func newconfig(name string, start, end int) map[string]interface{} {
 		"opaque.start": start,
 		"opaque.end":   end,
 		"log.level":    "warn",
-		"gzip.file":    flate.BestSpeed,
+		"gzip.level":   flate.BestSpeed,
 	}
 }
 
