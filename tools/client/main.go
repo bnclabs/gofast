@@ -147,7 +147,7 @@ func doPost(trans *gofast.Transport, routines int, msg gofast.Message) {
 		go func() {
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
-				if err := trans.Post(msg, true); err != nil {
+				if err := trans.Post(msg, false); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
 				}
