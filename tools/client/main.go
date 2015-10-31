@@ -25,6 +25,7 @@ var options struct {
 	conns    int
 	addr     string
 	payload  int
+	tags     string
 	log      string
 }
 
@@ -43,6 +44,8 @@ func argParse() {
 		"log level")
 	flag.IntVar(&options.payload, "payload", 10,
 		"payload size to ping pong.")
+	flag.StringVar(&options.tags, "tags", "",
+		"comma separated list of tags")
 	flag.Parse()
 }
 
@@ -82,7 +85,7 @@ func doTransport() {
 	for i := 0; i < options.conns; i++ {
 		wg.Add(1)
 		config := newconfig("client", 3000, 4000)
-		config["tags"] = ""
+		config["tags"] = options.tags
 		conn, err := net.Dial("tcp", options.addr)
 		if err != nil {
 			panic(err)
@@ -144,7 +147,7 @@ func doPost(trans *gofast.Transport, routines int, msg gofast.Message) {
 		go func() {
 			for j := 0; j < options.count; j++ {
 				since := time.Now()
-				if err := trans.Post(msg, false); err != nil {
+				if err := trans.Post(msg, true); err != nil {
 					fmt.Printf("%v\n", err)
 					panic("exit")
 				}
@@ -226,14 +229,14 @@ func doStream(trans *gofast.Transport, routines int, msg gofast.Message) {
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
-		"buffersize":   1024,
+		"buffersize":   2048,
 		"chansize":     100000,
 		"batchsize":    100,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
 		"log.level":    options.log,
-		"gzip.file":    flate.BestSpeed,
+		"gzip.level":   flate.BestSpeed,
 	}
 }
 

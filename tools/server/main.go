@@ -19,6 +19,7 @@ import "github.com/prataprc/gofast"
 
 var options struct {
 	cpu  int
+	tags string
 	addr string
 	log  string
 }
@@ -28,6 +29,8 @@ func argParse() {
 		"GOMAXPROCS")
 	flag.StringVar(&options.addr, "addr", "127.0.0.1:9998",
 		"number of concurrent routines")
+	flag.StringVar(&options.tags, "tags", "",
+		"comma separated list of tags")
 	flag.StringVar(&options.log, "log", "error",
 		"number of concurrent routines")
 	flag.Parse()
@@ -82,7 +85,7 @@ func main() {
 func runserver(lis net.Listener) {
 	ver := testVersion(1)
 	config := newconfig("server", 1000, 2000)
-	config["tags"] = ""
+	config["tags"] = options.tags
 	for {
 		if conn, err := lis.Accept(); err == nil {
 			fmt.Println("new transport", conn.RemoteAddr(), conn.LocalAddr())
@@ -153,14 +156,14 @@ func runserver(lis net.Listener) {
 func newconfig(name string, start, end int) map[string]interface{} {
 	return map[string]interface{}{
 		"name":         name,
-		"buffersize":   1024,
-		"chansize":     1000,
+		"buffersize":   2048,
+		"chansize":     100000,
 		"batchsize":    100,
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
 		"log.level":    options.log,
-		"gzip.file":    flate.BestSpeed,
+		"gzip.level":   flate.BestSpeed,
 	}
 }
 
