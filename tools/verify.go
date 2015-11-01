@@ -458,14 +458,11 @@ func runclient(cargs []string) map[string]int64 {
 	fmt.Printf("starting client: %s ...\n", strings.Join(cmd.Args, " "))
 	var in, out, er bytes.Buffer
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = &in, &out, &er
-	err := cmd.Run()
-	if err != nil {
-		fmt.Println("client out...")
-		fmt.Println(out.String())
-		fmt.Println("client err...")
-		fmt.Println(er.String())
-		return nil
-	}
+	cmd.Run()
+	fmt.Println("client out...")
+	fmt.Println(out.String())
+	fmt.Println("client err...")
+	fmt.Println(er.String())
 	return getstat(out.String())
 }
 
@@ -505,13 +502,11 @@ func runCmds(cargs, sargs []string) (cstat, sstat map[string]int64) {
 	cmd.Stdout, cmd.Stderr = &out, &er
 	fmt.Printf("starting server: %s ...\n", strings.Join(cmd.Args, " "))
 	go func() {
-		err := cmd.Run()
-		if err != nil {
-			fmt.Println("server out...")
-			fmt.Println(out.String())
-			fmt.Println("server err...")
-			fmt.Println(er.String())
-		}
+		cmd.Run()
+		fmt.Println("server out...")
+		fmt.Println(out.String())
+		fmt.Println("server err...")
+		fmt.Println(er.String())
 	}()
 
 	time.Sleep(100 * time.Millisecond)
