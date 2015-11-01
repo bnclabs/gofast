@@ -11,22 +11,24 @@ import "time"
 import "log"
 import "os"
 
+var conns, rtns, cnts = int64(16), int64(200), int64(10000)
+
 func main() {
 	fmt.Println("===========================================")
 	since := time.Now()
-	conns, rtns, cnts := int64(16), int64(200), int64(10000)
+	//conns, rtns, cnts := int64(16), int64(200), int64(10000)
 	rv := verifyPost(conns, rtns, cnts)
 	fmt.Printf("no. of msg %v in %v\n", conns*rtns*cnts, time.Since(since))
 
 	fmt.Println("===========================================")
 	since = time.Now()
-	conns, rtns, cnts = int64(16), int64(200), int64(10000)
+	//conns, rtns, cnts = int64(16), int64(200), int64(10000)
 	rv += verifyRequest(conns, rtns, cnts)
 	fmt.Printf("no. of msg %v in %v\n", conns*rtns*cnts, time.Since(since))
 
 	fmt.Println("===========================================")
 	since = time.Now()
-	conns, rtns, cnts = int64(16), int64(200), int64(10000)
+	//conns, rtns, cnts = int64(16), int64(200), int64(10000)
 	rv += verifyStream(conns, rtns, cnts)
 	fmt.Println()
 	fmt.Printf("no. of msg %v in %v\n", conns*rtns*cnts, time.Since(since))
@@ -356,18 +358,16 @@ func verifyStream(conns, rtns, cnts int64) (rv int) {
 	return
 }
 
-func verifyRandom() (rv int) {
+func verifyRandom(conns, rtns, cnts int64) (rv int) {
 	var cargs = []string{
 		"-do", "random", "-addr", "localhost:9900",
-		"-conns", strconv.Itoa(rndargs[0]),
-		"-routines", strconv.Itoa(rndargs[1]),
-		"-count", strconv.Itoa(rndargs[2]),
+		"-conns", strconv.Itoa(int(conns)),
+		"-routines", strconv.Itoa(int(rtns)),
+		"-count", strconv.Itoa(int(cnts)),
 	}
 	var sargs = []string{"-addr", "localhost:9900"}
 
 	cstat, sstat := runCmds(cargs, sargs)
-
-	conns, rtns, cnts := int64(rndargs[0]), int64(rndargs[1]), int64(rndargs[2])
 
 	// common
 	if x, y := sstat["n_dropped"], cstat["n_dropped"]; x != 0 || y != 0 {
