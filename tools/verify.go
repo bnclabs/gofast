@@ -30,12 +30,11 @@ func main() {
 	since = time.Now()
 	//conns, rtns, cnts = int64(16), int64(200), int64(10000)
 	rv += verifyStream(conns, rtns, cnts)
-	fmt.Println()
 	fmt.Printf("no. of msg %v in %v\n", conns*rtns*cnts, time.Since(since))
 
-	fmt.Println("===========================================")
+	//fmt.Println("===========================================")
 	//rv += verifyRandom()
-	fmt.Println()
+	//fmt.Println()
 
 	os.Exit(rv)
 }
@@ -458,7 +457,9 @@ func runclient(cargs []string) map[string]int64 {
 	fmt.Printf("starting client: %s ...\n", strings.Join(cmd.Args, " "))
 	var in, out, er bytes.Buffer
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = &in, &out, &er
-	cmd.Run()
+	err := cmd.Run()
+	fmt.Printf("client returned with: %v\n", err)
+	time.Sleep(100 * time.Millisecond)
 	fmt.Println("client out...")
 	fmt.Println(out.String())
 	fmt.Println("client err...")
@@ -501,12 +502,16 @@ func runCmds(cargs, sargs []string) (cstat, sstat map[string]int64) {
 	var out, er bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &er
 	fmt.Printf("starting server: %s ...\n", strings.Join(cmd.Args, " "))
+	donech := make(chan bool)
 	go func() {
-		cmd.Run()
+		err := cmd.Run()
+		fmt.Printf("server returned with: %v\n", err)
+		time.Sleep(100 * time.Millisecond)
 		fmt.Println("server out...")
 		fmt.Println(out.String())
 		fmt.Println("server err...")
 		fmt.Println(er.String())
+		donech <- true
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -520,5 +525,6 @@ func runCmds(cargs, sargs []string) (cstat, sstat map[string]int64) {
 	in.Close()
 	time.Sleep(100 * time.Millisecond)
 	sstat = getstat(out.String())
+	<-donech
 	return
 }
