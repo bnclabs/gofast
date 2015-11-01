@@ -11,11 +11,6 @@ import "time"
 import "log"
 import "os"
 
-var postargs = []int{16, 200, 10000}
-var reqargs = []int{16, 200, 10000}
-var strmargs = []int{16, 200, 10000}
-var rndargs = []int{16, 200, 10000}
-
 func main() {
 	fmt.Println("===========================================")
 	since := time.Now()
