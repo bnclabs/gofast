@@ -68,10 +68,16 @@ the stream by sending a 0xff:
 
 * `packet` shall always be encoded as CBOR byte-array.
 * the maximum length of a packet can be 4GB.
-* 0x91 denotes an array of single item, a special meaning for new
+* 0xc6 is gofast reserved tag (tagvalue-6) to denote that the following
+  packet is a post.
+* 0x91 denotes a cbor array of single item, a special meaning for new
   request that expects a single response from peer.
-* 0x9f denotes an array of indefinite items, a special meaning
-  for a new stream that starts a bi-directional exchange.
+* 0x9f denotes a cbor array of indefinite items, a special meaning
+  for a new request that starts a bi-directional stream.
+* 0xc7 is gofast reserved tag (tagvalue-7) to denote that the following
+  package is part of a stream.
+* 0xc8 is gofast reserved tag (tagvalue-8) to denote that this packet
+  is a end-packet closing the bi-directional stream.
 
 except for post-request, the exchange between client and server is always
 symmetrical.
