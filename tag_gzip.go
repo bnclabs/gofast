@@ -6,8 +6,8 @@ import "compress/gzip"
 import "bytes"
 
 func make_gzip(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn) {
-	level := config["gzip.level"].(int)
 	enc := func(in, out []byte) int {
+		level := config["gzip.level"].(int)
 		if len(in) == 0 { // empty input
 			return 0
 		}
