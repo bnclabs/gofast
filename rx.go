@@ -188,7 +188,7 @@ func (t *Transport) unframepkt(
 		log.Infof("%v doRx() Closed connection", t.logprefix)
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
-	} else if err != nil || m != (ln-n) {
+	} else if err != nil || m != (int(ln)-n) {
 		log.Infof("%v reading packet %v,%v:%v\n", t.logprefix, ln, n, err)
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
@@ -229,7 +229,8 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		return nil
 	}
 	n := 1
-	var v, id int
+	var v int
+	var id int64
 	var data []byte
 	for (n < msglen-1) && msgdata[n] != 0xff {
 		tag, k := cborItemLength(msgdata[n:])
@@ -241,8 +242,8 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		case tagData:
 			ln, m := cborItemLength(msgdata[n:])
 			n += m
-			data = msgdata[n : n+ln]
-			n += ln
+			data = msgdata[n : n+int(ln)]
+			n += int(ln)
 		default:
 			log.Warnf("%v unknown tag in header %v,%v\n", t.logprefix, n, tag)
 		}
@@ -317,7 +318,7 @@ func readtp(payload []byte) (uint64, []byte) {
 	}
 	ln, m := cborItemLength(payload[n:])
 	n += m
-	return uint64(tag), payload[n : n+ln]
+	return uint64(tag), payload[n : n+int(ln)]
 }
 
 func (r *rxpacket) String() string {

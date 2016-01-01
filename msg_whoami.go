@@ -49,21 +49,21 @@ func (msg *Whoami) Decode(in []byte) {
 	// name
 	ln, m := cborItemLength(in[n:])
 	n += m
-	msg.name = string(in[n : n+ln])
-	n += ln
+	msg.name = string(in[n : n+int(ln)])
+	n += int(ln)
 	// version
 	typeOfMsg := reflect.ValueOf(msg.transport.version).Elem().Type()
 	msg.version = reflect.New(typeOfMsg).Interface().(Version)
 	n += msg.version.Unmarshal(in[n:])
 	// buffersize
 	ln, m = cborItemLength(in[n:])
-	msg.buffersize = ln
+	msg.buffersize = int(ln)
 	n += m
 	// tags
 	ln, m = cborItemLength(in[n:])
 	n += m
-	msg.tags = string(in[n : n+ln])
-	n += ln
+	msg.tags = string(in[n : n+int(ln)])
+	n += int(ln)
 }
 
 func (msg *Whoami) String() string {

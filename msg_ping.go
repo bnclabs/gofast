@@ -28,7 +28,7 @@ func (msg *Ping) Decode(in []byte) {
 	n += 1
 	ln, m := cborItemLength(in[n:])
 	n += m
-	msg.echo = string(in[n : n+ln])
+	msg.echo = string(in[n : n+int(ln)])
 	return
 }
 

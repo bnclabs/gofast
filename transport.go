@@ -50,36 +50,6 @@ type Transporter interface { // facilitates unit testing
 
 // Transport is a peer-to-peer transport enabler.
 type Transport struct {
-	name     string
-	version  Version
-	peerver  Version
-	tagenc   map[uint64]tagfn   // tagid -> func
-	tagdec   map[uint64]tagfn   // tagid -> func
-	messages map[uint64]Message // msgid -> message
-	handlers map[uint64]RequestCallback
-	conn     Transporter
-	aliveat  int64
-	txch     chan *txproto
-	rxch     chan rxpacket
-	killch   chan bool
-	// 0 no handshake
-	// 1 oneway handshake
-	// 2 bidirectional handshake
-	xchngok int64
-
-	// mempools
-	strmpool chan *Stream // for locally initiated streams
-	p_rqrch  chan chan Message
-	p_txcmd  *sync.Pool
-	p_txacmd *sync.Pool
-	p_rxstrm *sync.Pool
-	msgpools map[uint64]*sync.Pool
-
-	// configuration
-	config     map[string]interface{}
-	buffersize int
-	logprefix  string
-
 	// statistics
 	n_tx       uint64 // number of packets transmitted
 	n_flushes  uint64 // number of times message-batches where flushed
@@ -101,6 +71,37 @@ type Transport struct {
 	n_rxbeats  uint64 // number of heartbeats received
 	n_dropped  uint64 // number of dropped bytes
 	n_mdrops   uint64 // number of dropped messages
+	// 0 no handshake
+	// 1 oneway handshake
+	// 2 bidirectional handshake
+	xchngok int64
+
+	// fields.
+	name     string
+	version  Version
+	peerver  Version
+	tagenc   map[uint64]tagfn   // tagid -> func
+	tagdec   map[uint64]tagfn   // tagid -> func
+	messages map[uint64]Message // msgid -> message
+	handlers map[uint64]RequestCallback
+	conn     Transporter
+	aliveat  int64
+	txch     chan *txproto
+	rxch     chan rxpacket
+	killch   chan bool
+
+	// mempools
+	strmpool chan *Stream // for locally initiated streams
+	p_rqrch  chan chan Message
+	p_txcmd  *sync.Pool
+	p_txacmd *sync.Pool
+	p_rxstrm *sync.Pool
+	msgpools map[uint64]*sync.Pool
+
+	// configuration
+	config     map[string]interface{}
+	buffersize int
+	logprefix  string
 }
 
 //---- transport initialization APIs

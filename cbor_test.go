@@ -12,11 +12,11 @@ func TestCborHdr(t *testing.T) {
 }
 
 func TestValuint642cbor(t *testing.T) {
-	out := make([]byte, 9)
-	if n := valuint642cbor(4294967296, out); n != 9 {
-		t.Errorf("expected %v, got %v", 9, n)
-	} else if ln, _ := cborItemLength(out[:n]); ln != 4294967296 {
-		t.Errorf("expected %v, got %v", 4294967296, ln)
+	out := make([]byte, 5)
+	if n := valuint642cbor(uint64(429496729), out); n != 5 {
+		t.Errorf("expected %v, got %v", 5, n)
+	} else if ln, _ := cborItemLength(out[:n]); uint64(ln) != uint64(429496729) {
+		t.Errorf("expected %v, got %v", uint64(429496729), ln)
 	}
 }
 
