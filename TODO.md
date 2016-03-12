@@ -8,3 +8,4 @@
 * check whether select{} blocks are costly ?
 * support snappy compression.
 * try gofast on raspberry-pi.
+- run travis for go1.4, go1.5, go1.6
