@@ -62,7 +62,7 @@ func TestCsv2strings(t *testing.T) {
 
 func TestStackTrace(t *testing.T) {
 	s := getStackTrace(0, debug.Stack())
-	if !strings.Contains(s, "getStackTrace") {
+	if !strings.Contains(s, "debug.Stack") {
 		t.Errorf("stack-trace %v", s)
 	}
 }
