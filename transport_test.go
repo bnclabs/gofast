@@ -66,7 +66,7 @@ func TestSubscribeMessage(t *testing.T) {
 				t.Errorf("expected panic")
 			}
 		}()
-		transc.SubscribeMessage(NewPing("should failed"), nil)
+		transc.SubscribeMessage(newPing("should failed"), nil)
 	}()
 	lis.Close()
 	transc.Close()
@@ -141,10 +141,10 @@ func TestPing(t *testing.T) {
 
 	// test
 	refs := "hello world"
-	if ping, err := transc.Ping(refs); err != nil {
+	if echo, err := transc.Ping(refs); err != nil {
 		t.Error(err)
-	} else if ping.echo != refs {
-		t.Errorf("expected atleast %v, got %v", refs, string(ping.echo))
+	} else if echo != refs {
+		t.Errorf("expected atleast %v, got %v", refs, echo)
 	}
 	counts := transc.Counts()
 	if ref, n := uint64(3), counts["n_flushes"]; n != ref {
@@ -171,7 +171,8 @@ func TestWhoami(t *testing.T) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
-	wai, err := transc.Whoami()
+	msg, err := transc.Whoami()
+	wai := msg.(*whoamiMsg)
 	if err != nil {
 		t.Error(err)
 	} else if string(wai.name) != "server" {

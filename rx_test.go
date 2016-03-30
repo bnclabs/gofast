@@ -36,8 +36,8 @@ func TestUnmessage(t *testing.T) {
 
 	_, bs := readtp(payload)
 	// unmessage
-	ref := NewWhoami(transc)
-	msg := transc.unmessage(100, bs).(*Whoami)
+	ref := newWhoami(transc)
+	msg := transc.unmessage(100, bs).(*whoamiMsg)
 	if !reflect.DeepEqual(ref, msg) {
 		t.Errorf("expected %#v, got %#v", ref, msg)
 	}

@@ -265,7 +265,7 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 		return nil
 	}
 	obj := pool.Get()
-	if m, ok := obj.(*Whoami); ok { // hack to make whoami aware of transport
+	if m, ok := obj.(*whoamiMsg); ok { // hack to make whoami aware of transport
 		m.transport = t
 	}
 	msg := obj.(Message)

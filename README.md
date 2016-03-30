@@ -124,8 +124,8 @@ end-of-stream:
     <dt>tags</dt>         <dd>comma separated list of tags to apply, in specified order.</dd>
     <dt>opaque.start</dt> <dd>starting opaque range, inclusive.</dd>
     <dt>opaque.end</dt>   <dd>ending opaque range, inclusive.</dd>
-    <dt>log.level</dt>    <dd>log level to use for DefaultLogger</dd>
-    <dt>log.file</dt>     <dd>log file to use for DefaultLogger, if empty stdout is used.</dd>
+    <dt>log.level</dt>    <dd>log level to use for default-logger</dd>
+    <dt>log.file</dt>     <dd>log file to use for default-logger, if empty stdout is used.</dd>
     <dt>gzip.level</dt>   <dd>gzip compression level, if `tags` contain "gzip".</dd>
 </dl>
 

@@ -17,7 +17,7 @@ func TestWaiEncode(t *testing.T) {
 	ref := []byte{
 		159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2, 0, 64, 255,
 	}
-	wai := NewWhoami(transc)
+	wai := newWhoami(transc)
 	if n := wai.Encode(out); bytes.Compare(ref, out[:n]) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
 	}
@@ -33,7 +33,7 @@ func TestWaiDecode(t *testing.T) {
 	transv := <-serverch
 
 	ver, out := testVersion(1), make([]byte, 1024)
-	wai, ref := &Whoami{}, NewWhoami(transc)
+	wai, ref := &whoamiMsg{}, newWhoami(transc)
 	n := ref.Encode(out)
 	wai.version, wai.transport = &ver, transc
 	wai.Decode(out[:n])
@@ -51,9 +51,9 @@ func TestWhoamiMisc(t *testing.T) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	wai := NewWhoami(transc)
-	if wai.String() != "Whoami" {
-		t.Errorf("expected Whoami, got %v", wai.String())
+	wai := newWhoami(transc)
+	if wai.String() != "whoamiMsg" {
+		t.Errorf("expected whoamiMsg, got %v", wai.String())
 	}
 	if ref := "client, 512"; ref != wai.Repr() {
 		t.Errorf("expected %v, got %v", ref, wai.Repr())
@@ -70,7 +70,7 @@ func BenchmarkWaiEncode(b *testing.B) {
 	transv := <-serverch
 
 	out := make([]byte, 1024)
-	wai := NewWhoami(transc)
+	wai := newWhoami(transc)
 	for i := 0; i < b.N; i++ {
 		wai.Encode(out)
 	}
@@ -86,10 +86,10 @@ func BenchmarkWaiDecode(b *testing.B) {
 	transv := <-serverch
 
 	ver, out := testVersion(1), make([]byte, 1024)
-	ref := NewWhoami(transc)
+	ref := newWhoami(transc)
 	ref.tags = "gzip"
 	n := ref.Encode(out)
-	wai := &Whoami{}
+	wai := &whoamiMsg{}
 	wai.version, wai.transport = &ver, transc
 	for i := 0; i < b.N; i++ {
 		wai.Decode(out[:n])

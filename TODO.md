@@ -1,6 +1,7 @@
 * test case with 1-byte packet.
+* sometimes the test case throw the following error.
+    127.0.0.1:9117<->127.0.0.1:51824] reading prefix: 4,unexpected EOF
 * logs are commented, wrap them under log flag.
-* why are we exporting DefaultLogger ?
 * tools/posts similar to tools/requests
 * tools/streams similar to tools/requests
 * document reserved tags.

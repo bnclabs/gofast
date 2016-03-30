@@ -4,8 +4,8 @@ import "strings"
 import "reflect"
 import "strconv"
 
-// Whoami is predefined message to exchange peer information.
-type Whoami struct {
+// whoamiMsg is predefined message to exchange peer information.
+type whoamiMsg struct {
 	transport  *Transport
 	name       string
 	version    Version
@@ -13,8 +13,8 @@ type Whoami struct {
 	tags       string
 }
 
-func NewWhoami(t *Transport) *Whoami {
-	msg := &Whoami{
+func newWhoami(t *Transport) *whoamiMsg {
+	msg := &whoamiMsg{
 		transport:  t,
 		name:       t.name,
 		version:    t.version,
@@ -26,11 +26,11 @@ func NewWhoami(t *Transport) *Whoami {
 	return msg
 }
 
-func (msg *Whoami) Id() uint64 {
+func (msg *whoamiMsg) Id() uint64 {
 	return msgWhoami
 }
 
-func (msg *Whoami) Encode(out []byte) int {
+func (msg *whoamiMsg) Encode(out []byte) int {
 	n := arrayStart(out)
 	n += valbytes2cbor(str2bytes(msg.name), out[n:])
 	n += msg.version.Marshal(out[n:])
@@ -40,7 +40,7 @@ func (msg *Whoami) Encode(out []byte) int {
 	return n
 }
 
-func (msg *Whoami) Decode(in []byte) {
+func (msg *whoamiMsg) Decode(in []byte) {
 	n := 0
 	if in[n] != 0x9f {
 		return
@@ -66,11 +66,11 @@ func (msg *Whoami) Decode(in []byte) {
 	n += int(ln)
 }
 
-func (msg *Whoami) String() string {
-	return "Whoami"
+func (msg *whoamiMsg) String() string {
+	return "whoamiMsg"
 }
 
-func (msg *Whoami) Repr() string {
+func (msg *whoamiMsg) Repr() string {
 	items := [2]string{msg.name, strconv.Itoa(msg.buffersize)}
 	return strings.Join(items[:], ", ")
 }

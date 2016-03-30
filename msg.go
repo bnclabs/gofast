@@ -45,24 +45,24 @@ type Version interface {
 	Unmarshal(out []byte) (n int)
 }
 
-// handler for Whoami, Ping, Heartbeat messages.
+// handler for whoamiMsg, pingMsg, heartbeatMsg messages.
 func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 	defer t.Free(msg)
 
 	switch m := msg.(type) {
-	case *Heartbeat:
+	case *heartbeatMsg:
 		atomic.StoreInt64(&t.aliveat, time.Now().UnixNano())
 		atomic.AddUint64(&t.n_rxbeats, 1)
 
-	case *Ping:
-		rv := NewPing(m.echo) // respond back
+	case *pingMsg:
+		rv := newPing(m.echo) // respond back
 		if err := stream.Response(rv, false /*flush*/); err != nil {
 			log.Errorf("%v response-ping: %v\n", t.logprefix, err)
 		}
 
-	case *Whoami:
+	case *whoamiMsg:
 		t.peerver = m.version // TODO: make this atomic
-		rv := NewWhoami(t)    // respond back
+		rv := newWhoami(t)    // respond back
 		if err := stream.Response(rv, true /*flush*/); err != nil {
 			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)
 		} else {

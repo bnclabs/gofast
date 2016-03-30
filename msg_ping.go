@@ -1,26 +1,26 @@
 package gofast
 
-// Ping is predefined message to ping-pong with remote.
-type Ping struct {
+// pingMsg is predefined message to ping-pong with remote.
+type pingMsg struct {
 	echo string
 }
 
-func NewPing(echo string) *Ping {
-	return &Ping{echo: echo}
+func newPing(echo string) *pingMsg {
+	return &pingMsg{echo: echo}
 }
 
-func (msg *Ping) Id() uint64 {
+func (msg *pingMsg) Id() uint64 {
 	return msgPing
 }
 
-func (msg *Ping) Encode(out []byte) int {
+func (msg *pingMsg) Encode(out []byte) int {
 	n := arrayStart(out)
 	n += valbytes2cbor(str2bytes(msg.echo), out[n:])
 	n += breakStop(out[n:])
 	return n
 }
 
-func (msg *Ping) Decode(in []byte) {
+func (msg *pingMsg) Decode(in []byte) {
 	n := 0
 	if in[n] != 0x9f {
 		return
@@ -32,10 +32,10 @@ func (msg *Ping) Decode(in []byte) {
 	return
 }
 
-func (msg *Ping) String() string {
-	return "Ping"
+func (msg *pingMsg) String() string {
+	return "pingMsg"
 }
 
-func (msg *Ping) Repr() string {
+func (msg *pingMsg) Repr() string {
 	return string(msg.echo)
 }

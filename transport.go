@@ -158,9 +158,9 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 	}
 
 	t.setOpaqueRange(uint64(opqstart), uint64(opqend))
-	t.subscribeMessage(&Whoami{}, t.msghandler)
-	t.subscribeMessage(&Ping{}, t.msghandler)
-	t.subscribeMessage(&Heartbeat{}, t.msghandler)
+	t.subscribeMessage(&whoamiMsg{}, t.msghandler)
+	t.subscribeMessage(&pingMsg{}, t.msghandler)
+	t.subscribeMessage(&heartbeatMsg{}, t.msghandler)
 
 	// educate tranport with configured tag decoders.
 	tagcsv, _ := config["tags"]
@@ -188,9 +188,10 @@ func (t *Transport) Handshake() *Transport {
 		panic(err)
 	}
 
-	t.peerver = msg.version // TODO: should be atomic ?
+	wai := msg.(*whoamiMsg)
+	t.peerver = wai.version // TODO: should be atomic ?
 	// parse tag list, tags shall be applied in the specified order.
-	for _, tag := range t.getTags(msg.tags, []string{}) {
+	for _, tag := range t.getTags(wai.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
 			tagid, enc, _ := factory(t, t.config)
 			t.tagenc[tagid] = enc
@@ -261,7 +262,7 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 	go func() {
 		for {
 			<-tick
-			msg := NewHeartbeat(count)
+			msg := newHeartbeat(count)
 			if t.Post(msg, true /*flush*/) != nil {
 				return
 			}
@@ -334,23 +335,25 @@ func (t *Transport) Counts() map[string]uint64 {
 //---- transport APIs
 
 // Whoami shall return remote transport's information.
-func (t *Transport) Whoami() (*Whoami, error) {
-	msg := NewWhoami(t)
+func (t *Transport) Whoami() (Message, error) {
+	msg := newWhoami(t)
 	resp, err := t.Request(msg, true /*flush*/)
 	if err != nil {
 		return nil, err
 	}
-	return resp.(*Whoami), nil
+	return resp, nil
 }
 
 // Ping pong with peer.
-func (t *Transport) Ping(echo string) (*Ping, error) {
-	msg := NewPing(echo)
+func (t *Transport) Ping(echo string) (string, error) {
+	msg := newPing(echo)
 	resp, err := t.Request(msg, true /*flush*/)
 	if err != nil {
-		return nil, err
+		return "", err
+	} else if resp == nil {
+		return "", fmt.Errorf("empty pong")
 	}
-	return resp.(*Ping), nil
+	return resp.(*pingMsg).echo, nil
 }
 
 // Post request to peer.

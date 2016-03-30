@@ -19,7 +19,7 @@ func TestPost(t *testing.T) {
 	}
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewWhoami(transc)
+	wai := newWhoami(transc)
 	n := transc.post(wai, stream, out)
 	if bytes.Compare(out[:n], ref) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
@@ -42,7 +42,7 @@ func TestRequest(t *testing.T) {
 	}
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewWhoami(transc)
+	wai := newWhoami(transc)
 	n := transc.request(wai, stream, out)
 	if bytes.Compare(out[:n], ref) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
@@ -65,7 +65,7 @@ func TestResponse(t *testing.T) {
 	}
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewWhoami(transc)
+	wai := newWhoami(transc)
 	n := transc.response(wai, stream, out)
 	if bytes.Compare(out[:n], ref) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
@@ -88,7 +88,7 @@ func TestStart(t *testing.T) {
 	}
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewWhoami(transc)
+	wai := newWhoami(transc)
 	n := transc.start(wai, stream, out)
 	if bytes.Compare(out[:n], ref) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
@@ -111,7 +111,7 @@ func TestStream(t *testing.T) {
 	}
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewWhoami(transc)
+	wai := newWhoami(transc)
 	n := transc.stream(wai, stream, out)
 	if bytes.Compare(out[:n], ref) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
@@ -152,7 +152,7 @@ func TestFramePkt(t *testing.T) {
 	}
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewWhoami(transc)
+	wai := newWhoami(transc)
 	n := transc.framepkt(wai, stream, out)
 	if bytes.Compare(out[:n], ref) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
@@ -170,10 +170,10 @@ func BenchmarkPostPkt(b *testing.B) {
 
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewPing("hello world")
+	msg := newPing("hello world")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		transc.post(wai, stream, out)
+		transc.post(msg, stream, out)
 	}
 	lis.Close()
 	transc.Close()
@@ -188,10 +188,10 @@ func BenchmarkRequestPkt(b *testing.B) {
 
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewPing("hello world")
+	msg := newPing("hello world")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		transc.request(wai, stream, out)
+		transc.request(msg, stream, out)
 	}
 	lis.Close()
 	transc.Close()
@@ -206,10 +206,10 @@ func BenchmarkResponsePkt(b *testing.B) {
 
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewPing("hello world")
+	msg := newPing("hello world")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		transc.response(wai, stream, out)
+		transc.response(msg, stream, out)
 	}
 	lis.Close()
 	transc.Close()
@@ -224,10 +224,10 @@ func BenchmarkStartPkt(b *testing.B) {
 
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewPing("hello world")
+	msg := newPing("hello world")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		transc.start(wai, stream, out)
+		transc.start(msg, stream, out)
 	}
 	lis.Close()
 	transc.Close()
@@ -242,10 +242,10 @@ func BenchmarkStreamPkt(b *testing.B) {
 
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewPing("hello world")
+	msg := newPing("hello world")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		transc.stream(wai, stream, out)
+		transc.stream(msg, stream, out)
 	}
 	lis.Close()
 	transc.Close()
@@ -277,10 +277,10 @@ func BenchmarkFramePkt(b *testing.B) {
 
 	stream := transc.getstream(nil)
 	out := make([]byte, 1024)
-	wai := NewPing("hello world")
+	msg := newPing("hello world")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		transc.framepkt(wai, stream, out)
+		transc.framepkt(msg, stream, out)
 	}
 	lis.Close()
 	transc.Close()
