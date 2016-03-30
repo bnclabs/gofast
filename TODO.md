@@ -1,4 +1,6 @@
 * test case with 1-byte packet.
+* logs are commented, wrap them under log flag.
+* why are we exporting DefaultLogger ?
 * tools/posts similar to tools/requests
 * tools/streams similar to tools/requests
 * document reserved tags.

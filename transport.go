@@ -11,14 +11,19 @@
 // the transport. It is also expected that distributed systems must
 // pre-define messages and their Ids.
 //
+// message ids, need to be unique for every type of message transfered over
+// using gofast protocol, following id range is reserved for internal use:
+//
+//		0x00 - 0x0F -- reserved messages ids.
+//
 // transport instantiation steps:
 //
 //		t := NewTransport(conn, &ver, nil, config)
 //		t.SubscribeMessage(&msg1, handler1) // subscribe message
 //		t.SubscribeMessage(&msg2, handler2) // subscribe another message
 //		t.Handshake()
-//		t.FlushPeriod(tm)				  // optional
-//		t.SendHeartbeat(tm)				  // optional
+//		t.FlushPeriod(tm)                   // optional
+//		t.SendHeartbeat(tm)                 // optional
 //
 // incoming messages are created from *sync.Pool, handlers (like handler1 and
 // handler2 in the above eg.) can return the message back to the pool using
@@ -50,7 +55,7 @@ type Transporter interface { // facilitates unit testing
 
 // Transport is a peer-to-peer transport enabler.
 type Transport struct {
-	// statistics
+	// statistics, keep this 8-byte aligned.
 	n_tx       uint64 // number of packets transmitted
 	n_flushes  uint64 // number of times message-batches where flushed
 	n_txbyte   uint64 // number of bytes transmitted on socket
@@ -71,6 +76,7 @@ type Transport struct {
 	n_rxbeats  uint64 // number of heartbeats received
 	n_dropped  uint64 // number of dropped bytes
 	n_mdrops   uint64 // number of dropped messages
+
 	// 0 no handshake
 	// 1 oneway handshake
 	// 2 bidirectional handshake
@@ -90,7 +96,7 @@ type Transport struct {
 	rxch     chan rxpacket
 	killch   chan bool
 
-	// mempools
+	// memory pools
 	strmpool chan *Stream // for locally initiated streams
 	p_rqrch  chan chan Message
 	p_txcmd  *sync.Pool

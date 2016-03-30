@@ -3,15 +3,18 @@ package gofast
 import "sync/atomic"
 import "time"
 
-// Message interface, to be implemented by all messages that are
-// exchanged via gofast-transport.
+// Message interface, implemented by all messages exchanged via
+// gofast-transport.
 type Message interface {
 	// Id return a unique message identifier.
 	Id() uint64
+
 	// Encode message to binary blob.
 	Encode(out []byte) int
+
 	// Decode this message from a binary blob.
 	Decode(in []byte)
+
 	// String representation of this message, used for logging.
 	String() string
 }
@@ -28,16 +31,21 @@ const (
 type Version interface {
 	// Less than supplied version.
 	Less(ver Version) bool
+
 	// Equal to the supplied version.
 	Equal(ver Version) bool
-	// String representation of message, used for logging.
+
+	// String representation of version, for logging.
 	String() string
+
 	// Marshal version into array of bytes.
 	Marshal(out []byte) (n int)
+
 	// Unmarshal array of bytes to version object.
 	Unmarshal(out []byte) (n int)
 }
 
+// handler for Whoami, Ping, Heartbeat messages.
 func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 	defer t.Free(msg)
 
