@@ -40,15 +40,15 @@ func main() {
 }
 
 func verifyPost(conns, rtns, cnts int64) (rv int) {
-	var cargs = []string{
+	var clientargs = []string{
 		"-do", "post", "-addr", "localhost:9900",
 		"-conns", strconv.Itoa(int(conns)),
 		"-routines", strconv.Itoa(int(rtns)),
 		"-count", strconv.Itoa(int(cnts)),
 	}
-	var sargs = []string{"-addr", "localhost:9900"}
+	var serverargs = []string{"-addr", "localhost:9900"}
 
-	cstat, sstat := runCmds(cargs, sargs)
+	cstat, sstat := runCmds(clientargs, serverargs)
 
 	// common
 	if x, y := sstat["n_dropped"], cstat["n_dropped"]; x != 0 || y != 0 {
@@ -141,15 +141,15 @@ func verifyPost(conns, rtns, cnts int64) (rv int) {
 }
 
 func verifyRequest(conns, rtns, cnts int64) (rv int) {
-	var cargs = []string{
+	var clientargs = []string{
 		"-do", "request", "-addr", "localhost:9900",
 		"-conns", strconv.Itoa(int(conns)),
 		"-routines", strconv.Itoa(int(rtns)),
 		"-count", strconv.Itoa(int(cnts)),
 	}
-	var sargs = []string{"-addr", "localhost:9900"}
+	var serverargs = []string{"-addr", "localhost:9900"}
 
-	cstat, sstat := runCmds(cargs, sargs)
+	cstat, sstat := runCmds(clientargs, serverargs)
 
 	// common
 	if x, y := sstat["n_dropped"], cstat["n_dropped"]; x != 0 || y != 0 {
@@ -242,15 +242,15 @@ func verifyRequest(conns, rtns, cnts int64) (rv int) {
 }
 
 func verifyStream(conns, rtns, cnts int64) (rv int) {
-	var cargs = []string{
+	var clientargs = []string{
 		"-do", "stream", "-addr", "localhost:9900",
 		"-conns", strconv.Itoa(int(conns)),
 		"-routines", strconv.Itoa(int(rtns)),
 		"-count", strconv.Itoa(int(cnts)),
 	}
-	var sargs = []string{"-addr", "localhost:9900"}
+	var serverargs = []string{"-addr", "localhost:9900"}
 
-	cstat, sstat := runCmds(cargs, sargs)
+	cstat, sstat := runCmds(clientargs, serverargs)
 
 	// common
 	if x, y := sstat["n_dropped"], cstat["n_dropped"]; x != 0 || y != 0 {
@@ -358,15 +358,15 @@ func verifyStream(conns, rtns, cnts int64) (rv int) {
 }
 
 func verifyRandom(conns, rtns, cnts int64) (rv int) {
-	var cargs = []string{
+	var clientargs = []string{
 		"-do", "random", "-addr", "localhost:9900",
 		"-conns", strconv.Itoa(int(conns)),
 		"-routines", strconv.Itoa(int(rtns)),
 		"-count", strconv.Itoa(int(cnts)),
 	}
-	var sargs = []string{"-addr", "localhost:9900"}
+	var serverargs = []string{"-addr", "localhost:9900"}
 
-	cstat, sstat := runCmds(cargs, sargs)
+	cstat, sstat := runCmds(clientargs, serverargs)
 
 	// common
 	if x, y := sstat["n_dropped"], cstat["n_dropped"]; x != 0 || y != 0 {
@@ -452,12 +452,12 @@ func verifyRandom(conns, rtns, cnts int64) (rv int) {
 	return
 }
 
-func runclient(cargs []string) map[string]int64 {
-	cmd := exec.Command("./client/client", cargs...)
+func runclient(clientargs []string) map[string]int64 {
+	cmd := exec.Command("./client/client", clientargs...)
 	fmt.Printf("starting client: %s ...\n", strings.Join(cmd.Args, " "))
 	var in, out, er bytes.Buffer
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = &in, &out, &er
-	err := cmd.Run()
+	err := cmd.Run() // block and run the client
 	fmt.Printf("client returned with: %v\n", err)
 	time.Sleep(100 * time.Millisecond)
 	fmt.Println("client out...")
@@ -493,8 +493,8 @@ func printstats(cstat, sstat map[string]int64) {
 	}
 }
 
-func runCmds(cargs, sargs []string) (cstat, sstat map[string]int64) {
-	cmd := exec.Command("./server/server", sargs...)
+func runCmds(clientargs, serverargs []string) (cstat, sstat map[string]int64) {
+	cmd := exec.Command("./server/server", serverargs...)
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		log.Fatal(err)
@@ -504,7 +504,7 @@ func runCmds(cargs, sargs []string) (cstat, sstat map[string]int64) {
 	fmt.Printf("starting server: %s ...\n", strings.Join(cmd.Args, " "))
 	donech := make(chan bool)
 	go func() {
-		err := cmd.Run()
+		err := cmd.Run() // block and run the server
 		fmt.Printf("server returned with: %v\n", err)
 		time.Sleep(100 * time.Millisecond)
 		fmt.Println("server out...")
@@ -516,7 +516,7 @@ func runCmds(cargs, sargs []string) (cstat, sstat map[string]int64) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	cstat = runclient(cargs)
+	cstat = runclient(clientargs)
 	fmt.Println("... done")
 
 	time.Sleep(300 * time.Millisecond)

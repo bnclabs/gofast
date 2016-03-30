@@ -1,3 +1,5 @@
+* fix variance and sd computation.
+    var:-4h19m32.880533093s sd:-2562047h47m16.854775808s
 * test case with 1-byte packet.
 * sometimes the test case throw the following error.
     127.0.0.1:9117<->127.0.0.1:51824] reading prefix: 4,unexpected EOF
