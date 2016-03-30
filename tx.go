@@ -13,21 +13,21 @@ func (t *Transport) post(msg Message, stream *Stream, out []byte) (n int) {
 	return n
 }
 
-// | 0xd9 0xd9f7 | 0x91 | packet |
+// | 0xd9 0xd9f7 | 0x81 | packet |
 func (t *Transport) request(msg Message, stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txreq, 1)
 	n = tag2cbor(tagCborPrefix, out)      // prefix
-	out[n] = 0x91                         // 0x91 (request, 0b100_10001 <arr,17>)
+	out[n] = 0x81                         // 0x81 (request, 0b100_10001 <arr,1>)
 	n += 1                                //
 	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
-// | 0xd9 0xd9f7 | 0x91 | packet |
+// | 0xd9 0xd9f7 | 0x81 | packet |
 func (t *Transport) response(msg Message, stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txresp, 1)
 	n = tag2cbor(tagCborPrefix, out)      // prefix
-	out[n] = 0x91                         // 0x91 (response, 0b100_10001 <arr,17>)
+	out[n] = 0x81                         // 0x81 (response, 0b100_10001 <arr,1>)
 	n += 1                                //
 	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n

@@ -172,7 +172,7 @@ func (t *Transport) unframepkt(
 	//log.Debugf("%v doRx() io.ReadFull() first %v\n", t.logprefix, pad)
 	// check cbor-prefix
 	n = 3
-	post, request := pad[n] == 0xc6, pad[n] == 0x91
+	post, request := pad[n] == 0xc6, pad[n] == 0x81
 	start, stream, finish := pad[n] == 0x9f, pad[n] == 0xc7, pad[n] == 0xc8
 	n += 1
 

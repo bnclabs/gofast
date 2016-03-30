@@ -52,7 +52,7 @@ request-response, client make a request and expects a single response:
 
 ```text
 
-     | 0xd9 0xd9f7 | 0x91 | packet |
+     | 0xd9 0xd9f7 | 0x81 | packet |
 ```
 
 bi-directional streaming, where client and server will have to close
@@ -70,7 +70,7 @@ the stream by sending a 0xff:
 * the maximum length of a packet can be 4GB.
 * 0xc6 is gofast reserved tag (tagvalue-6) to denote that the following
   packet is a post.
-* 0x91 denotes a cbor array of single item, a special meaning for new
+* 0x81 denotes a cbor array of single item, a special meaning for new
   request that expects a single response from peer.
 * 0x9f denotes a cbor array of indefinite items, a special meaning
   for a new request that starts a bi-directional stream.
