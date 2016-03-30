@@ -175,14 +175,28 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 	log.Verbosef("%v pre-initialized ...\n", t.logprefix)
 
 	go t.doTx()
-	go t.syncRx() // shall spawn another go-routine doRx().
 
 	log.Infof("%v started ...\n", t.logprefix)
 	return t, nil
 }
 
+// SubscribeMessage that shall be exchanged via this transport. Only
+// subscribed messages can be exchanged.
+func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Transport {
+	id := msg.Id()
+	if isReservedMsg(id) {
+		panic(fmt.Errorf("message id %v reserved", id))
+	}
+	return t.subscribeMessage(msg, handler)
+}
+
 // Handshake with remote, shall be called after NewTransport().
 func (t *Transport) Handshake() *Transport {
+
+	// now spawn the socket receiver, do this only after all messages
+	// are subscribed.
+	go t.syncRx() // shall spawn another go-routine doRx().
+
 	msg, err := t.Whoami()
 	if err != nil {
 		panic(err)
@@ -206,16 +220,6 @@ func (t *Transport) Handshake() *Transport {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return t
-}
-
-// SubscribeMessage that shall be exchanged via this transport. Only
-// subscribed messages can be exchanged.
-func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Transport {
-	id := msg.Id()
-	if isReservedMsg(id) {
-		panic(fmt.Errorf("message id %v reserved", id))
-	}
-	return t.subscribeMessage(msg, handler)
 }
 
 // Close this tranport, connection shall be closed as well.
