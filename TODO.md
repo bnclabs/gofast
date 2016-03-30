@@ -1,11 +1,13 @@
 * fix variance and sd computation.
     var:-4h19m32.880533093s sd:-2562047h47m16.854775808s
-* test case with 1-byte packet.
 * sometimes the test case throw the following error.
     127.0.0.1:9117<->127.0.0.1:51824] reading prefix: 4,unexpected EOF
+* make perf/client.go random to randomly close the stream
+  at either end.
+* refactor verify and enable random as well.
+* test case with 1-byte packet.
+* test case with 0-byte packet.
 * logs are commented, wrap them under log flag.
-* tools/posts similar to tools/requests
-* tools/streams similar to tools/requests
 * document reserved tags.
 * add tools/{posts,requests,streams} to travis-ci.
 * document programming model in README page.
