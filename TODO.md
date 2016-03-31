@@ -2,6 +2,10 @@
     var:-4h19m32.880533093s sd:-2562047h47m16.854775808s
 * sometimes the test case throw the following error.
     127.0.0.1:9117<->127.0.0.1:51824] reading prefix: 4,unexpected EOF
+* default configuration.
+* opaque-space for a single transport (connection) should be exclusive
+  between client and server.
+* rename newstream() to newrxstream(), create a complementing function.
 * make perf/client.go random to randomly close the stream
   at either end.
 * refactor verify and enable random as well.

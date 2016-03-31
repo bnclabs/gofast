@@ -88,22 +88,22 @@ a single block of binary blob in CBOR format, transmitted
 from client to server or server to client:
 
 ```text
-  | tag1 |         payload1               |
-         | tag2 |      payload2           |
-                | tag3 |   payload3       |
-                       | tag 4 | hdr-data |
+  | len | tag1 |         payload1               |
+               | tag2 |      payload2           |
+                      | tag3 |   payload3       |
+                             | tag 4 | hdr-data |
 ```
 
 * payload shall always be encoded as CBOR byte-array.
 * hdr-data shall always be encoded as CBOR map.
 * tags are uint64 numbers that will either be prefixed
- to payload or hdr-data.
+  to payload or hdr-data.
 * tag1, will always be a opaque number falling within a
- reserved tag-space called opaque-space.
+  reserved tag-space called opaque-space.
 * tag2, tag3 can be one of the values predefined by this
- library.
+  library.
 * the final embedded tag, in this case tag4, shall always
- be tagMsg (value 37).
+  be tagMsg (value 37).
 
 end-of-stream:
 
