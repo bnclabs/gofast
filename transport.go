@@ -97,16 +97,16 @@ type Transport struct {
 	killch   chan bool
 
 	// memory pools
-	strmpool chan *Stream // for locally initiated streams
+	p_strms  chan *Stream // for locally initiated streams
 	p_rqrch  chan chan Message
-	p_txcmd  *sync.Pool
-	p_txacmd *sync.Pool
+	p_txcmd  chan *txproto
 	p_rxstrm *sync.Pool
 	msgpools map[uint64]*sync.Pool
 
 	// configuration
 	config     map[string]interface{}
 	buffersize int
+	batchsize  int
 	logprefix  string
 }
 
@@ -127,8 +127,9 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 		version:  version,
 		tagenc:   make(map[uint64]tagfn),
 		tagdec:   make(map[uint64]tagfn),
-		strmpool: nil, // shall be initialized after setOpaqueRange() call
+		p_strms:  nil, // shall be initialized after setOpaqueRange() call
 		p_rqrch:  nil, // shall be initialized after setOpaqueRange() call
+		p_txcmd:  nil, // shall be initialized after setOpaqueRange() call
 		messages: make(map[uint64]Message),
 		handlers: make(map[uint64]RequestCallback),
 
@@ -140,6 +141,7 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 		msgpools: make(map[uint64]*sync.Pool),
 
 		config:     config,
+		batchsize:  batchsize,
 		buffersize: buffersize,
 	}
 
@@ -147,12 +149,6 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 
 	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
 	t.logprefix = fmt.Sprintf("GFST[%v; %v<->%v]", name, laddr, raddr)
-	t.p_txcmd = &sync.Pool{
-		New: func() interface{} { return &txproto{} },
-	}
-	t.p_txacmd = &sync.Pool{ // async commands
-		New: func() interface{} { return &txproto{} },
-	}
 	t.p_rxstrm = &sync.Pool{
 		New: func() interface{} { return &Stream{} },
 	}
@@ -362,7 +358,7 @@ func (t *Transport) Ping(echo string) (string, error) {
 
 // Post request to peer.
 func (t *Transport) Post(msg Message, flush bool) error {
-	stream := t.getstream(nil)
+	stream := t.getlocalstream(nil)
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 
 	n := t.post(msg, stream, stream.out)
@@ -372,7 +368,7 @@ func (t *Transport) Post(msg Message, flush bool) error {
 // Request a response from peer.
 func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 	respch := <-t.p_rqrch
-	stream := t.getstream(respch)
+	stream := t.getlocalstream(respch)
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 	defer func() { t.p_rqrch <- respch }()
 
@@ -381,7 +377,7 @@ func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 	if err = t.tx(stream.out[:n], flush); err == nil {
 		resp, ok = <-stream.Rxch
 		if !ok {
-			err = fmt.Errorf("stream closed")
+			err = fmt.Errorf("stream ##%v closed", stream.opaque)
 		}
 	}
 	stream.Rxch = nil // so that p_rqrch channels are not closed !!
@@ -390,7 +386,7 @@ func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 
 // Request a bi-directional stream with peer.
 func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (*Stream, error) {
-	stream := t.getstream(ch)
+	stream := t.getlocalstream(ch)
 	n := t.start(msg, stream, stream.out)
 	if err := t.tx(stream.out[:n], false); err != nil {
 		t.putstream(stream.opaque, stream, true /*tellrx*/)
@@ -412,8 +408,9 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	}
 	fmsg = "%v local streams (%v,%v) pre-created\n"
 	log.Debugf(fmsg, t.logprefix, start, end)
-	t.strmpool = make(chan *Stream, end-start+1)     // inclusive
-	t.p_rqrch = make(chan chan Message, end-start+1) // [start,end]
+	t.p_strms = make(chan *Stream, end-start+1) // inclusive [start,end]
+	t.p_rqrch = make(chan chan Message, end-start+1)
+	t.p_txcmd = make(chan *txproto, end-start+1+uint64(t.batchsize))
 	for opaque := start; opaque <= end; opaque++ {
 		stream := &Stream{
 			transport: t,
@@ -424,8 +421,9 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 			data:      make([]byte, t.buffersize),
 			tagout:    make([]byte, t.buffersize),
 		}
-		t.strmpool <- stream
+		t.p_strms <- stream
 		t.p_rqrch <- make(chan Message, 1)
+		t.p_txcmd <- &txproto{packet: make([]byte, t.buffersize)}
 		fmsg := "%v ##%d(remote:%v) stream created ...\n"
 		log.Verbosef(fmsg, t.logprefix, opaque, false)
 	}
@@ -477,19 +475,10 @@ func (t *Transport) fromrxstrm() *Stream {
 	return stream
 }
 
-func (t *Transport) fromtxpool(async bool, pool *sync.Pool) (arg *txproto) {
-	if async {
-		arg = pool.Get().(*txproto)
-		arg.flush, arg.async = false, false
-		arg.n, arg.err, arg.respch = 0, nil, nil
-		if arg.packet == nil {
-			arg.packet = make([]byte, t.buffersize)
-		}
-	} else {
-		arg = pool.Get().(*txproto)
-		arg.packet, arg.flush, arg.async = nil, false, false
-		arg.n, arg.err, arg.respch = 0, nil, nil
-	}
+func (t *Transport) fromtxpool() *txproto {
+	arg := <-t.p_txcmd
+	arg.flush, arg.async = false, false
+	arg.n, arg.err, arg.respch = 0, nil, nil
 	return arg
 }
 

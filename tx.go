@@ -102,18 +102,22 @@ type txproto struct {
 	respch chan *txproto
 }
 
-func (t *Transport) tx(packet []byte, flush bool) (err error) {
-	arg := t.fromtxpool(false /*async*/, t.p_txcmd)
-	defer func() { arg.packet = nil; t.p_txcmd.Put(arg) }()
+func (t *Transport) tx(out []byte, flush bool) (err error) {
+	arg := t.fromtxpool()
+	defer func() {
+		arg.packet = arg.packet[:cap(arg.packet)]
+		t.p_txcmd <- arg
+	}()
 
-	arg.packet, arg.flush, arg.async = packet, flush, false
+	n := copy(arg.packet, out)
+	arg.packet, arg.flush, arg.async = arg.packet[:n], flush, false
 	arg.respch = make(chan *txproto, 1)
 	select {
 	case t.txch <- arg:
 		select {
 		case resp := <-arg.respch:
 			n, err := resp.n, resp.err
-			if err == nil && n != len(packet) {
+			if err == nil && n != len(arg.packet) {
 				return fmt.Errorf("partial write")
 			}
 			return err // success or error
@@ -128,9 +132,7 @@ func (t *Transport) tx(packet []byte, flush bool) (err error) {
 }
 
 func (t *Transport) txasync(out []byte, flush bool) (err error) {
-	arg := t.fromtxpool(true /*async*/, t.p_txacmd)
-	arg.packet = arg.packet[:cap(arg.packet)]
-
+	arg := t.fromtxpool()
 	n := copy(arg.packet, out)
 	arg.packet = arg.packet[:n]
 
@@ -173,7 +175,8 @@ func (t *Transport) doTx() {
 		for _, arg := range batch {
 			arg.n, arg.err = len(arg.packet), err
 			if arg.async {
-				t.p_txacmd.Put(arg)
+				arg.packet = arg.packet[:cap(arg.packet)]
+				t.p_txcmd <- arg
 			} else {
 				arg.respch <- arg
 			}

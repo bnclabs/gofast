@@ -5,6 +5,7 @@ package gofast
 import "reflect"
 import "unsafe"
 import "strings"
+import "strconv"
 import "bytes"
 import "fmt"
 
@@ -58,4 +59,13 @@ func getStackTrace(skip int, stack []byte) string {
 		buf.WriteString(fmt.Sprintf("%s\n", call))
 	}
 	return buf.String()
+}
+
+func hexstring(data []byte) string {
+	out := "["
+	for _, b := range data {
+		out += strconv.FormatInt(int64(b), 16) + ", "
+	}
+	out += "]"
+	return out
 }

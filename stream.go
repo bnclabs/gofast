@@ -3,28 +3,26 @@ package gofast
 // Stream for a newly started stream on the transport. Refer to
 // Stream() method on the transport.
 type Stream struct {
-	transport *Transport
-	Rxch      chan Message
-	opaque    uint64
-	remote    bool
-	out       []byte
-	data      []byte
-	tagout    []byte
+	transport         *Transport
+	Rxch              chan Message
+	opaque            uint64
+	remote            bool
+	out, data, tagout []byte
 }
 
 // constructor used for remote streams.
-func (t *Transport) newstream(opaque uint64, remote bool) *Stream {
+func (t *Transport) newremotestream(opaque uint64) *Stream {
 	stream := t.fromrxstrm()
 	//fmsg := "%v ##%d(remote:%v) stream created ...\n"
 	//log.Verbosef(fmsg, t.logprefix, opaque, remote)
 	// reset all fields (it is coming from a pool)
-	stream.transport, stream.remote, stream.opaque = t, remote, opaque
+	stream.transport, stream.remote, stream.opaque = t, true, opaque
 	stream.Rxch = nil
 	return stream
 }
 
-func (t *Transport) getstream(ch chan Message) *Stream { // called only be tx.
-	stream := <-t.strmpool
+func (t *Transport) getlocalstream(ch chan Message) *Stream { // called only be tx.
+	stream := <-t.p_strms
 	stream.Rxch = ch
 	t.putch(t.rxch, rxpacket{stream: stream})
 	return stream
@@ -36,12 +34,15 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmsg := "%v ##%v putstream recovered: %v\n"
-			log.Infof(fmsg, t.logprefix, opaque, r)
+			log.Debugf(fmsg, t.logprefix, opaque, r)
 		}
 	}()
 	if stream == nil {
 		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
 		return
+	}
+	if stream.remote == false {
+		t.p_strms <- stream // don't collect remote streams
 	}
 	if stream.Rxch != nil {
 		close(stream.Rxch)
@@ -61,16 +62,12 @@ func (s *Stream) Response(msg Message, flush bool) error {
 // Stream a single message, to batch the message pass flush as false.
 func (s *Stream) Stream(msg Message, flush bool) (err error) {
 	n := s.transport.stream(msg, s, s.out)
-	if err = s.transport.txasync(s.out[:n], flush); err != nil {
-		s.transport.putstream(s.opaque, s, true /*tellrx*/)
-	}
-	return
+	return s.transport.txasync(s.out[:n], flush)
 }
 
 // Close this stream.
 func (s *Stream) Close() error {
 	n := s.transport.finish(s, s.out)
-	s.transport.putstream(s.opaque, s, true /*tellrx*/)
 	return s.transport.txasync(s.out[:n], true /*flush*/)
 }
 

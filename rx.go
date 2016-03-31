@@ -5,6 +5,7 @@ import "strings"
 import "io"
 import "fmt"
 import "net"
+import "runtime/debug"
 
 type rxpacket struct {
 	stream  *Stream
@@ -32,16 +33,16 @@ func (t *Transport) syncRx() {
 
 	streamupdate := func(stream *Stream) {
 		_, ok := livestreams[stream.opaque]
-		if stream.Rxch == nil && ok {
-			//log.Debugf("%v ##%d stream closed ...\n", t.logprefix, stream.opaque)
+		if ok && stream.Rxch == nil {
+			//fmsg := "%v ##%d stream closed ...\n"
+			//log.Debugf(fmsg, t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
-			if stream.remote == false {
-				t.strmpool <- stream // don't collect remote streams
-			}
 			return
+		} else if stream.Rxch != nil {
+			//fmsg := "%v ##%d stream started ...\n"
+			//log.Verbosef(fmsg, t.logprefix, stream.opaque)
+			livestreams[stream.opaque] = stream
 		}
-		//log.Verbosef("%v ##%d stream started ...\n", t.logprefix, stream.opaque)
-		livestreams[stream.opaque] = stream
 	}
 
 	handlepkt := func(rxpkt rxpacket) {
@@ -55,7 +56,7 @@ func (t *Transport) syncRx() {
 			atomic.AddUint64(&t.n_rxfin, 1)
 			return
 		} else if rxpkt.finish {
-			//fmsg := "%v ##%d uknown stream-fin from remote ...\n"
+			//fmsg := "%v ##%d unknown stream-fin from remote ...\n"
 			//log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
 			atomic.AddUint64(&t.n_mdrops, 1)
 			return
@@ -68,13 +69,13 @@ func (t *Transport) syncRx() {
 				atomic.AddUint64(&t.n_rxpost, 1)
 			} else if rxpkt.request {
 				func() {
-					stream = t.newstream(rxpkt.opaque, true /*remote*/)
+					stream = t.newremotestream(rxpkt.opaque)
 					defer t.p_rxstrm.Put(stream)
 					t.requestCallback(stream, rxpkt.msg)
 					atomic.AddUint64(&t.n_rxreq, 1)
 				}()
 			} else if rxpkt.start { // stream
-				stream = t.newstream(rxpkt.opaque, true /*remote*/)
+				stream = t.newremotestream(rxpkt.opaque)
 				stream.Rxch = t.requestCallback(stream, rxpkt.msg)
 				livestreams[stream.opaque] = stream
 				atomic.AddUint64(&t.n_rxstart, 1)
@@ -90,8 +91,8 @@ func (t *Transport) syncRx() {
 		} else if rxpkt.strmsg {
 			atomic.AddUint64(&t.n_rxstream, 1)
 		} else {
-			fmsg := "%v uknown rxpkt ##%d for stream ##%d ...\n"
-			log.Warnf(fmsg, t.logprefix, rxpkt.opaque, stream.opaque)
+			fmsg := "%v duplicate rxpkt ##%d for stream ##%d %#v ...\n"
+			log.Warnf(fmsg, t.logprefix, rxpkt.opaque, stream.opaque, rxpkt)
 			atomic.AddUint64(&t.n_mdrops, 1)
 		}
 	}
@@ -121,6 +122,10 @@ loop:
 
 func (t *Transport) doRx() {
 	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("doRx() panic: %v\n", r)
+			log.Errorf("\n%s", getStackTrace(2, debug.Stack()))
+		}
 		go t.Close()
 	}()
 
@@ -189,7 +194,7 @@ func (t *Transport) unframepkt(
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
 	} else if err != nil || m != (int(ln)-n) {
-		log.Infof("%v reading packet %v,%v:%v\n", t.logprefix, ln, n, err)
+		log.Errorf("%v reading packet %v,%v:%v\n", t.logprefix, ln, n, err)
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
 	}
