@@ -408,9 +408,9 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	}
 	fmsg = "%v local streams (%v,%v) pre-created\n"
 	log.Debugf(fmsg, t.logprefix, start, end)
+
 	t.p_strms = make(chan *Stream, end-start+1) // inclusive [start,end]
 	t.p_rqrch = make(chan chan Message, end-start+1)
-	t.p_txcmd = make(chan *txproto, end-start+1+uint64(t.batchsize))
 	for opaque := start; opaque <= end; opaque++ {
 		stream := &Stream{
 			transport: t,
@@ -423,9 +423,13 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 		}
 		t.p_strms <- stream
 		t.p_rqrch <- make(chan Message, 1)
-		t.p_txcmd <- &txproto{packet: make([]byte, t.buffersize)}
 		fmsg := "%v ##%d(remote:%v) stream created ...\n"
 		log.Verbosef(fmsg, t.logprefix, opaque, false)
+	}
+
+	t.p_txcmd = make(chan *txproto, end-start+1+uint64(t.batchsize))
+	for i := 0; i < cap(t.p_txcmd); i++ {
+		t.p_txcmd <- &txproto{packet: make([]byte, t.buffersize)}
 	}
 }
 
