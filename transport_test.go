@@ -19,8 +19,8 @@ func TestTransport(t *testing.T) {
 	transc := newClient(addr, "gzip").Handshake() // init client
 	transv := <-serverch
 
-	c_counts := transv.Counts()
-	s_counts := transv.Counts()
+	c_counts := transv.Stats()
+	s_counts := transv.Stats()
 	// test
 	if ref := "server"; transv.Name() != ref {
 		t.Errorf("expected %v, got %v", ref, transv.Name())
@@ -45,6 +45,9 @@ func TestTransport(t *testing.T) {
 	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 78) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -68,6 +71,9 @@ func TestSubscribeMessage(t *testing.T) {
 		}()
 		transc.SubscribeMessage(newPing("should failed"), nil)
 	}()
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -82,10 +88,13 @@ func TestFlushPeriod(t *testing.T) {
 	// test
 	transc.FlushPeriod(10 * time.Millisecond) // 99 flushes + 1 from handshake
 	time.Sleep(2 * time.Second)
-	c_counts := transc.Counts()
+	c_counts := transc.Stats()
 	if ref, n := uint64(10), c_counts["n_flushes"]; n < ref {
 		t.Errorf("expected less than %v, got %v", ref, n)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -102,8 +111,8 @@ func TestHeartbeat(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	transc.Close()
 	time.Sleep(20 * time.Millisecond)
-	c_counts := transc.Counts()
-	s_counts := transv.Counts()
+	c_counts := transc.Stats()
+	s_counts := transv.Stats()
 
 	if !verify(c_counts, "n_txreq", "n_rxresp", 1, "n_rx", 2) {
 		t.Errorf("unexpected c_counts %v", c_counts)
@@ -129,6 +138,9 @@ func TestHeartbeat(t *testing.T) {
 	if since > ref {
 		t.Errorf("expected less than %v, got %v", ref, since)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transv.Close()
 }
@@ -146,7 +158,7 @@ func TestPing(t *testing.T) {
 	} else if echo != refs {
 		t.Errorf("expected atleast %v, got %v", refs, echo)
 	}
-	counts := transc.Counts()
+	counts := transc.Stats()
 	if ref, n := uint64(3), counts["n_flushes"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_rx"]; n != ref {
@@ -160,6 +172,9 @@ func TestPing(t *testing.T) {
 	} else if x, y := counts["n_rxbyte"], counts["n_txbyte"]; x != y {
 		t.Errorf("expected atleast %v, got %v", x, y)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -178,7 +193,7 @@ func TestWhoami(t *testing.T) {
 	} else if string(wai.name) != "server" {
 		t.Errorf("expected %v, got %v", "server", string(wai.name))
 	}
-	counts := transc.Counts()
+	counts := transc.Stats()
 	if ref, n := uint64(3), counts["n_flushes"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_tx"]; n != ref {
@@ -192,6 +207,9 @@ func TestWhoami(t *testing.T) {
 	} else if x, y := counts["n_rxbyte"], counts["n_txbyte"]; x != y {
 		t.Errorf("expected atleast %v, got %v", x, y)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -229,6 +247,9 @@ func TestTransPost(t *testing.T) {
 		})
 	transc.Post(msg, true)
 	<-donech
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -266,6 +287,9 @@ func TestTransPostEmpty(t *testing.T) {
 		})
 	transc.Post(msg, true)
 	<-donech
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -294,6 +318,9 @@ func TestTransPostLarge(t *testing.T) {
 	} else if !reflect.DeepEqual(resp, msg) {
 		t.Errorf("expected %v, got %v", msg, resp)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -318,6 +345,9 @@ func TestTransRequest(t *testing.T) {
 	} else if !reflect.DeepEqual(resp, msg) {
 		t.Errorf("expected %v, got %v", msg, resp)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -364,6 +394,9 @@ func TestClientStream(t *testing.T) {
 	if ref := uint64(1234) + 100 + 1; i != ref {
 		t.Errorf("expected %v, got %v", ref, i)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -410,6 +443,9 @@ func TestServerStream(t *testing.T) {
 	if ref := uint64(1234) + 100 + 1; i != ref {
 		t.Errorf("expected %v, got %v", ref, i)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -434,6 +470,9 @@ func TestTransGzip(t *testing.T) {
 	} else if !reflect.DeepEqual(resp, msg) {
 		t.Errorf("expected %v, got %v", msg, resp)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -448,13 +487,15 @@ func TestJunkRx(t *testing.T) {
 	if _, err := transc.conn.Write([]byte("junk")); err != nil {
 		t.Error(err)
 	}
+
 	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
 }
 
-func BenchmarkTransCounts(b *testing.B) {
+func BenchmarkTransStats(b *testing.B) {
 	addr := <-testBindAddrs
 	lis, serverch := newServer(addr, "")      // init server
 	transc := newClient(addr, "").Handshake() // init client
@@ -462,8 +503,11 @@ func BenchmarkTransCounts(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		transc.Counts()
+		transc.Stats()
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -512,15 +556,13 @@ func newServerConfig(
 
 	ch := make(chan *Transport, 10)
 	go func() {
-		for {
-			if conn, err := lis.Accept(); err == nil {
-				ver := testVersion(1)
-				trans, err := NewTransport(conn, &ver, nil, config)
-				if err != nil {
-					panic("NewTransport server failed")
-				}
-				ch <- trans.Handshake()
+		if conn, err := lis.Accept(); err == nil {
+			ver := testVersion(1)
+			trans, err := NewTransport(conn, &ver, nil, config)
+			if err != nil {
+				panic("NewTransport server failed")
 			}
+			ch <- trans.Handshake()
 		}
 	}()
 	return lis, ch
@@ -656,7 +698,7 @@ func (v *testVersion) Unmarshal(in []byte) int {
 	return n
 }
 
-func printCounts(counts map[string]uint64) {
+func printStats(counts map[string]uint64) {
 	keys := []string{}
 	for key := range counts {
 		keys = append(keys, key)

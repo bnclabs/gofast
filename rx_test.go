@@ -41,6 +41,7 @@ func TestUnmessage(t *testing.T) {
 	if !reflect.DeepEqual(ref, msg) {
 		t.Errorf("expected %#v, got %#v", ref, msg)
 	}
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -75,6 +76,7 @@ func BenchmarkUnmessage(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		transc.unmessage(100, bs)
 	}
+
 	lis.Close()
 	transc.Close()
 	transv.Close()

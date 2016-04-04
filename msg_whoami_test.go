@@ -2,6 +2,7 @@ package gofast
 
 import "testing"
 import "bytes"
+import "time"
 import "reflect"
 import "fmt"
 
@@ -21,6 +22,9 @@ func TestWaiEncode(t *testing.T) {
 	if n := wai.Encode(out); bytes.Compare(ref, out[:n]) != 0 {
 		t.Errorf("expected %v, got %v", ref, out[:n])
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -40,6 +44,9 @@ func TestWaiDecode(t *testing.T) {
 	if !reflect.DeepEqual(ref, wai) {
 		t.Errorf("expected %#v, got %#v", ref, wai)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -58,6 +65,9 @@ func TestWhoamiMisc(t *testing.T) {
 	if ref := "client, 512"; ref != wai.Repr() {
 		t.Errorf("expected %v, got %v", ref, wai.Repr())
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -74,6 +84,9 @@ func BenchmarkWaiEncode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		wai.Encode(out)
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()
@@ -94,6 +107,9 @@ func BenchmarkWaiDecode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		wai.Decode(out[:n])
 	}
+
+	time.Sleep(100 * time.Millisecond)
+
 	lis.Close()
 	transc.Close()
 	transv.Close()

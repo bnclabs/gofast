@@ -166,7 +166,7 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 			t.tagdec[tagid] = dec
 			continue
 		}
-		panic(fmt.Errorf("unknown tag %v", tag))
+		panic(fmt.Errorf("%v unknown tag %v", t.logprefix, tag))
 	}
 	log.Verbosef("%v pre-initialized ...\n", t.logprefix)
 
@@ -181,7 +181,7 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Transport {
 	id := msg.Id()
 	if isReservedMsg(id) {
-		panic(fmt.Errorf("message id %v reserved", id))
+		panic(fmt.Errorf("%v message id %v reserved", t.logprefix, id))
 	}
 	return t.subscribeMessage(msg, handler)
 }
@@ -195,7 +195,7 @@ func (t *Transport) Handshake() *Transport {
 
 	msg, err := t.Whoami()
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("%v Handshake(): %v", t.logprefix, err))
 	}
 
 	wai := msg.(*whoamiMsg)
@@ -305,8 +305,8 @@ func (t *Transport) Free(msg Message) {
 	t.msgpools[msg.Id()].Put(msg)
 }
 
-// Counts shall return the stat counts for this transport.
-func (t *Transport) Counts() map[string]uint64 {
+// Stats shall return the stat counts for this transport.
+func (t *Transport) Stats() map[string]uint64 {
 	stats := map[string]uint64{
 		"n_tx":       atomic.LoadUint64(&t.n_tx),
 		"n_flushes":  atomic.LoadUint64(&t.n_flushes),
@@ -377,7 +377,7 @@ func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 	if err = t.tx(stream.out[:n], flush); err == nil {
 		resp, ok = <-stream.Rxch
 		if !ok {
-			err = fmt.Errorf("stream ##%v closed", stream.opaque)
+			err = fmt.Errorf("Request(): stream ##%v closed", stream.opaque)
 		}
 	}
 	stream.Rxch = nil // so that p_rqrch channels are not closed !!
@@ -398,13 +398,13 @@ func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (*Stream, e
 //---- local APIs
 
 func (t *Transport) setOpaqueRange(start, end uint64) {
-	fmsg := "opaques start at or after `%v` and shall not exceed `%v`(%v,%v)"
+	fmsg := "%v opaques start at or after `%v` and shall not exceed `%v`(%v,%v)"
 	if start < tagOpaqueStart {
-		err := fmt.Errorf(fmsg, tagOpaqueStart, tagOpaqueEnd, start, end)
-		panic(err)
+		panic(fmt.Errorf(
+			fmsg, t.logprefix, tagOpaqueStart, tagOpaqueEnd, start, end))
 	} else if end > tagOpaqueEnd {
-		err := fmt.Errorf(fmsg, tagOpaqueStart, tagOpaqueEnd, start, end)
-		panic(err)
+		panic(fmt.Errorf(
+			fmsg, t.logprefix, tagOpaqueStart, tagOpaqueEnd, start, end))
 	}
 	fmsg = "%v local streams (%v,%v) pre-created\n"
 	log.Debugf(fmsg, t.logprefix, start, end)

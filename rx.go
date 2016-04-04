@@ -169,7 +169,7 @@ func (t *Transport) unframepkt(
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
 	} else if pad[0] != 0xd9 || pad[1] != 0xd9 || pad[2] != 0xf7 { // prefix
-		err = fmt.Errorf("%v wrong prefix %v", t.logprefix, pad)
+		err = fmt.Errorf("%v wrong prefix %v", t.logprefix, hexstring(pad))
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		log.Errorf("%v\n", err)
 		return
