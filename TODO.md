@@ -1,10 +1,7 @@
-* try `go test -race -test.run=. -test.bench=. -test.benchmem=true`
-* fix variance and sd computation.
-    var:-4h19m32.880533093s sd:-2562047h47m16.854775808s
-* sometimes the test case throw the following error.
-    127.0.0.1:9117<->127.0.0.1:51824] reading prefix: 4,unexpected EOF
-* review panic calls, add local-addr and remote addr as part of
+* review panic calls, add local-addr and remote-addr as part of
   panic call.
+* write-up on using `peerversion` to build distributed applications
+  supporting rolling upgrade.
 * default configuration.
 * have a fixed tag name for POST messages. Avoid acquiring a stream.
 * verify takes > 5GB of memory, investigate the cause.

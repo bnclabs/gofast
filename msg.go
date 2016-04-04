@@ -61,8 +61,8 @@ func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
 		}
 
 	case *whoamiMsg:
-		t.peerver = m.version // TODO: make this atomic
-		rv := newWhoami(t)    // respond back
+		t.peerver.Store(m.version)
+		rv := newWhoami(t) // respond back
 		if err := stream.Response(rv, true /*flush*/); err != nil {
 			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)
 		} else {

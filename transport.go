@@ -85,7 +85,7 @@ type Transport struct {
 	// fields.
 	name     string
 	version  Version
-	peerver  Version
+	peerver  atomic.Value
 	tagenc   map[uint64]tagfn   // tagid -> func
 	tagdec   map[uint64]tagfn   // tagid -> func
 	messages map[uint64]Message // msgid -> message
@@ -197,7 +197,7 @@ func (t *Transport) Handshake() *Transport {
 	}
 
 	wai := msg.(*whoamiMsg)
-	t.peerver = wai.version // TODO: should be atomic ?
+	t.peerver.Store(wai.version)
 	// parse tag list, tags shall be applied in the specified order.
 	for _, tag := range t.getTags(wai.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
@@ -250,6 +250,12 @@ func (t *Transport) FlushPeriod(ms time.Duration) {
 				return
 			}
 			//log.Debugf("%v flushed ... \n", t.logprefix)
+
+			select {
+			case <-t.killch:
+				return
+			default:
+			}
 		}
 	}()
 }
@@ -266,6 +272,12 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 			}
 			count++
 			//log.Debugf("%v posted heartbeat %v\n", t.logprefix, count)
+
+			select {
+			case <-t.killch:
+				return
+			default:
+			}
 		}
 	}()
 }
@@ -293,7 +305,7 @@ func (t *Transport) RemoteAddr() net.Addr {
 
 // PeerVersion from peer node.
 func (t *Transport) PeerVersion() Version {
-	return t.peerver
+	return t.peerver.Load().(Version)
 }
 
 // Free shall return the message back to the pool, should be

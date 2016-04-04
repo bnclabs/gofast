@@ -22,6 +22,11 @@ func (t *Transport) syncRx() {
 	chansize := t.config["chansize"].(int)
 	livestreams := make(map[uint64]*Stream)
 	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("syncRx() panic: %v\n", r)
+			log.Errorf("\n%s", getStackTrace(2, debug.Stack()))
+			go t.Close()
+		}
 		// unblock routines waiting on this stream
 		for _, stream := range livestreams {
 			if stream.Rxch != nil {

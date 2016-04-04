@@ -5,6 +5,7 @@ package gofast
 import "compress/lzw"
 import "bytes"
 import "io"
+import "fmt"
 
 func make_lzw(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn) {
 	var wbuf bytes.Buffer

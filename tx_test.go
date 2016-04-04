@@ -264,6 +264,7 @@ func BenchmarkFinishPkt(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		transc.finish(stream, out)
 	}
+
 	lis.Close()
 	transc.Close()
 	transv.Close()

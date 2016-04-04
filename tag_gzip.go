@@ -4,6 +4,7 @@ package gofast
 
 import "compress/gzip"
 import "bytes"
+import "fmt"
 
 func make_gzip(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn) {
 	enc := func(in, out []byte) int {

@@ -1,6 +1,7 @@
 package gofast
 
 import "fmt"
+import "runtime/debug"
 import "sync/atomic"
 
 // | 0xd9 0xd9f7 | 0xc6 | packet |
@@ -146,10 +147,19 @@ func (t *Transport) txasync(out []byte, flush bool) (err error) {
 }
 
 func (t *Transport) doTx() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("doTx() panic: %v\n", r)
+			log.Errorf("\n%s", getStackTrace(2, debug.Stack()))
+			go t.Close()
+		}
+	}()
+
 	batchsize := t.config["batchsize"].(int)
 	buffersize := t.config["buffersize"].(int)
 	batch := make([]*txproto, 0, 64)
 	tcpwrite_buf := make([]byte, batchsize*buffersize)
+
 	drainbuffers := func() {
 		atomic.AddUint64(&t.n_flushes, 1)
 		var err error

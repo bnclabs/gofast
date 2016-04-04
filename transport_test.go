@@ -29,7 +29,7 @@ func TestTransport(t *testing.T) {
 	} else if ref := "client"; ref != transc.Name() {
 		t.Errorf("expected %v, got %v", ref, transc.Name())
 	} else if !transc.PeerVersion().Equal(&ver) {
-		t.Errorf("expected %v, got %v", ver, transc.peerver)
+		t.Errorf("expected %v, got %v", ver, transc.peerver.Load().(Version))
 	} else if s := transc.RemoteAddr().String(); s != addr {
 		t.Errorf("expected %v, got %v", s, addr)
 	} else if !verify(c_counts, "n_flushes", "n_rx", "n_tx", 2) {
