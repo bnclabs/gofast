@@ -46,8 +46,8 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	}
 	if stream.Rxch != nil {
 		close(stream.Rxch)
+		stream.Rxch = nil
 	}
-	stream.Rxch = nil
 	if tellrx {
 		t.putch(t.rxch, rxpacket{stream: stream})
 	}
