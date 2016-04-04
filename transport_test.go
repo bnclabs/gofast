@@ -524,7 +524,6 @@ func newconfig(name string, start, end int) map[string]interface{} {
 		"tags":         "",
 		"opaque.start": start,
 		"opaque.end":   end,
-		"log.level":    "warn",
 		"gzip.level":   flate.BestSpeed,
 	}
 }
@@ -558,7 +557,7 @@ func newServerConfig(
 	go func() {
 		if conn, err := lis.Accept(); err == nil {
 			ver := testVersion(1)
-			trans, err := NewTransport(conn, &ver, nil, config)
+			trans, err := NewTransport(conn, &ver, config)
 			if err != nil {
 				panic("NewTransport server failed")
 			}
@@ -583,7 +582,7 @@ func newClientConfig(
 		panic(err)
 	}
 	ver := testVersion(1)
-	trans, err := NewTransport(conn, &ver, nil, config)
+	trans, err := NewTransport(conn, &ver, config)
 	if err != nil {
 		panic(err)
 	}

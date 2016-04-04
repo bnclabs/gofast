@@ -45,7 +45,13 @@ const (
 
 var log Logger // object used by gofast component for logging.
 
-func setLogger(logger Logger, config map[string]interface{}) Logger {
+func init() {
+	level, logfd := logLevelInfo, os.Stdout
+	log = &defaultLogger{level: level, output: logfd}
+}
+
+// SetLogger to integrate gofast logging with application logging.
+func SetLogger(logger Logger, config map[string]interface{}) Logger {
 	if logger != nil {
 		log = logger
 		return log
@@ -53,12 +59,14 @@ func setLogger(logger Logger, config map[string]interface{}) Logger {
 
 	var err error
 	level := logLevelInfo
-	if val, ok := config["log.level"]; ok {
-		level = string2logLevel(val.(string))
+	vallevel, ok1 := config["log.level"]
+	if ok1 {
+		level = string2logLevel(vallevel.(string))
 	}
 	logfd := os.Stdout
-	if val, ok := config["log.file"]; ok {
-		logfile := val.(string)
+	valfile, ok2 := config["log.file"]
+	if ok2 {
+		logfile := valfile.(string)
 		logfd, err = os.OpenFile(logfile, os.O_RDWR|os.O_APPEND, 0660)
 		if err != nil {
 			if logfd, err = os.Create(logfile); err != nil {
@@ -66,7 +74,7 @@ func setLogger(logger Logger, config map[string]interface{}) Logger {
 			}
 		}
 	}
-	if log == nil {
+	if ok1 || ok2 {
 		log = &defaultLogger{level: level, output: logfd}
 	}
 	return log

@@ -114,7 +114,7 @@ type Transport struct {
 
 // NewTransport encapsulate a transport over this connection,
 // one connection one transport.
-func NewTransport(conn Transporter, version Version, logg Logger, config map[string]interface{}) (*Transport, error) {
+func NewTransport(conn Transporter, version Version, config map[string]interface{}) (*Transport, error) {
 	name := config["name"].(string)
 	buffersize := config["buffersize"].(int)
 	opqstart := config["opaque.start"].(int)
@@ -144,8 +144,6 @@ func NewTransport(conn Transporter, version Version, logg Logger, config map[str
 		batchsize:  batchsize,
 		buffersize: buffersize,
 	}
-
-	setLogger(logg, t.config)
 
 	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
 	t.logprefix = fmt.Sprintf("GFST[%v; %v<->%v]", name, laddr, raddr)
@@ -358,8 +356,8 @@ func (t *Transport) Ping(echo string) (string, error) {
 
 // Post request to peer.
 func (t *Transport) Post(msg Message, flush bool) error {
-	stream := t.getlocalstream(nil)
-	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
+	stream := t.getlocalstream(nil, false /*tellrx*/)
+	defer t.putstream(stream.opaque, stream, false /*tellrx*/)
 
 	n := t.post(msg, stream, stream.out)
 	return t.txasync(stream.out[:n], flush)
@@ -368,7 +366,7 @@ func (t *Transport) Post(msg Message, flush bool) error {
 // Request a response from peer.
 func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 	respch := <-t.p_rqrch
-	stream := t.getlocalstream(respch)
+	stream := t.getlocalstream(respch, true /*tellrx*/)
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
 	defer func() { t.p_rqrch <- respch }()
 
@@ -386,7 +384,7 @@ func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
 
 // Request a bi-directional stream with peer.
 func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (*Stream, error) {
-	stream := t.getlocalstream(ch)
+	stream := t.getlocalstream(ch, true /*tellrx*/)
 	n := t.start(msg, stream, stream.out)
 	if err := t.tx(stream.out[:n], false); err != nil {
 		t.putstream(stream.opaque, stream, true /*tellrx*/)

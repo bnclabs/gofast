@@ -17,7 +17,7 @@ func TestPost(t *testing.T) {
 		24, 39, 2, 24, 40, 78, 159, 70, 99, 108, 105, 101, 110, 116,
 		1, 25, 2, 0, 64, 255, 255,
 	}
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	wai := newWhoami(transc)
 	n := transc.post(wai, stream, out)
@@ -40,7 +40,7 @@ func TestRequest(t *testing.T) {
 		24, 39, 2, 24, 40, 78, 159, 70, 99, 108, 105, 101, 110, 116,
 		1, 25, 2, 0, 64, 255, 255,
 	}
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	wai := newWhoami(transc)
 	n := transc.request(wai, stream, out)
@@ -63,7 +63,7 @@ func TestResponse(t *testing.T) {
 		24, 39, 2, 24, 40, 78, 159, 70, 99, 108, 105, 101, 110, 116,
 		1, 25, 2, 0, 64, 255, 255,
 	}
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	wai := newWhoami(transc)
 	n := transc.response(wai, stream, out)
@@ -86,7 +86,7 @@ func TestStart(t *testing.T) {
 		39, 2, 24, 40, 78, 159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2,
 		0, 64, 255, 255,
 	}
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	wai := newWhoami(transc)
 	n := transc.start(wai, stream, out)
@@ -109,7 +109,7 @@ func TestStream(t *testing.T) {
 		2, 24, 40, 78, 159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2, 0,
 		64, 255, 255,
 	}
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	wai := newWhoami(transc)
 	n := transc.stream(wai, stream, out)
@@ -128,7 +128,7 @@ func TestFinish(t *testing.T) {
 	transv := <-serverch
 
 	ref := []byte{217, 217, 247, 200, 68, 217, 1, 12, 255}
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	n := transc.finish(stream, out)
 	if bytes.Compare(out[:n], ref) != 0 {
@@ -150,7 +150,7 @@ func TestFramePkt(t *testing.T) {
 		78, 159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2, 0, 64,
 		255, 255,
 	}
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	wai := newWhoami(transc)
 	n := transc.framepkt(wai, stream, out)
@@ -168,7 +168,7 @@ func BenchmarkPostPkt(b *testing.B) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	msg := newPing("hello world")
 	b.ResetTimer()
@@ -186,7 +186,7 @@ func BenchmarkRequestPkt(b *testing.B) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	msg := newPing("hello world")
 	b.ResetTimer()
@@ -204,7 +204,7 @@ func BenchmarkResponsePkt(b *testing.B) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	msg := newPing("hello world")
 	b.ResetTimer()
@@ -222,7 +222,7 @@ func BenchmarkStartPkt(b *testing.B) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	msg := newPing("hello world")
 	b.ResetTimer()
@@ -240,7 +240,7 @@ func BenchmarkStreamPkt(b *testing.B) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	msg := newPing("hello world")
 	b.ResetTimer()
@@ -258,7 +258,7 @@ func BenchmarkFinishPkt(b *testing.B) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -275,7 +275,7 @@ func BenchmarkFramePkt(b *testing.B) {
 	transc := newClient(addr, "").Handshake() // init client
 	transv := <-serverch
 
-	stream := transc.getlocalstream(nil)
+	stream := transc.getlocalstream(nil, false)
 	out := make([]byte, 1024)
 	msg := newPing("hello world")
 	b.ResetTimer()

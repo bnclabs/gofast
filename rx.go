@@ -37,7 +37,6 @@ func (t *Transport) syncRx() {
 			//fmsg := "%v ##%d stream closed ...\n"
 			//log.Debugf(fmsg, t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
-			return
 		} else if stream.Rxch != nil {
 			//fmsg := "%v ##%d stream started ...\n"
 			//log.Verbosef(fmsg, t.logprefix, stream.opaque)

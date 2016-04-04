@@ -1,0 +1,10 @@
+n_dropped n_mdrops
+
+pulse graph: n_rxbeats
+dynamic line graph: n_flushes
+dynamic line graph: n_tx, n_rx
+dynamic line graph: n_txbyte, n_rxbyte
+dynamic line graph: n_rxpost, n_txpost
+dynamic line graph: n_rxreq, n_txreq, n_rxresp, n_txresp
+dynamic line graph: n_rxstart, n_txstart, n_txfin, n_rxfin
+dynamic line graph: n_rxstream, n_txstream

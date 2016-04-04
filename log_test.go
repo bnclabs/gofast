@@ -14,7 +14,7 @@ func TestSetLogger(t *testing.T) {
 	defer os.Remove(logfile)
 
 	ref := &defaultLogger{level: logLevelIgnore, output: nil}
-	llog := setLogger(ref, nil).(*defaultLogger)
+	llog := SetLogger(ref, nil).(*defaultLogger)
 	if llog.level != logLevelIgnore || llog.output != nil {
 		t.Errorf("expected %v, got %v", ref, llog)
 	}
@@ -25,7 +25,7 @@ func TestSetLogger(t *testing.T) {
 		"log.level": "info",
 		"log.file":  logfile,
 	}
-	clog := setLogger(nil, config)
+	clog := SetLogger(nil, config)
 	clog.Infof(logline)
 	clog.Verbosef(logline)
 	clog.Fatalf(logline)

@@ -21,10 +21,15 @@ func (t *Transport) newremotestream(opaque uint64) *Stream {
 	return stream
 }
 
-func (t *Transport) getlocalstream(ch chan Message) *Stream { // called only be tx.
+// called only be tx.
+func (t *Transport) getlocalstream(ch chan Message, tellrx bool) *Stream {
 	stream := <-t.p_strms
-	stream.Rxch = ch
-	t.putch(t.rxch, rxpacket{stream: stream})
+	if ch != nil {
+		stream.Rxch = ch
+	}
+	if tellrx {
+		t.putch(t.rxch, rxpacket{stream: stream})
+	}
 	return stream
 }
 
@@ -41,15 +46,15 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
 		return
 	}
-	if stream.remote == false {
-		t.p_strms <- stream // don't collect remote streams
-	}
 	if stream.Rxch != nil {
 		close(stream.Rxch)
 		stream.Rxch = nil
 	}
 	if tellrx {
 		t.putch(t.rxch, rxpacket{stream: stream})
+	}
+	if stream.remote == false {
+		t.p_strms <- stream // don't collect remote streams
 	}
 }
 
