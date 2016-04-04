@@ -4,6 +4,7 @@
     127.0.0.1:9117<->127.0.0.1:51824] reading prefix: 4,unexpected EOF
 * review panic calls.
 * default configuration.
+* verify takes > 5GB of memory, investigate the cause.
 * opaque-space for a single transport (connection) should be exclusive
   between client and server.
 * rename newstream() to newrxstream(), create a complementing function.
