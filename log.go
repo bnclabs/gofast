@@ -66,7 +66,9 @@ func setLogger(logger Logger, config map[string]interface{}) Logger {
 			}
 		}
 	}
-	log = &defaultLogger{level: level, output: logfd}
+	if log == nil {
+		log = &defaultLogger{level: level, output: logfd}
+	}
 	return log
 }
 

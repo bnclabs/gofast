@@ -14,10 +14,11 @@ func TestSetLogger(t *testing.T) {
 	defer os.Remove(logfile)
 
 	ref := &defaultLogger{level: logLevelIgnore, output: nil}
-	log := setLogger(ref, nil).(*defaultLogger)
-	if log.level != logLevelIgnore || log.output != nil {
-		t.Errorf("expected %v, got %v", ref, log)
+	llog := setLogger(ref, nil).(*defaultLogger)
+	if llog.level != logLevelIgnore || llog.output != nil {
+		t.Errorf("expected %v, got %v", ref, llog)
 	}
+	log = nil
 
 	// test a custom logger
 	config := map[string]interface{}{
