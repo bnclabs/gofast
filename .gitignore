@@ -1,11 +1,5 @@
 *.swp
-examples/bench/bench
-profs/
-tools/client/*.svg
-tools/client/*.mprof
-tools/client/*.pprof
-tools/client/client
-tools/server/*.svg
-tools/server/*.mprof
-tools/server/*.pprof
-tools/server/server
+perf/perf
+perf/*.svg
+perf/*.mprof
+perf/*.pprof
