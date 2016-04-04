@@ -14,13 +14,13 @@ func make_gzip(t *Transport, config map[string]interface{}) (uint64, tagfn, tagf
 		wbuf := bytes.NewBuffer(out[:0])
 		writer, err := gzip.NewWriterLevel(wbuf, level)
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("error encoding gzip: %v", err))
 		}
 		_, err = writer.Write(in)
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("error encoding gzip: %v", err))
 		} else if err = writer.Flush(); err != nil {
-			panic(err)
+			panic(fmt.Errorf("error encoding gzip: %v", err))
 		}
 		return wbuf.Len()
 	}
@@ -30,11 +30,11 @@ func make_gzip(t *Transport, config map[string]interface{}) (uint64, tagfn, tagf
 		}
 		reader, err := gzip.NewReader(bytes.NewBuffer(in))
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("error decoding gzip: %v", err))
 		}
 		n, err := reader.Read(out)
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("error decoding gzip: %v", err))
 		}
 		return n
 	}

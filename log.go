@@ -70,7 +70,7 @@ func SetLogger(logger Logger, config map[string]interface{}) Logger {
 		logfd, err = os.OpenFile(logfile, os.O_RDWR|os.O_APPEND, 0660)
 		if err != nil {
 			if logfd, err = os.Create(logfile); err != nil {
-				panic(err)
+				panic(fmt.Errorf("unable to create log file %v: %v", err))
 			}
 		}
 	}

@@ -15,7 +15,7 @@ func make_lzw(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn
 		wbuf.Reset()
 		writer := lzw.NewWriter(&wbuf, lzw.LSB, 8 /*litWidth*/)
 		if _, err := writer.Write(in); err != nil {
-			panic(err)
+			panic(fmt.Errorf("error encoding lzw: %v", err))
 		}
 		writer.Close()
 		return copy(out, wbuf.Bytes())
@@ -27,7 +27,7 @@ func make_lzw(t *Transport, config map[string]interface{}) (uint64, tagfn, tagfn
 		reader := lzw.NewReader(bytes.NewReader(in), lzw.LSB, 8 /*litWidth*/)
 		n, err := readAll(reader, out)
 		if err != nil {
-			panic(err)
+			panic(fmt.Errorf("error decoding lzw: %v", err))
 		}
 		reader.Close()
 		return n

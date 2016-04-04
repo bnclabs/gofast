@@ -396,13 +396,12 @@ func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (*Stream, e
 //---- local APIs
 
 func (t *Transport) setOpaqueRange(start, end uint64) {
-	fmsg := "%v opaques start at or after `%v` and shall not exceed `%v`(%v,%v)"
+	fmsg := "%v opaques should within [`%v`,`%v`], got  (%v,%v)"
+	tagos, tagoe := tagOpaqueStart, tagOpaqueEnd
 	if start < tagOpaqueStart {
-		panic(fmt.Errorf(
-			fmsg, t.logprefix, tagOpaqueStart, tagOpaqueEnd, start, end))
+		panic(fmt.Errorf(fmsg, t.logprefix, tagos, tagoe, start, end))
 	} else if end > tagOpaqueEnd {
-		panic(fmt.Errorf(
-			fmsg, t.logprefix, tagOpaqueStart, tagOpaqueEnd, start, end))
+		panic(fmt.Errorf(fmsg, t.logprefix, tagos, tagoe, start, end))
 	}
 	fmsg = "%v local streams (%v,%v) pre-created\n"
 	log.Debugf(fmsg, t.logprefix, start, end)
