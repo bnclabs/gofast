@@ -1,5 +1,5 @@
-Transport configuration:
-------------------------
+Transport configuration
+-----------------------
 
 Every connection in gofast is encapsulated as a Transport{} object
 returned by NewTransport() API.

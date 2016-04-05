@@ -1,5 +1,5 @@
-Transport statistics:
----------------------
+Transport statistics
+--------------------
 
 all statistics applicable only on the local node.
 

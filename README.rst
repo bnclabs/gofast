@@ -1,5 +1,5 @@
-Gofast:
--------
+Gofast
+------
 
 High performance protocol, accompanied by a programming model, for distributed
 applications.
@@ -45,20 +45,23 @@ each of the predefined keys shall be assigned a unique number.
 an exchange shall be initiated either by client or server,
 exchange can be one of the following.
 
-post-request, client post a packet and expects no response:
+post-request, client post a packet and expects no response,
 
 .. code-block:: text
+
      | 0xd9 0xd9f7 | 0xc6 | packet |
 
-request-response, client make a request and expects a single response:
+request-response, client make a request and expects a single response,
 
 .. code-block:: text
+
      | 0xd9 0xd9f7 | 0x81 | packet |
 
 bi-directional streaming, where client and server will have to close
-the stream by sending a 0xff:
+the stream by sending a 0xff,
 
 .. code-block:: text
+
      | 0xd9 0xd9f7         | 0x9f | packet1    |
             | 0xd9 0xd9f7  | 0xc7 | packet2    |
             ...
@@ -83,7 +86,10 @@ symmetrical.
 **packet-format**
 
 a single block of binary blob in CBOR_ format, transmitted
-from client to server or server to client:
+from client to server or server to client,
+
+.. code-block:: text
+
   | len | tag1 |         payload1               |
                | tag2 |      payload2           |
                       | tag3 |   payload3       |
@@ -103,6 +109,7 @@ from client to server or server to client:
 **end-of-stream:**
 
 .. code-block:: text
+
     | tag1  | 0xff |
 
 * if packet denotes a stream-end, payload will be 1-byte 0xff,
@@ -116,9 +123,9 @@ from client to server or server to client:
 .. _CBOR: http://cbor.io/
 
 .. |buildstatus| image:: https://travis-ci.org/prataprc/gofast.png
-    :target: https://travis-ci.org/prataprc/gofast
+    :href: https://travis-ci.org/prataprc/gofast
 .. |coveragestatus| image:: https://coveralls.io/repos/prataprc/gofast/badge.png?branch=master&service=github
-    :target: https://coveralls.io/github/prataprc/gofast?branch=master
+    :href: https://coveralls.io/github/prataprc/gofast?branch=master
 .. |godoc| image:: https://godoc.org/github.com/prataprc/gofast?status.png
-    :target: https://godoc.org/github.com/prataprc/gofast
+    :href: https://godoc.org/github.com/prataprc/gofast
 
