@@ -1,7 +1,10 @@
 Transport statistics
 --------------------
 
-all statistics applicable only on the local node.
+Every Transport{} object maintains local statistics of useful information,
+which can be obtained via the Transport{}.Stats() API. Note that ``n_dropped``
+and ``n_mdrops`` are counted because gofast supports either end to finish
+an ongoing stream of messages.
 
 `n_tx`
     number of messages transmitted.
