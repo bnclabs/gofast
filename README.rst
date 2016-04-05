@@ -123,9 +123,9 @@ from client to server or server to client,
 .. _CBOR: http://cbor.io/
 
 .. |buildstatus| image:: https://travis-ci.org/prataprc/gofast.png
-    :href: https://travis-ci.org/prataprc/gofast
+    :target: https://travis-ci.org/prataprc/gofast
 .. |coveragestatus| image:: https://coveralls.io/repos/prataprc/gofast/badge.png?branch=master&service=github
-    :href: https://coveralls.io/github/prataprc/gofast?branch=master
+    :target: https://coveralls.io/github/prataprc/gofast?branch=master
 .. |godoc| image:: https://godoc.org/github.com/prataprc/gofast?status.png
-    :href: https://godoc.org/github.com/prataprc/gofast
+    :target: https://godoc.org/github.com/prataprc/gofast
 
