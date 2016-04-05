@@ -6,7 +6,7 @@ applications.
 
 |buildstatus| |coveragestatus| |godoc|
 
-Aims at following goal **under development**.
+**Under development**, aims at following goal
 
 * CBOR_,(Concise Binary Object Representation) based protocol.
   framing, avoid yet another protocol frame.
