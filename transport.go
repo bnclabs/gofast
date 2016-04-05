@@ -156,7 +156,7 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 	t.subscribeMessage(&pingMsg{}, t.msghandler)
 	t.subscribeMessage(&heartbeatMsg{}, t.msghandler)
 
-	// educate tranport with configured tag decoders.
+	// educate transport with configured tag decoders.
 	tagcsv, _ := config["tags"]
 	for _, tag := range t.getTags(tagcsv.(string), []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
@@ -216,7 +216,7 @@ func (t *Transport) Handshake() *Transport {
 	return t
 }
 
-// Close this tranport, connection shall be closed as well.
+// Close this transport, connection shall be closed as well.
 func (t *Transport) Close() error {
 	defer func() {
 		if r := recover(); r != nil {
