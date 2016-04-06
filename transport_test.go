@@ -15,8 +15,8 @@ import "strings"
 
 func TestTransport(t *testing.T) {
 	ver, addr := testVersion(1), <-testBindAddrs
-	lis, serverch := newServer(addr, "gzip")      // init server
-	transc := newClient(addr, "gzip").Handshake() // init client
+	lis, serverch := newServer("server", addr, "gzip")      // init server
+	transc := newClient("client", addr, "gzip").Handshake() // init client
 	transv := <-serverch
 
 	c_counts := transv.Stat()
@@ -55,8 +55,8 @@ func TestTransport(t *testing.T) {
 
 func TestSubscribeMessage(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// test
@@ -81,8 +81,8 @@ func TestSubscribeMessage(t *testing.T) {
 
 func TestFlushPeriod(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// test
@@ -102,8 +102,8 @@ func TestFlushPeriod(t *testing.T) {
 
 func TestHeartbeat(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// test
@@ -147,8 +147,8 @@ func TestHeartbeat(t *testing.T) {
 
 func TestPing(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 
 	// test
@@ -182,8 +182,8 @@ func TestPing(t *testing.T) {
 
 func TestWhoami(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
 	msg, err := transc.Whoami()
@@ -217,8 +217,8 @@ func TestWhoami(t *testing.T) {
 
 func TestTransPost(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
 	msg := &testMessage{1234}
@@ -257,8 +257,8 @@ func TestTransPost(t *testing.T) {
 
 func TestTransPostEmpty(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
 	msg := &emptyMessage{}
@@ -297,12 +297,12 @@ func TestTransPostEmpty(t *testing.T) {
 
 func TestTransPostLarge(t *testing.T) {
 	addr := <-testBindAddrs
-	sconf := newconfig("server", tagOpaqueStart, tagOpaqueStart+10)
+	sconf := newconfig(tagOpaqueStart, tagOpaqueStart+10)
 	sconf["buffersize"] = 1024 * 1204
-	cconf := newconfig("client", tagOpaqueStart+11, tagOpaqueStart+20)
+	cconf := newconfig(tagOpaqueStart+11, tagOpaqueStart+20)
 	cconf["buffersize"] = 1024 * 1204
-	lis, serverch := newServerConfig(addr, sconf)      // init server
-	transc := newClientConfig(addr, cconf).Handshake() // init client
+	lis, serverch := newServerConfig("server", addr, sconf)      // init server
+	transc := newClientConfig("client", addr, cconf).Handshake() // init client
 	transv := <-serverch
 	// test
 	msg := &largeMessage{}
@@ -328,8 +328,8 @@ func TestTransPostLarge(t *testing.T) {
 
 func TestTransRequest(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
 	msg := &testMessage{1234}
@@ -355,8 +355,8 @@ func TestTransRequest(t *testing.T) {
 
 func TestClientStream(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
 	start, n := uint64(1235), uint64(100)
@@ -404,8 +404,8 @@ func TestClientStream(t *testing.T) {
 
 func TestServerStream(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
 	start, n := uint64(1235), uint64(100)
@@ -453,8 +453,8 @@ func TestServerStream(t *testing.T) {
 
 func TestTransGzip(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "gzip")      // init server
-	transc := newClient(addr, "gzip").Handshake() // init client
+	lis, serverch := newServer("server", addr, "gzip")      // init server
+	transc := newClient("client", addr, "gzip").Handshake() // init client
 	transv := <-serverch
 	// test
 	msg := &testMessage{1234}
@@ -480,8 +480,8 @@ func TestTransGzip(t *testing.T) {
 
 func TestJunkRx(t *testing.T) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "gzip")      // init server
-	transc := newClient(addr, "gzip").Handshake() // init client
+	lis, serverch := newServer("server", addr, "gzip")      // init server
+	transc := newClient("client", addr, "gzip").Handshake() // init client
 	transv := <-serverch
 	// test
 	if _, err := transc.conn.Write([]byte("junk")); err != nil {
@@ -497,8 +497,8 @@ func TestJunkRx(t *testing.T) {
 
 func BenchmarkTransStats(b *testing.B) {
 	addr := <-testBindAddrs
-	lis, serverch := newServer(addr, "")      // init server
-	transc := newClient(addr, "").Handshake() // init client
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 	b.ResetTimer()
 
@@ -515,9 +515,8 @@ func BenchmarkTransStats(b *testing.B) {
 
 //---- test fixture with client and server.
 
-func newconfig(name string, start, end int) map[string]interface{} {
+func newconfig(start, end int) map[string]interface{} {
 	return map[string]interface{}{
-		"name":         name,
 		"buffersize":   512,
 		"chansize":     100000,
 		"batchsize":    1,
@@ -528,14 +527,14 @@ func newconfig(name string, start, end int) map[string]interface{} {
 	}
 }
 
-func newServer(addr, tags string) (*net.TCPListener, chan *Transport) {
-	config := newconfig("server", tagOpaqueStart, tagOpaqueStart+10)
+func newServer(name, addr, tags string) (*net.TCPListener, chan *Transport) {
+	config := newconfig(tagOpaqueStart, tagOpaqueStart+10)
 	config["tags"] = tags
-	return newServerConfig(addr, config)
+	return newServerConfig(name, addr, config)
 }
 
 func newServerConfig(
-	addr string,
+	name, addr string,
 	config map[string]interface{}) (*net.TCPListener, chan *Transport) {
 
 	la, err := net.ResolveTCPAddr("tcp", addr)
@@ -557,7 +556,7 @@ func newServerConfig(
 	go func() {
 		if conn, err := lis.Accept(); err == nil {
 			ver := testVersion(1)
-			trans, err := NewTransport(conn, &ver, config)
+			trans, err := NewTransport(name, conn, &ver, config)
 			if err != nil {
 				panic("NewTransport server failed")
 			}
@@ -567,14 +566,14 @@ func newServerConfig(
 	return lis, ch
 }
 
-func newClient(addr, tags string) *Transport {
-	config := newconfig("client", tagOpaqueStart+11, tagOpaqueStart+20)
+func newClient(name, addr, tags string) *Transport {
+	config := newconfig(tagOpaqueStart+11, tagOpaqueStart+20)
 	config["tags"] = tags
-	return newClientConfig(addr, config)
+	return newClientConfig(name, addr, config)
 }
 
 func newClientConfig(
-	addr string,
+	name, addr string,
 	config map[string]interface{}) *Transport {
 
 	conn, err := net.Dial("tcp", addr)
@@ -582,7 +581,7 @@ func newClientConfig(
 		panic(err)
 	}
 	ver := testVersion(1)
-	trans, err := NewTransport(conn, &ver, config)
+	trans, err := NewTransport(name, conn, &ver, config)
 	if err != nil {
 		panic(err)
 	}

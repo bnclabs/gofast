@@ -7,9 +7,6 @@ returned by NewTransport() API.
 Following is the list of settings that can be applied on a single
 transport.
 
-`name`
-    give a name for the transport.
-
 `buffersize`
     maximum size that a single message will need.
 

@@ -119,8 +119,7 @@ type Transport struct {
 
 // NewTransport encapsulate a transport over this connection,
 // one connection one transport.
-func NewTransport(conn Transporter, version Version, config map[string]interface{}) (*Transport, error) {
-	name := config["name"].(string)
+func NewTransport(name string, conn Transporter, version Version, config map[string]interface{}) (*Transport, error) {
 	buffersize := config["buffersize"].(int)
 	opqstart := config["opaque.start"].(int)
 	opqend := config["opaque.end"].(int)
