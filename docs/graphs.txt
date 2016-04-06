@@ -1,4 +1,4 @@
-n_dropped n_mdrops
+Would be nice to plot these information as graphs.
 
 pulse graph: n_rxbeats
 dynamic line graph: n_flushes
@@ -8,3 +8,7 @@ dynamic line graph: n_rxpost, n_txpost
 dynamic line graph: n_rxreq, n_txreq, n_rxresp, n_txresp
 dynamic line graph: n_rxstart, n_txstart, n_txfin, n_rxfin
 dynamic line graph: n_rxstream, n_txstream
+
+dynamic line graph : n_dropped
+dynamic line graph : n_mdrops
+
