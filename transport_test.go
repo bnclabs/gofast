@@ -19,8 +19,8 @@ func TestTransport(t *testing.T) {
 	transc := newClient(addr, "gzip").Handshake() // init client
 	transv := <-serverch
 
-	c_counts := transv.Stats()
-	s_counts := transv.Stats()
+	c_counts := transv.Stat()
+	s_counts := transv.Stat()
 	// test
 	if ref := "server"; transv.Name() != ref {
 		t.Errorf("expected %v, got %v", ref, transv.Name())
@@ -88,7 +88,7 @@ func TestFlushPeriod(t *testing.T) {
 	// test
 	transc.FlushPeriod(10 * time.Millisecond) // 99 flushes + 1 from handshake
 	time.Sleep(2 * time.Second)
-	c_counts := transc.Stats()
+	c_counts := transc.Stat()
 	if ref, n := uint64(10), c_counts["n_flushes"]; n < ref {
 		t.Errorf("expected less than %v, got %v", ref, n)
 	}
@@ -111,8 +111,8 @@ func TestHeartbeat(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	transc.Close()
 	time.Sleep(20 * time.Millisecond)
-	c_counts := transc.Stats()
-	s_counts := transv.Stats()
+	c_counts := transc.Stat()
+	s_counts := transv.Stat()
 
 	if !verify(c_counts, "n_txreq", "n_rxresp", 1, "n_rx", 2) {
 		t.Errorf("unexpected c_counts %v", c_counts)
@@ -158,7 +158,7 @@ func TestPing(t *testing.T) {
 	} else if echo != refs {
 		t.Errorf("expected atleast %v, got %v", refs, echo)
 	}
-	counts := transc.Stats()
+	counts := transc.Stat()
 	if ref, n := uint64(3), counts["n_flushes"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_rx"]; n != ref {
@@ -193,7 +193,7 @@ func TestWhoami(t *testing.T) {
 	} else if string(wai.name) != "server" {
 		t.Errorf("expected %v, got %v", "server", string(wai.name))
 	}
-	counts := transc.Stats()
+	counts := transc.Stat()
 	if ref, n := uint64(3), counts["n_flushes"]; n != ref {
 		t.Errorf("expected atleast %v, got %v", ref, n)
 	} else if n = counts["n_tx"]; n != ref {
@@ -503,7 +503,7 @@ func BenchmarkTransStats(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		transc.Stats()
+		transc.Stat()
 	}
 
 	time.Sleep(100 * time.Millisecond)

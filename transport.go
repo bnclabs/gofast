@@ -32,12 +32,17 @@ package gofast
 
 import "sync"
 import "sync/atomic"
+import "unsafe"
 import "fmt"
 import "strings"
 import "net"
 import "time"
 
 type tagfn func(in, out []byte) int
+type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)
+
+var tag_factory = make(map[string]tagFactory)
+var transports = unsafe.Pointer(&map[string]*Transporter{})
 
 // RequestCallback handler called for an incoming post, request or stream;
 // to be supplied by application before using the transport.
@@ -144,6 +149,7 @@ func NewTransport(conn Transporter, version Version, config map[string]interface
 		batchsize:  batchsize,
 		buffersize: buffersize,
 	}
+	addtransport(name, t)
 
 	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
 	t.logprefix = fmt.Sprintf("GFST[%v; %v<->%v]", name, laddr, raddr)
@@ -228,6 +234,7 @@ func (t *Transport) Close() error {
 	// a. prevent any more transmission on the connection.
 	// b. close all active streams.
 	close(t.killch)
+	deltransport(t.name)
 	log.Infof("%v ... closed\n", t.logprefix)
 	// finally close the connection itself.
 	return t.conn.Close()
@@ -315,8 +322,8 @@ func (t *Transport) Free(msg Message) {
 	t.msgpools[msg.Id()].Put(msg)
 }
 
-// Stats shall return the stat counts for this transport.
-func (t *Transport) Stats() map[string]uint64 {
+// Stat shall return the stat counts for this transport.
+func (t *Transport) Stat() map[string]uint64 {
 	stats := map[string]uint64{
 		"n_tx":       atomic.LoadUint64(&t.n_tx),
 		"n_flushes":  atomic.LoadUint64(&t.n_flushes),
@@ -340,6 +347,37 @@ func (t *Transport) Stats() map[string]uint64 {
 		"n_mdrops":   atomic.LoadUint64(&t.n_mdrops),
 	}
 	return stats
+}
+
+// Stats return consolidated counts of all transport objects.
+func Stats() map[string]uint64 {
+	stats := map[string]uint64{}
+
+	op := atomic.LoadPointer(&transports)
+	transm := (*map[string]*Transport)(op)
+	for _, t := range *transm {
+		s := t.Stat()
+		for k, v := range s {
+			if acc, ok := stats[k]; ok {
+				stats[k] = acc + v
+			} else {
+				stats[k] = v
+			}
+		}
+	}
+	return stats
+}
+
+// Stat count for specified transport object.
+func Stat(name string) map[string]uint64 {
+	op := atomic.LoadPointer(&transports)
+	transm := (*map[string]*Transport)(op)
+	for transname, t := range *transm {
+		if transname == name {
+			return t.Stat()
+		}
+	}
+	return nil
 }
 
 //---- transport APIs
@@ -495,6 +533,41 @@ func (t *Transport) fromtxpool() *txproto {
 	return arg
 }
 
-type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)
+// add a new trasnport.
+func addtransport(name string, t *Transport) {
+	for {
+		op := atomic.LoadPointer(&transports)
+		oldm := (*map[string]*Transport)(op)
+		newm := map[string]*Transport{}
+		for k, trans := range *oldm {
+			if k == name {
+				panic(fmt.Errorf("transport %v already created", name))
+			}
+			newm[k] = trans
+		}
+		newm[name] = t
+		if atomic.CompareAndSwapPointer(&transports, op, unsafe.Pointer(&newm)) {
+			return
+		}
+	}
+}
 
-var tag_factory = make(map[string]tagFactory)
+// delete a transport.
+func deltransport(name string) *Transport {
+	for {
+		op := atomic.LoadPointer(&transports)
+		oldm := (*map[string]*Transport)(op)
+		newm := map[string]*Transport{}
+		for k, trans := range *oldm {
+			newm[k] = trans
+		}
+		t, ok := newm[name]
+		if !ok {
+			panic(fmt.Errorf("transport %v not there", name))
+		}
+		delete(newm, name)
+		if atomic.CompareAndSwapPointer(&transports, op, unsafe.Pointer(&newm)) {
+			return t
+		}
+	}
+}
