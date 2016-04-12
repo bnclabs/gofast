@@ -115,6 +115,12 @@ from client to server or server to client,
 * if packet denotes a stream-end, payload will be 1-byte 0xff,
   and not encoded as byte-array.
 
+**http endpoints:**
+
+Gofast exports per transport statistics and aggregated statistics for
+debugging and performance tracking. For more details check out the
+godoc documentation.
+
 **useful links:**
 
 * `transport settings <docs/settings.rst>`_
