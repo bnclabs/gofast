@@ -1,4 +1,4 @@
-// http package to use gofast http endpoints, subscribed
+// http package to handle gofast http endpoints, subscribed
 // to net/http.DefaultServerMux.
 //
 // import _ github.com/prataprc/gofast/http
@@ -20,58 +20,10 @@
 // as JSON text.
 package http
 
-import "strings"
 import "net/http"
-import "encoding/json"
-import "fmt"
 
 import "github.com/prataprc/gofast"
 
 func init() {
-	http.HandleFunc("/gofast/statistics", statshandler)
-}
-
-func Statshandler(w http.ResponseWriter, r *http.Request) {
-	if query := r.URL.Query(); query != nil {
-		name, _ := query["name"]
-		keyparam, _ := query["keys"]
-		keys := []string{}
-		if len(keyparam) > 0 {
-			keys = strings.Split(strings.Trim(keyparam[0], " \r\n\t"), ",")
-		}
-
-		var stats map[string]uint64
-		if len(name) == 0 {
-			stats = gofast.Stats()
-		} else {
-			stats = gofast.Stat(name[0])
-		}
-		fmt.Println(stats)
-		stats = filterstats(stats, keys)
-		fmt.Println(stats)
-
-		jsonstats, err := json.Marshal(stats)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error() + "\n"))
-			return
-		}
-
-		header := w.Header()
-		header["Content-Type"] = []string{"application/json"}
-		w.WriteHeader(200)
-		w.Write(jsonstats)
-		w.Write([]byte("\n"))
-	}
-}
-
-func filterstats(stats map[string]uint64, keys []string) map[string]uint64 {
-	if len(keys) == 0 {
-		return stats
-	}
-	m := map[string]uint64{}
-	for _, key := range keys {
-		m[key] = stats[key]
-	}
-	return m
+	http.HandleFunc("/gofast/statistics", gofast.Statshandler)
 }
