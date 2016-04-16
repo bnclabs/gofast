@@ -1,3 +1,4 @@
+* memstats and plotting memstats.
 * add code coverage for verification.
 * find a way to add SendHeartbeat() in verify/{client.go,server.go}
 * logs are commented, wrap them under log flag.
