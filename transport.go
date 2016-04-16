@@ -505,7 +505,6 @@ func (t *Transport) requestCallback(stream *Stream, msg Message) chan Message {
 	if fn := t.handlers[id]; fn != nil {
 		return fn(stream, msg)
 	}
-	log.Warnf("request-callback registered nil for msg:(%v,%T)\n", id, msg)
 	return nil
 }
 
