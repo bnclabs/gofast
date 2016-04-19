@@ -7,6 +7,7 @@
 //
 //   /gofast/statistics?name=<transport-name>
 //   /gofast/statistics?keys=n_tx,n_rx
+//   /gofast/memstats
 //
 // * if `name` query-parameter is supplied, complete set of statistics
 // for the specified <transport-name> will be returned as JSON
@@ -20,10 +21,74 @@
 // as JSON text.
 package http
 
+import "runtime"
+import "strings"
 import "net/http"
+import "encoding/json"
 
 import "github.com/prataprc/gofast"
 
 func init() {
 	http.HandleFunc("/gofast/statistics", gofast.Statshandler)
+	http.HandleFunc("/gofast/memstats", memstats)
+}
+
+var fmemsg = strings.Replace(`memstats {
+"Alloc":%v, "TotalAlloc":%v, "Sys":%v, "Lookups":%v, "Mallocs":%v,
+"Frees":%v, "HeapAlloc":%v, "HeapSys":%v, "HeapIdle":%v, "HeapInuse":%v,
+"HeapReleased":%v, "HeapObjects":%v,
+"GCSys":%v, "LastGC":%v,
+"PauseTotalNs":%v, "PauseNs":%v, "NumGC":%v
+}`, "\n", "", -1)
+
+var oldNumGC uint32
+
+func memstats(w http.ResponseWriter, r *http.Request) {
+	var ms runtime.MemStats
+	var pauseNs [256]uint64
+
+	runtime.ReadMemStats(&ms)
+	pausens := newPauseNs(pauseNs[:], ms.PauseNs[:], oldNumGC, ms.NumGC)
+	stats := map[string]interface{}{
+		// alloc graph
+		"mallocs": ms.Mallocs,
+		"frees":   ms.Frees,
+		// mem graph
+		"heapsys":      ms.HeapSys,
+		"heapalloc":    ms.HeapAlloc,
+		"heapidle":     ms.HeapIdle,
+		"heapinuse":    ms.HeapInuse,
+		"heapreleased": ms.HeapReleased,
+		// pause graph
+		"gcsys":        ms.GCSys,
+		"pausetotalns": ms.PauseTotalNs,
+		"pausens":      pausens,
+		"numgc":        ms.NumGC,
+	}
+	oldNumGC = ms.NumGC
+
+	// marshal and send
+	jsonstats, err := json.Marshal(stats)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error() + "\n"))
+		return
+	}
+	header := w.Header()
+	header["Content-Type"] = []string{"application/json"}
+	header["Access-Control-Allow-Origin"] = []string{"*"}
+	w.WriteHeader(200)
+	w.Write(jsonstats)
+	w.Write([]byte("\n"))
+}
+
+func newPauseNs(pad, pauseNs []uint64, oldcount, newcount uint32) []uint64 {
+	diff := (newcount - oldcount)
+	if diff >= 256 {
+		return pauseNs[:]
+	}
+	for i, j := 0, oldcount+1; j <= newcount; i, j = i+1, j+1 {
+		pad[i] = pauseNs[(j+255)%256]
+	}
+	return pad[:diff]
 }

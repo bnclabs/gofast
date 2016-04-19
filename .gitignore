@@ -1,3 +1,4 @@
+verify/verify
 *.swp
 perf/perf
 perf/*.svg
