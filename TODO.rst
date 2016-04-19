@@ -1,6 +1,3 @@
-* use chan struct{} instead of chan bool for synchronization.
-* there is a leak in verify/* use mmprof to fix it.
-* add code coverage for verification.
 * find a way to add SendHeartbeat() in verify/{client.go,server.go}
 * logs are commented, wrap them under log flag.
 * document reserved tags.
@@ -17,3 +14,4 @@
 * run travis for go1.4, go1.5, go1.6
 * try gofast on raspberry-pi.
 * support snappy compression.
+* add code coverage for verification.

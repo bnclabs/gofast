@@ -99,7 +99,7 @@ type Transport struct {
 	aliveat  int64
 	txch     chan *txproto
 	rxch     chan rxpacket
-	killch   chan bool
+	killch   chan struct{}
 
 	// memory pools
 	p_strms  chan *Stream // for locally initiated streams
@@ -140,7 +140,7 @@ func NewTransport(name string, conn Transporter, version Version, config map[str
 		conn:   conn,
 		txch:   make(chan *txproto, chansize+batchsize),
 		rxch:   make(chan rxpacket, chansize),
-		killch: make(chan bool),
+		killch: make(chan struct{}),
 
 		msgpools: make(map[uint64]*sync.Pool),
 
