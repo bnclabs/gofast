@@ -39,10 +39,12 @@ func (t *Transport) syncRx() {
 	streamupdate := func(stream *Stream) {
 		_, ok := livestreams[stream.opaque]
 		if ok && stream.Rxch == nil {
+			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream closed ...\n"
 			//log.Debugf(fmsg, t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
 		} else if stream.Rxch != nil {
+			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream started ...\n"
 			//log.Verbosef(fmsg, t.logprefix, stream.opaque)
 			livestreams[stream.opaque] = stream
@@ -53,6 +55,7 @@ func (t *Transport) syncRx() {
 		stream, streamok := livestreams[rxpkt.opaque]
 
 		if streamok && rxpkt.finish {
+			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream closed by remote ...\n"
 			//log.Debugf(fmsg, t.logprefix, stream.opaque)
 			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
@@ -60,11 +63,13 @@ func (t *Transport) syncRx() {
 			atomic.AddUint64(&t.n_rxfin, 1)
 			return
 		} else if rxpkt.finish {
+			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d unknown stream-fin from remote ...\n"
 			//log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
 			atomic.AddUint64(&t.n_mdrops, 1)
 			return
 		}
+		//TODO: Issue #2, remove or prevent value escape to heap
 		//fmsg := "%v received msg %#v streamok:%v\n"
 		//log.Debugf(fmsg, t.logprefix, rxpkt.msg, streamok)
 		if streamok == false { // post, request, stream-start
@@ -147,6 +152,7 @@ func (t *Transport) doRx() {
 		if err != nil {
 			break
 		}
+		//TODO: Issue #2, remove or prevent value escape to heap
 		//log.Debugf("%v %v ; received pkt\n", t.logprefix, rxpkt)
 		if t.putch(t.rxch, rxpkt) == false {
 			break
@@ -178,6 +184,7 @@ func (t *Transport) unframepkt(
 		log.Errorf("%v\n", err)
 		return
 	}
+	//TODO: Issue #2, remove or prevent value escape to heap
 	//log.Debugf("%v doRx() io.ReadFull() first %v\n", t.logprefix, pad)
 	// check cbor-prefix
 	n = 3
@@ -203,6 +210,7 @@ func (t *Transport) unframepkt(
 		return
 	}
 	atomic.AddUint64(&t.n_rxbyte, uint64(9+m))
+	//TODO: Issue #2, remove or prevent value escape to heap
 	//log.Debugf("%v doRx() io.ReadFull() second %v\n", t.logprefix, packet[:ln])
 
 	// first tag is opaque

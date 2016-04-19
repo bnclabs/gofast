@@ -266,6 +266,8 @@ func (t *Transport) FlushPeriod(ms time.Duration) {
 			if t.tx([]byte{} /*empty*/, true /*flush*/) != nil {
 				return
 			}
+
+			//TODO: Issue #2, remove or prevent value escape to heap
 			//log.Debugf("%v flushed ... \n", t.logprefix)
 
 			select {
@@ -288,6 +290,8 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 				return
 			}
 			count++
+
+			//TODO: Issue #2, remove or prevent value escape to heap
 			//log.Debugf("%v posted heartbeat %v\n", t.logprefix, count)
 
 			select {

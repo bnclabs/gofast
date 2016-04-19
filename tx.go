@@ -173,6 +173,7 @@ func (t *Transport) doTx() {
 		}
 		// send.
 		if n > 0 {
+			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v doTx() socket write %v:%v\n"
 			//log.Debugf(fmsg, t.logprefix, n, tcpwrite_buf[:n])
 			m, err = t.conn.Write(tcpwrite_buf[:n])
@@ -191,6 +192,7 @@ func (t *Transport) doTx() {
 				arg.respch <- arg
 			}
 		}
+		//TODO: Issue #2, remove or prevent value escape to heap
 		//log.Debugf("%v drained %v packets\n", t.logprefix, len(batch))
 		batch = batch[:0] // reset the batch
 	}

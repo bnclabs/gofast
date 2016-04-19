@@ -13,8 +13,11 @@ type Stream struct {
 // constructor used for remote streams.
 func (t *Transport) newremotestream(opaque uint64) *Stream {
 	stream := t.fromrxstrm()
+
+	//TODO: Issue #2, remove or prevent value escape to heap
 	//fmsg := "%v ##%d(remote:%v) stream created ...\n"
 	//log.Verbosef(fmsg, t.logprefix, opaque, remote)
+
 	// reset all fields (it is coming from a pool)
 	stream.transport, stream.remote, stream.opaque = t, true, opaque
 	stream.Rxch = nil

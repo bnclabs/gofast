@@ -1,4 +1,3 @@
-* find a way to add SendHeartbeat() in verify/{client.go,server.go}
 * logs are commented, wrap them under log flag.
 * document reserved tags.
 * refactor verify and enable random and race.
@@ -15,3 +14,4 @@
 * try gofast on raspberry-pi.
 * support snappy compression.
 * add code coverage for verification.
+* find a way to add SendHeartbeat() in verify/{client.go,server.go}
