@@ -1,5 +1,5 @@
-* memstats and plotting memstats.
 * use chan struct{} instead of chan bool for synchronization.
+* there is a leak in verify/* use mmprof to fix it.
 * add code coverage for verification.
 * find a way to add SendHeartbeat() in verify/{client.go,server.go}
 * logs are commented, wrap them under log flag.
