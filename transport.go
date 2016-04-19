@@ -239,6 +239,17 @@ func (t *Transport) Close() error {
 	return t.conn.Close()
 }
 
+// IsClosed return whether this transport is closed or not.
+func (t *Transport) IsClosed() bool {
+	select {
+	case <-t.killch:
+		return true
+	default:
+		return false
+	}
+	panic("unreachable code")
+}
+
 //---- maintenance APIs
 
 // Name returns the transport-name.
