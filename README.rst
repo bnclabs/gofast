@@ -106,6 +106,11 @@ from client to server or server to client,
 * the final embedded tag, in this case tag4, shall always
   be tagMsg (value 37).
 
+**hdr-data**
+
+* tagId, identifies message with unique id.
+* tagData, identified encoded message as byte array.
+
 **end-of-stream:**
 
 .. code-block:: text
@@ -123,6 +128,7 @@ godoc documentation.
 
 **useful links:**
 
+* `reserved tags <docs/reservedtags.rst>`_
 * `transport settings <docs/settings.rst>`_
 * `transport statistics <docs/statistics.rst>`_
 
