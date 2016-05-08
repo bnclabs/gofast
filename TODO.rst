@@ -1,3 +1,5 @@
+* golang 1.6 has default support for http 2.0. benchmark gofast with
+  http 2.0.
 * add verify to travis-ci.
 * run travis for go1.4, go1.5, go1.6
 * write-up on using `peerversion` to build distributed applications
