@@ -80,12 +80,17 @@ func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
 	n += valbytes2cbor(data[:m], ping[n:])
 	n += breakStop(ping[n:])
 
-	for tag, fn := range t.tagenc { // roll up tags
-		if m = fn(ping[:n], pong); m == 0 { // skip tag
-			continue
+	// NOTE: tagenc is updated as part of whoamiMsg message, due to
+	// which it needs to be skipped for whoamiMsg message during
+	// handshake, for now we skip tagenc for whoamiMsg all the time.
+	if _, ok := msg.(*whoamiMsg); ok {
+		for tag, fn := range t.tagenc { // roll up tags
+			if m = fn(ping[:n], pong); m == 0 { // skip tag
+				continue
+			}
+			n = tag2cbor(tag, ping)
+			n += valbytes2cbor(pong[:m], ping[n:])
 		}
-		n = tag2cbor(tag, ping)
-		n += valbytes2cbor(pong[:m], ping[n:])
 	}
 
 	m = tag2cbor(stream.opaque, pong) // finally roll up opaque

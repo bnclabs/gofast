@@ -201,6 +201,7 @@ func (t *Transport) Handshake() *Transport {
 
 	wai := msg.(*whoamiMsg)
 	t.peerver.Store(wai.version)
+
 	// parse tag list, tags shall be applied in the specified order.
 	for _, tag := range t.getTags(wai.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
@@ -212,10 +213,12 @@ func (t *Transport) Handshake() *Transport {
 	}
 	fmsg := "%v handshake completed with peer: %#v ...\n"
 	log.Verbosef(fmsg, t.logprefix, msg)
+
 	atomic.AddInt64(&t.xchngok, 1)
 	for atomic.LoadInt64(&t.xchngok) < 2 { // wait till remote handshake
 		time.Sleep(100 * time.Millisecond)
 	}
+
 	return t
 }
 
