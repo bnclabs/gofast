@@ -26,15 +26,6 @@ func TestStr2Bytes(t *testing.T) {
 	}
 }
 
-func TestMsgFactory(t *testing.T) {
-	ref := &whoamiMsg{}
-	wai_factory := msgfactory(ref)
-	msg := wai_factory()
-	if _, ok := msg.(*whoamiMsg); !ok {
-		t.Errorf("expected %v, got %v", ref, msg)
-	}
-}
-
 func TestHasString(t *testing.T) {
 	if hasString("hello", []string{"hello", "world"}) == false {
 		t.Errorf("expected %v, got %v", false, true)
@@ -78,12 +69,5 @@ func BenchmarkStr2Bytes(b *testing.B) {
 	s := "hello world"
 	for i := 0; i < b.N; i++ {
 		str2bytes(s)
-	}
-}
-
-func BenchmarkMsgFactory(b *testing.B) {
-	wai_factory := msgfactory(&whoamiMsg{})
-	for i := 0; i < b.N; i++ {
-		wai_factory()
 	}
 }

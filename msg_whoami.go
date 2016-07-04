@@ -26,7 +26,7 @@ func newWhoami(t *Transport) *whoamiMsg {
 	return msg
 }
 
-func (msg *whoamiMsg) Id() uint64 {
+func (msg *whoamiMsg) ID() uint64 {
 	return msgWhoami
 }
 

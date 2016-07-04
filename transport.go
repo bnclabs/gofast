@@ -24,10 +24,6 @@
 //		t.Handshake()
 //		t.FlushPeriod(tm)                   // optional
 //		t.SendHeartbeat(tm)                 // optional
-//
-// incoming messages are created from *sync.Pool, handlers (like handler1 and
-// handler2 in the above eg.) can return the message back to the pool using
-// the Free() method on the transport.
 package gofast
 
 import "sync"
@@ -44,9 +40,13 @@ type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)
 var tag_factory = make(map[string]tagFactory)
 var transports = unsafe.Pointer(&map[string]*Transporter{})
 
+// StreamCallback handler called for an incoming message on a stream,
+// the boolean argument indicates whether remote has closed the stream.
+type StreamCallback func(BinMessage, bool)
+
 // RequestCallback handler called for an incoming post, request or stream;
 // to be supplied by application before using the transport.
-type RequestCallback func(*Stream, Message) chan Message
+type RequestCallback func(*Stream, BinMessage) StreamCallback
 
 // Transporter interface to send and receive packets, connection object
 // shall implement this interface.
@@ -103,10 +103,9 @@ type Transport struct {
 
 	// memory pools
 	p_strms  chan *Stream // for locally initiated streams
-	p_rqrch  chan chan Message
 	p_txcmd  chan *txproto
+	p_data   chan []byte
 	p_rxstrm *sync.Pool
-	msgpools map[uint64]*sync.Pool
 
 	// configuration
 	config     map[string]interface{}
@@ -127,13 +126,14 @@ func NewTransport(name string, conn Transporter, version Version, config map[str
 	batchsize := config["batchsize"].(int)
 
 	t := &Transport{
-		name:     name,
-		version:  version,
-		tagenc:   make(map[uint64]tagfn),
-		tagdec:   make(map[uint64]tagfn),
-		p_strms:  nil, // shall be initialized after setOpaqueRange() call
-		p_rqrch:  nil, // shall be initialized after setOpaqueRange() call
-		p_txcmd:  nil, // shall be initialized after setOpaqueRange() call
+		name:    name,
+		version: version,
+		tagenc:  make(map[uint64]tagfn),
+		tagdec:  make(map[uint64]tagfn),
+		p_strms: nil, // shall be initialized after setOpaqueRange() call
+		p_txcmd: nil, // shall be initialized after setOpaqueRange() call
+		// TODO: avoid magic number
+		p_data:   make(chan []byte, 64),
 		messages: make(map[uint64]Message),
 		handlers: make(map[uint64]RequestCallback),
 
@@ -141,8 +141,6 @@ func NewTransport(name string, conn Transporter, version Version, config map[str
 		txch:   make(chan *txproto, chansize+batchsize),
 		rxch:   make(chan rxpacket, chansize),
 		killch: make(chan struct{}),
-
-		msgpools: make(map[uint64]*sync.Pool),
 
 		config:     config,
 		batchsize:  batchsize,
@@ -182,7 +180,7 @@ func NewTransport(name string, conn Transporter, version Version, config map[str
 // SubscribeMessage that shall be exchanged via this transport. Only
 // subscribed messages can be exchanged.
 func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Transport {
-	id := msg.Id()
+	id := msg.ID()
 	if isReservedMsg(id) {
 		panic(fmt.Errorf("%v message id %v reserved", t.logprefix, id))
 	}
@@ -329,13 +327,6 @@ func (t *Transport) PeerVersion() Version {
 	return t.peerver.Load().(Version)
 }
 
-// Free shall return the message back to the pool, should be
-// called on messages received via RequestCallback callback and
-// via Stream.Rxch.
-func (t *Transport) Free(msg Message) {
-	t.msgpools[msg.Id()].Put(msg)
-}
-
 // Stat shall return the stat counts for this transport.
 func (t *Transport) Stat() map[string]uint64 {
 	stats := map[string]uint64{
@@ -398,9 +389,9 @@ func Stat(name string) map[string]uint64 {
 
 // Whoami shall return remote transport's information.
 func (t *Transport) Whoami() (Message, error) {
-	msg := newWhoami(t)
-	resp, err := t.Request(msg, true /*flush*/)
-	if err != nil {
+	req, resp := newWhoami(t), &whoamiMsg{}
+	resp.transport = t
+	if err := t.Request(req, true /*flush*/, resp); err != nil {
 		return nil, err
 	}
 	return resp, nil
@@ -408,19 +399,16 @@ func (t *Transport) Whoami() (Message, error) {
 
 // Ping pong with peer.
 func (t *Transport) Ping(echo string) (string, error) {
-	msg := newPing(echo)
-	resp, err := t.Request(msg, true /*flush*/)
-	if err != nil {
+	req, resp := newPing(echo), &pingMsg{}
+	if err := t.Request(req, true /*flush*/, resp); err != nil {
 		return "", err
-	} else if resp == nil {
-		return "", fmt.Errorf("empty pong")
 	}
-	return resp.(*pingMsg).echo, nil
+	return resp.echo, nil
 }
 
 // Post request to peer.
 func (t *Transport) Post(msg Message, flush bool) error {
-	stream := t.getlocalstream(nil, false /*tellrx*/)
+	stream := t.getlocalstream(false /*tellrx*/, nil)
 	defer t.putstream(stream.opaque, stream, false /*tellrx*/)
 
 	n := t.post(msg, stream, stream.out)
@@ -428,27 +416,32 @@ func (t *Transport) Post(msg Message, flush bool) error {
 }
 
 // Request a response from peer.
-func (t *Transport) Request(msg Message, flush bool) (resp Message, err error) {
-	respch := <-t.p_rqrch
-	stream := t.getlocalstream(respch, true /*tellrx*/)
-	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
-	defer func() { t.p_rqrch <- respch }()
-
-	var ok bool
-	n := t.request(msg, stream, stream.out)
-	if err = t.tx(stream.out[:n], flush); err == nil {
-		resp, ok = <-stream.Rxch
-		if !ok {
-			err = fmt.Errorf("Request(): stream ##%v closed", stream.opaque)
+func (t *Transport) Request(msg Message, flush bool, resp Message) error {
+	donech := make(chan struct{})
+	stream := t.getlocalstream(true /*tellrx*/, func(bmsg BinMessage, ok bool) {
+		if ok && resp != nil {
+			resp.Decode(bmsg.Data)
+			select {
+			case <-donech:
+			default:
+				close(donech)
+			}
 		}
+	})
+	defer t.putstream(stream.opaque, stream, true /*tellrx*/)
+
+	n := t.request(msg, stream, stream.out)
+	if err := t.tx(stream.out[:n], flush); err != nil {
+		return err
 	}
-	stream.Rxch = nil // so that p_rqrch channels are not closed !!
-	return
+	<-donech
+	stream.rxcallb = nil
+	return nil
 }
 
 // Request a bi-directional stream with peer.
-func (t *Transport) Stream(msg Message, flush bool, ch chan Message) (*Stream, error) {
-	stream := t.getlocalstream(ch, true /*tellrx*/)
+func (t *Transport) Stream(msg Message, flush bool, rxcallb StreamCallback) (*Stream, error) {
+	stream := t.getlocalstream(true /*tellrx*/, rxcallb)
 	n := t.start(msg, stream, stream.out)
 	if err := t.tx(stream.out[:n], false); err != nil {
 		t.putstream(stream.opaque, stream, true /*tellrx*/)
@@ -471,19 +464,16 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	log.Debugf(fmsg, t.logprefix, start, end)
 
 	t.p_strms = make(chan *Stream, end-start+1) // inclusive [start,end]
-	t.p_rqrch = make(chan chan Message, end-start+1)
 	for opaque := start; opaque <= end; opaque++ {
 		stream := &Stream{
 			transport: t,
 			remote:    false,
 			opaque:    uint64(opaque),
-			Rxch:      nil,
 			out:       make([]byte, t.buffersize),
 			data:      make([]byte, t.buffersize),
 			tagout:    make([]byte, t.buffersize),
 		}
 		t.p_strms <- stream
-		t.p_rqrch <- make(chan Message, 1)
 		fmsg := "%v ##%d(remote:%v) stream created ...\n"
 		log.Verbosef(fmsg, t.logprefix, opaque, false)
 	}
@@ -506,17 +496,16 @@ func (t *Transport) getTags(line string, tags []string) []string {
 func (t *Transport) subscribeMessage(
 	msg Message, handler RequestCallback) *Transport {
 
-	id := msg.Id()
+	id := msg.ID()
 	t.messages[id] = msg
-	t.msgpools[id] = &sync.Pool{New: msgfactory(msg)}
 	t.handlers[id] = handler
 
 	log.Verbosef("%v subscribed %v\n", t.logprefix, msg)
 	return t
 }
 
-func (t *Transport) requestCallback(stream *Stream, msg Message) chan Message {
-	id := msg.Id()
+func (t *Transport) requestCallback(stream *Stream, msg BinMessage) StreamCallback {
+	id := msg.ID
 	if fn := t.handlers[id]; fn != nil {
 		return fn(stream, msg)
 	}
@@ -525,7 +514,7 @@ func (t *Transport) requestCallback(stream *Stream, msg Message) chan Message {
 
 func (t *Transport) fromrxstrm() *Stream {
 	stream := t.p_rxstrm.Get().(*Stream)
-	stream.transport, stream.Rxch, stream.opaque = nil, nil, 0
+	stream.transport, stream.rxcallb, stream.opaque = nil, nil, 0
 	stream.remote = false
 	if stream.out == nil {
 		stream.out = make([]byte, t.buffersize)

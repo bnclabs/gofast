@@ -45,13 +45,6 @@ func csv2strings(line string, out []string) []string {
 	return out
 }
 
-func msgfactory(msg Message) func() interface{} {
-	return func() interface{} {
-		typeOfMsg := reflect.ValueOf(msg).Elem().Type()
-		return reflect.New(typeOfMsg).Interface()
-	}
-}
-
 func getStackTrace(skip int, stack []byte) string {
 	var buf bytes.Buffer
 	lines := strings.Split(string(stack), "\n")

@@ -9,7 +9,7 @@ import "runtime/debug"
 
 type rxpacket struct {
 	stream  *Stream
-	msg     Message
+	msg     BinMessage
 	opaque  uint64
 	post    bool
 	request bool
@@ -29,8 +29,8 @@ func (t *Transport) syncRx() {
 		}
 		// unblock routines waiting on this stream
 		for _, stream := range livestreams {
-			if stream.Rxch != nil {
-				close(stream.Rxch)
+			if stream.rxcallb != nil {
+				stream.rxcallb(BinMessage{}, false)
 			}
 		}
 		t.flushrxch()
@@ -38,12 +38,15 @@ func (t *Transport) syncRx() {
 
 	streamupdate := func(stream *Stream) {
 		_, ok := livestreams[stream.opaque]
-		if ok && stream.Rxch == nil {
+		if ok && stream.rxcallb == nil {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream closed ...\n"
 			//log.Debugf(fmsg, t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
-		} else if stream.Rxch != nil {
+			if stream.remote == false {
+				t.p_strms <- stream // don't collect remote streams
+			}
+		} else if stream.rxcallb != nil {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream started ...\n"
 			//log.Verbosef(fmsg, t.logprefix, stream.opaque)
@@ -71,7 +74,7 @@ func (t *Transport) syncRx() {
 		}
 		//TODO: Issue #2, remove or prevent value escape to heap
 		//fmsg := "%v received msg %#v streamok:%v\n"
-		//log.Debugf(fmsg, t.logprefix, rxpkt.msg, streamok)
+		//log.Debugf(fmsg, t.logprefix, rxpkt.msg.ID, streamok)
 		if streamok == false { // post, request, stream-start
 			if rxpkt.post {
 				t.requestCallback(nil /*stream*/, rxpkt.msg)
@@ -85,7 +88,7 @@ func (t *Transport) syncRx() {
 				}()
 			} else if rxpkt.start { // stream
 				stream = t.newremotestream(rxpkt.opaque)
-				stream.Rxch = t.requestCallback(stream, rxpkt.msg)
+				stream.rxcallb = t.requestCallback(stream, rxpkt.msg)
 				livestreams[stream.opaque] = stream
 				atomic.AddUint64(&t.n_rxstart, 1)
 			} else { // message for a closed stream.
@@ -93,8 +96,16 @@ func (t *Transport) syncRx() {
 			}
 			return
 		}
+
 		// response and stream - finish is already handled above
-		t.putmsg(stream.Rxch, rxpkt.msg)
+		if stream.rxcallb != nil {
+			stream.rxcallb(rxpkt.msg, true)
+			if (cap(t.p_data) - len(t.p_data)) > 0 {
+				t.p_data <- rxpkt.msg.Data
+			}
+			rxpkt.msg.Data = nil
+		}
+
 		if streamok && rxpkt.request { //means response
 			atomic.AddUint64(&t.n_rxresp, 1)
 		} else if rxpkt.strmsg {
@@ -171,7 +182,7 @@ func (t *Transport) unframepkt(
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
 	} else if err != nil && isConnClosed(err) {
-		log.Infof("%v doRx() Closed connection", t.logprefix)
+		log.Infof("%v doRx() Closed connection\n", t.logprefix)
 		atomic.AddUint64(&t.n_dropped, uint64(n))
 		return
 	} else if err != nil || n != 9 {
@@ -234,16 +245,16 @@ func (t *Transport) unframepkt(
 	return
 }
 
-func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
+func (t *Transport) unmessage(opaque uint64, msgdata []byte) (bmsg BinMessage) {
 	msglen := len(msgdata)
 	if msglen > 0 {
 		if msgdata[0] != 0xbf {
 			log.Warnf("%v ##%d invalid hdr-data\n", t.logprefix, opaque)
-			return nil
+			return
 		}
 	} else {
 		log.Warnf("%v ##%d insufficient message length\n", t.logprefix, opaque)
-		return nil
+		return
 	}
 	n := 1
 	var v int
@@ -267,27 +278,23 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) Message {
 	}
 	if n >= msglen {
 		log.Warnf("%v ##%d insufficient data length\n", t.logprefix, opaque)
-		return nil
+		return
 	}
 	n += 1 // skip the breakstop (0xff)
 
 	// check whether id, data is present
 	if id == 0 || data == nil {
 		log.Errorf("%v ##%v rx invalid message packet\n", t.logprefix, opaque)
-		return nil
+		return
 	}
-	pool, ok := t.msgpools[uint64(id)]
-	if !ok {
-		log.Errorf("%v ##%v rx invalid message id %v\n", t.logprefix, opaque, id)
-		return nil
+	select {
+	case bmsg.Data = <-t.p_data:
+	default:
+		bmsg.Data = make([]byte, t.buffersize)
 	}
-	obj := pool.Get()
-	if m, ok := obj.(*whoamiMsg); ok { // hack to make whoami aware of transport
-		m.transport = t
-	}
-	msg := obj.(Message)
-	msg.Decode(data)
-	return msg
+	bmsg.ID, bmsg.Data = uint64(id), bmsg.Data[:len(data)]
+	copy(bmsg.Data, data)
+	return
 }
 
 func (t *Transport) putch(ch chan rxpacket, val rxpacket) bool {
@@ -300,25 +307,13 @@ func (t *Transport) putch(ch chan rxpacket, val rxpacket) bool {
 	return false
 }
 
-func (t *Transport) putmsg(ch chan Message, msg Message) bool {
-	if ch != nil {
-		select {
-		case ch <- msg:
-			return true
-		case <-t.killch:
-			return false
-		}
-	}
-	return false
-}
-
 func (t *Transport) flushrxch() {
 	// flush out pending messages from rxch
 	for {
 		select {
 		case rxpkt := <-t.rxch:
-			if rxpkt.stream != nil && rxpkt.stream.Rxch != nil {
-				close(rxpkt.stream.Rxch)
+			if rxpkt.stream != nil && rxpkt.stream.rxcallb != nil {
+				rxpkt.stream.rxcallb(BinMessage{}, false)
 			}
 		default:
 			return

@@ -36,10 +36,19 @@ func TestUnmessage(t *testing.T) {
 
 	_, bs := readtp(payload)
 	// unmessage
+	var wai whoamiMsg
 	ref := newWhoami(transc)
-	msg := transc.unmessage(100, bs).(*whoamiMsg)
-	if !reflect.DeepEqual(ref, msg) {
-		t.Errorf("expected %#v, got %#v", ref, msg)
+	bmsg := transc.unmessage(100, bs)
+	wai.transport = transc
+	wai.Decode(bmsg.Data)
+	if ref.name != wai.name {
+		t.Errorf("expected %v, got %v", ref.name, wai.name)
+	} else if !reflect.DeepEqual(ref.version, wai.version) {
+		t.Errorf("expected %v, got %v", ref.version, wai.version)
+	} else if ref.buffersize != wai.buffersize {
+		t.Errorf("expected %v, got %v", ref.buffersize, wai.buffersize)
+	} else if ref.tags != wai.tags {
+		t.Errorf("expected %v, got %v", ref.tags, wai.tags)
 	}
 
 	lis.Close()

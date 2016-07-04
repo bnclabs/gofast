@@ -3,11 +3,17 @@ package gofast
 import "sync/atomic"
 import "time"
 
+// BinMessage is a tuple of {id, encodedmsg-slice}
+type BinMessage struct {
+	ID   uint64
+	Data []byte
+}
+
 // Message interface, implemented by all messages exchanged via
 // gofast-transport.
 type Message interface {
-	// Id return a unique message identifier.
-	Id() uint64
+	// ID return a unique message identifier.
+	ID() uint64
 
 	// Encode message to binary blob.
 	Encode(out []byte) int
@@ -46,21 +52,26 @@ type Version interface {
 }
 
 // handler for whoamiMsg, pingMsg, heartbeatMsg messages.
-func (t *Transport) msghandler(stream *Stream, msg Message) chan Message {
-	defer t.Free(msg)
-
-	switch m := msg.(type) {
-	case *heartbeatMsg:
+func (t *Transport) msghandler(stream *Stream, msg BinMessage) StreamCallback {
+	switch msg.ID {
+	case msgHeartbeat:
 		atomic.StoreInt64(&t.aliveat, time.Now().UnixNano())
 		atomic.AddUint64(&t.n_rxbeats, 1)
 
-	case *pingMsg:
+	case msgPing:
+		var m pingMsg
+
+		m.Decode(msg.Data)
 		rv := newPing(m.echo) // respond back
 		if err := stream.Response(rv, false /*flush*/); err != nil {
 			log.Errorf("%v response-ping: %v\n", t.logprefix, err)
 		}
 
-	case *whoamiMsg:
+	case msgWhoami:
+		var m whoamiMsg
+
+		m.transport = t
+		m.Decode(msg.Data)
 		t.peerver.Store(m.version)
 		rv := newWhoami(t) // respond back
 		if err := stream.Response(rv, true /*flush*/); err != nil {

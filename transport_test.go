@@ -225,10 +225,13 @@ func TestTransPost(t *testing.T) {
 	donech := make(chan bool, 2)
 	transc.SubscribeMessage(
 		&testMessage{},
-		func(s *Stream, m Message) chan Message {
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m testMessage
+
+			m.Decode(rxmsg.Data)
 			if s != nil {
 				t.Errorf("expected nil, got %v", s)
-			} else if !reflect.DeepEqual(m, msg) {
+			} else if !reflect.DeepEqual(&m, msg) {
 				t.Errorf("expected %v, got %v", msg, m)
 			}
 			donech <- true
@@ -236,13 +239,16 @@ func TestTransPost(t *testing.T) {
 		})
 	transv.SubscribeMessage(
 		&testMessage{},
-		func(s *Stream, m Message) chan Message {
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m testMessage
+
+			m.Decode(rxmsg.Data)
 			if s != nil {
 				t.Errorf("expected nil, got %v", s)
-			} else if !reflect.DeepEqual(m, msg) {
-				t.Errorf("expected %v, got %v", msg, m)
+			} else if !reflect.DeepEqual(&m, msg) {
+				t.Errorf("expected %#v, got %#v", msg, m)
 			}
-			transv.Post(m, true)
+			transv.Post(&m, true)
 			return nil
 		})
 	transc.Post(msg, true)
@@ -265,10 +271,13 @@ func TestTransPostEmpty(t *testing.T) {
 	donech := make(chan bool, 2)
 	transc.SubscribeMessage(
 		&emptyMessage{},
-		func(s *Stream, m Message) chan Message {
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m emptyMessage
+
+			m.Decode(rxmsg.Data)
 			if s != nil {
 				t.Errorf("expected nil, got %v", s)
-			} else if !reflect.DeepEqual(m, msg) {
+			} else if !reflect.DeepEqual(&m, msg) {
 				t.Errorf("expected %v, got %v", msg, m)
 			}
 			donech <- true
@@ -276,13 +285,15 @@ func TestTransPostEmpty(t *testing.T) {
 		})
 	transv.SubscribeMessage(
 		&emptyMessage{},
-		func(s *Stream, m Message) chan Message {
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m emptyMessage
+			m.Decode(rxmsg.Data)
 			if s != nil {
 				t.Errorf("expected nil, got %v", s)
-			} else if !reflect.DeepEqual(m, msg) {
+			} else if !reflect.DeepEqual(&m, msg) {
 				t.Errorf("expected %v, got %v", msg, m)
 			}
-			transv.Post(m, true)
+			transv.Post(&m, true)
 			return nil
 		})
 	transc.Post(msg, true)
@@ -309,11 +320,15 @@ func TestTransPostLarge(t *testing.T) {
 	transc.SubscribeMessage(&largeMessage{}, nil)
 	transv.SubscribeMessage(
 		&largeMessage{},
-		func(s *Stream, m Message) chan Message {
-			s.Response(m, true)
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m largeMessage
+
+			m.Decode(rxmsg.Data)
+			s.Response(&m, true)
 			return nil
 		})
-	if resp, err := transc.Request(msg, true); err != nil {
+	resp := &largeMessage{}
+	if err := transc.Request(msg, true, resp); err != nil {
 		t.Error(err)
 	} else if !reflect.DeepEqual(resp, msg) {
 		t.Errorf("expected %v, got %v", msg, resp)
@@ -336,11 +351,15 @@ func TestTransRequest(t *testing.T) {
 	transc.SubscribeMessage(&testMessage{}, nil)
 	transv.SubscribeMessage(
 		&testMessage{},
-		func(s *Stream, m Message) chan Message {
-			s.Response(m, true)
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m testMessage
+
+			m.Decode(rxmsg.Data)
+			s.Response(&m, true)
 			return nil
 		})
-	if resp, err := transc.Request(msg, true); err != nil {
+	resp := &testMessage{}
+	if err := transc.Request(msg, true, resp); err != nil {
 		t.Error(err)
 	} else if !reflect.DeepEqual(resp, msg) {
 		t.Errorf("expected %v, got %v", msg, resp)
@@ -365,9 +384,19 @@ func TestClientStream(t *testing.T) {
 	transc.SubscribeMessage(&testMessage{}, nil)
 	transv.SubscribeMessage(
 		&testMessage{},
-		func(s *Stream, m Message) chan Message {
-			refch <- m
-			return refch
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m testMessage
+			m.Decode(rxmsg.Data)
+			refch <- &m
+			return func(rxmsg BinMessage, ok bool) {
+				if ok {
+					var m testMessage
+					m.Decode(rxmsg.Data)
+					refch <- &m
+				} else {
+					close(refch)
+				}
+			}
 		})
 	stream, err := transc.Stream(msg, true, nil)
 	if err != nil {
@@ -413,9 +442,19 @@ func TestServerStream(t *testing.T) {
 	refch := make(chan Message)
 	transc.SubscribeMessage(
 		&testMessage{},
-		func(s *Stream, m Message) chan Message {
-			refch <- m
-			return refch
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m testMessage
+			m.Decode(rxmsg.Data)
+			refch <- &m
+			return func(rxmsg BinMessage, ok bool) {
+				if ok {
+					var m testMessage
+					m.Decode(rxmsg.Data)
+					refch <- &m
+				} else {
+					close(refch)
+				}
+			}
 		})
 	transv.SubscribeMessage(&testMessage{}, nil)
 	stream, err := transv.Stream(msg, true, nil)
@@ -461,11 +500,14 @@ func TestTransGzip(t *testing.T) {
 	transc.SubscribeMessage(&testMessage{}, nil)
 	transv.SubscribeMessage(
 		&testMessage{},
-		func(s *Stream, m Message) chan Message {
-			s.Response(m, true)
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m testMessage
+			m.Decode(rxmsg.Data)
+			s.Response(&m, true)
 			return nil
 		})
-	if resp, err := transc.Request(msg, true); err != nil {
+	resp := &testMessage{}
+	if err := transc.Request(msg, true, resp); err != nil {
 		t.Error(err)
 	} else if !reflect.DeepEqual(resp, msg) {
 		t.Errorf("expected %v, got %v", msg, resp)

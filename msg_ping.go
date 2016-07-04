@@ -9,7 +9,7 @@ func newPing(echo string) *pingMsg {
 	return &pingMsg{echo: echo}
 }
 
-func (msg *pingMsg) Id() uint64 {
+func (msg *pingMsg) ID() uint64 {
 	return msgPing
 }
 

@@ -13,7 +13,7 @@ func newHeartbeat(count uint64) *heartbeatMsg {
 	return &heartbeatMsg{count: count}
 }
 
-func (msg *heartbeatMsg) Id() uint64 {
+func (msg *heartbeatMsg) ID() uint64 {
 	return msgHeartbeat
 }
 

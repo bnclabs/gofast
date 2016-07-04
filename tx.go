@@ -74,7 +74,7 @@ func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
 	n = tag2cbor(tagMsg, ping) // tagMsg
 	n += mapStart(ping[n:])
 	n += valuint642cbor(tagId, ping[n:])    // hdr-tagId
-	n += valuint642cbor(msg.Id(), ping[n:]) // value
+	n += valuint642cbor(msg.ID(), ping[n:]) // value
 	n += valuint642cbor(tagData, ping[n:])  // hdr-tagData
 	m := msg.Encode(data)                   // value
 	n += valbytes2cbor(data[:m], ping[n:])

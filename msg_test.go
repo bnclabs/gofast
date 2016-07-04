@@ -27,7 +27,7 @@ type testMessage struct {
 	count uint64
 }
 
-func (msg *testMessage) Id() uint64 {
+func (msg *testMessage) ID() uint64 {
 	return msgTest
 }
 
@@ -59,7 +59,7 @@ func (msg *testMessage) Repr() string {
 type emptyMessage struct {
 }
 
-func (msg *emptyMessage) Id() uint64 {
+func (msg *emptyMessage) ID() uint64 {
 	return msgEmpty
 }
 
@@ -86,7 +86,7 @@ type largeMessage struct {
 	data [65 * 1024]byte
 }
 
-func (msg *largeMessage) Id() uint64 {
+func (msg *largeMessage) ID() uint64 {
 	return msgLarge
 }
 

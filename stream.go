@@ -1,10 +1,12 @@
 package gofast
 
+import "sync/atomic"
+
 // Stream for a newly started stream on the transport. Refer to
 // Stream() method on the transport.
 type Stream struct {
 	transport         *Transport
-	Rxch              chan Message
+	rxcallb           StreamCallback
 	opaque            uint64
 	remote            bool
 	out, data, tagout []byte
@@ -20,16 +22,15 @@ func (t *Transport) newremotestream(opaque uint64) *Stream {
 
 	// reset all fields (it is coming from a pool)
 	stream.transport, stream.remote, stream.opaque = t, true, opaque
-	stream.Rxch = nil
+	stream.rxcallb = nil
 	return stream
 }
 
 // called only be tx.
-func (t *Transport) getlocalstream(ch chan Message, tellrx bool) *Stream {
+func (t *Transport) getlocalstream(tellrx bool, rxcallb StreamCallback) *Stream {
 	stream := <-t.p_strms
-	if ch != nil {
-		stream.Rxch = ch
-	}
+	stream.rxcallb = rxcallb
+	atomic.StoreUint64(&stream.opaque, stream.opaque)
 	if tellrx {
 		t.putch(t.rxch, rxpacket{stream: stream})
 	}
@@ -37,8 +38,6 @@ func (t *Transport) getlocalstream(ch chan Message, tellrx bool) *Stream {
 }
 
 func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
-	// Rxch could also be closed when transport is closed...
-	// Rxch could also be nil in case of post...
 	defer func() {
 		if r := recover(); r != nil {
 			fmsg := "%v ##%v putstream recovered: %v\n"
@@ -49,14 +48,13 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
 		return
 	}
-	if stream.Rxch != nil {
-		close(stream.Rxch)
-		stream.Rxch = nil
+	if stream.rxcallb != nil {
+		stream.rxcallb(BinMessage{}, false)
+		stream.rxcallb = nil
 	}
 	if tellrx {
 		t.putch(t.rxch, rxpacket{stream: stream})
-	}
-	if stream.remote == false {
+	} else if stream.remote == false {
 		t.p_strms <- stream // don't collect remote streams
 	}
 }
