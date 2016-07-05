@@ -61,6 +61,7 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 
 // Response to a request, to batch the response pass flush as false.
 func (s *Stream) Response(msg Message, flush bool) error {
+	defer s.transport.p_rxstrm.Put(s)
 	n := s.transport.response(msg, s, s.out)
 	return s.transport.txasync(s.out[:n], flush)
 }

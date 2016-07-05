@@ -424,11 +424,11 @@ func (t *Transport) Request(msg Message, flush bool, resp Message) error {
 	stream := t.getlocalstream(true /*tellrx*/, func(bmsg BinMessage, ok bool) {
 		if ok && resp != nil {
 			resp.Decode(bmsg.Data)
-			select {
-			case <-donech:
-			default:
-				close(donech)
-			}
+		}
+		select {
+		case <-donech:
+		default:
+			close(donech)
 		}
 	})
 	defer t.putstream(stream.opaque, stream, true /*tellrx*/)

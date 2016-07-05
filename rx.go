@@ -80,12 +80,9 @@ func (t *Transport) syncRx() {
 				t.requestCallback(nil /*stream*/, rxpkt.msg)
 				atomic.AddUint64(&t.n_rxpost, 1)
 			} else if rxpkt.request {
-				func() {
-					stream = t.newremotestream(rxpkt.opaque)
-					defer t.p_rxstrm.Put(stream)
-					t.requestCallback(stream, rxpkt.msg)
-					atomic.AddUint64(&t.n_rxreq, 1)
-				}()
+				stream = t.newremotestream(rxpkt.opaque)
+				t.requestCallback(stream, rxpkt.msg)
+				atomic.AddUint64(&t.n_rxreq, 1)
 			} else if rxpkt.start { // stream
 				stream = t.newremotestream(rxpkt.opaque)
 				stream.rxcallb = t.requestCallback(stream, rxpkt.msg)
