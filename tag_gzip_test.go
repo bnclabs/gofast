@@ -8,11 +8,11 @@ import "fmt"
 var _ = fmt.Sprintf("dummy")
 
 func TestTagGzip(t *testing.T) {
-	config := map[string]interface{}{
+	settings := map[string]interface{}{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.DefaultCompression,
 	}
-	tag, enc, dec := make_gzip(nil, config)
+	tag, enc, dec := make_gzip(nil, settings)
 	if tag != tagGzip {
 		t.Errorf("expected %v, got %v", tagGzip, tag)
 	}
@@ -35,11 +35,11 @@ func TestTagGzip(t *testing.T) {
 }
 
 func BenchmarkGzEnc1KFast(b *testing.B) {
-	config := map[string]interface{}{
+	settings := map[string]interface{}{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.BestSpeed,
 	}
-	_, enc, _ := make_gzip(nil, config)
+	_, enc, _ := make_gzip(nil, settings)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)
@@ -55,7 +55,7 @@ func BenchmarkGzEnc1KFast(b *testing.B) {
 }
 
 func BenchmarkGzDec1KFast(b *testing.B) {
-	config := map[string]interface{}{
+	settings := map[string]interface{}{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.BestSpeed,
 	}
@@ -63,7 +63,7 @@ func BenchmarkGzDec1KFast(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	_, enc, dec := make_gzip(nil, config)
+	_, enc, dec := make_gzip(nil, settings)
 	in, out := make([]byte, 1024*1024), make([]byte, 1024*1024)
 	n := enc(s, in)
 	b.ResetTimer()
@@ -76,11 +76,11 @@ func BenchmarkGzDec1KFast(b *testing.B) {
 }
 
 func BenchmarkGzEnc10KSmall(b *testing.B) {
-	config := map[string]interface{}{
+	settings := map[string]interface{}{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.BestSpeed,
 	}
-	_, enc, _ := make_gzip(nil, config)
+	_, enc, _ := make_gzip(nil, settings)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)
@@ -100,11 +100,11 @@ func BenchmarkGzEnc10KSmall(b *testing.B) {
 }
 
 func BenchmarkGzDec10KSmall(b *testing.B) {
-	config := map[string]interface{}{
+	settings := map[string]interface{}{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.BestSpeed,
 	}
-	_, enc, dec := make_gzip(nil, config)
+	_, enc, dec := make_gzip(nil, settings)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)

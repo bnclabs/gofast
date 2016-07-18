@@ -21,11 +21,11 @@ func TestSetLogger(t *testing.T) {
 	log = nil
 
 	// test a custom logger
-	config := map[string]interface{}{
+	setts := map[string]interface{}{
 		"log.level": "info",
 		"log.file":  logfile,
 	}
-	clog := SetLogger(nil, config)
+	clog := SetLogger(nil, setts)
 	clog.Infof(logline)
 	clog.Verbosef(logline)
 	clog.Fatalf(logline)
@@ -61,7 +61,7 @@ func TestLogPrefix(t *testing.T) {
 	}
 }
 
-func TestLogLevelConfig(t *testing.T) {
+func TestLogLevelSetts(t *testing.T) {
 	if r, l := logLevelIgnore, string2logLevel("ignore"); r != l {
 		t.Errorf("expected %v, got %v", r, l)
 	} else if r, l = logLevelFatal, string2logLevel("fatal"); r != l {

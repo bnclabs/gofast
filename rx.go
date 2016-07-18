@@ -19,7 +19,7 @@ type rxpacket struct {
 }
 
 func (t *Transport) syncRx() {
-	chansize := t.config["chansize"].(int)
+	chansize := t.chansize
 	livestreams := make(map[uint64]*Stream)
 	defer func() {
 		if r := recover(); r != nil {
@@ -61,10 +61,14 @@ func (t *Transport) syncRx() {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream closed by remote ...\n"
 			//log.Debugf(fmsg, t.logprefix, stream.opaque)
+			if stream.rxcallb != nil {
+				stream.rxcallb(BinMessage{}, false)
+			}
 			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
 			delete(livestreams, rxpkt.opaque)
 			atomic.AddUint64(&t.n_rxfin, 1)
 			return
+
 		} else if rxpkt.finish {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d unknown stream-fin from remote ...\n"
@@ -96,7 +100,11 @@ func (t *Transport) syncRx() {
 
 		// response and stream - finish is already handled above
 		if stream.rxcallb != nil {
-			stream.rxcallb(rxpkt.msg, true)
+			if rxpkt.request {
+				stream.rxcallb(rxpkt.msg, false)
+			} else {
+				stream.rxcallb(rxpkt.msg, true)
+			}
 			if (cap(t.p_data) - len(t.p_data)) > 0 {
 				t.p_data <- rxpkt.msg.Data
 			}
@@ -151,7 +159,7 @@ func (t *Transport) doRx() {
 	packet := make([]byte, t.buffersize)
 	tagouts := make(map[uint64][]byte, t.buffersize)
 	for _, factory := range tag_factory {
-		tag, _, _ := factory(t, t.config)
+		tag, _, _ := factory(t, t.settings)
 		tagouts[tag] = make([]byte, t.buffersize)
 	}
 

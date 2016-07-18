@@ -4,7 +4,7 @@
 // wire data transport.
 //
 // opaque-space, is range of uint64 values reserved for tagging packets. They
-// shall be supplied via configuration while instantiating the transport.
+// shall be supplied via settings while instantiating the transport.
 //
 // messages, are golang objects implementing the Message{} interface. Message
 // objects need to be subscribed with transport before they are exchanged over
@@ -18,7 +18,7 @@
 //
 // transport instantiation steps:
 //
-//		t := NewTransport(conn, &ver, nil, config)
+//		t := NewTransport(conn, &ver, nil, settings)
 //		t.SubscribeMessage(&msg1, handler1) // subscribe message
 //		t.SubscribeMessage(&msg2, handler2) // subscribe another message
 //		t.Handshake()
@@ -107,10 +107,11 @@ type Transport struct {
 	p_data   chan []byte
 	p_rxstrm *sync.Pool
 
-	// configuration
-	config     map[string]interface{}
-	buffersize int
-	batchsize  int
+	// settings
+	settings   map[string]interface{}
+	buffersize uint64
+	batchsize  uint64
+	chansize   uint64
 	logprefix  string
 }
 
@@ -118,12 +119,12 @@ type Transport struct {
 
 // NewTransport encapsulate a transport over this connection,
 // one connection one transport.
-func NewTransport(name string, conn Transporter, version Version, config map[string]interface{}) (*Transport, error) {
-	buffersize := config["buffersize"].(int)
-	opqstart := config["opaque.start"].(int)
-	opqend := config["opaque.end"].(int)
-	chansize := config["chansize"].(int)
-	batchsize := config["batchsize"].(int)
+func NewTransport(name string, conn Transporter, version Version, setts map[string]interface{}) (*Transport, error) {
+	buffersize := setts["buffersize"].(uint64)
+	opqstart := setts["opaque.start"].(uint64)
+	opqend := setts["opaque.end"].(uint64)
+	chansize := setts["chansize"].(uint64)
+	batchsize := setts["batchsize"].(uint64)
 
 	t := &Transport{
 		name:    name,
@@ -142,9 +143,10 @@ func NewTransport(name string, conn Transporter, version Version, config map[str
 		rxch:   make(chan rxpacket, chansize),
 		killch: make(chan struct{}),
 
-		config:     config,
+		settings:   setts,
 		batchsize:  batchsize,
 		buffersize: buffersize,
+		chansize:   chansize,
 	}
 	addtransport(name, t)
 
@@ -160,10 +162,10 @@ func NewTransport(name string, conn Transporter, version Version, config map[str
 	t.subscribeMessage(&heartbeatMsg{}, t.msghandler)
 
 	// educate transport with configured tag decoders.
-	tagcsv, _ := config["tags"]
+	tagcsv, _ := setts["tags"]
 	for _, tag := range t.getTags(tagcsv.(string), []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
-			tagid, _, dec := factory(t, config)
+			tagid, _, dec := factory(t, setts)
 			t.tagdec[tagid] = dec
 			continue
 		}
@@ -205,7 +207,7 @@ func (t *Transport) Handshake() *Transport {
 	// parse tag list, tags shall be applied in the specified order.
 	for _, tag := range t.getTags(wai.tags, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
-			tagid, enc, _ := factory(t, t.config)
+			tagid, enc, _ := factory(t, t.settings)
 			t.tagenc[tagid] = enc
 			continue
 		}
@@ -230,6 +232,7 @@ func (t *Transport) Close() error {
 			log.Infof(fmsg, t.logprefix, r)
 		}
 	}()
+
 	// closing kill-channel should accomplish the following,
 	// a. prevent any more transmission on the connection.
 	// b. close all active streams.
@@ -422,7 +425,7 @@ func (t *Transport) Post(msg Message, flush bool) error {
 func (t *Transport) Request(msg Message, flush bool, resp Message) error {
 	donech := make(chan struct{})
 	stream := t.getlocalstream(true /*tellrx*/, func(bmsg BinMessage, ok bool) {
-		if ok && resp != nil {
+		if resp != nil {
 			resp.Decode(bmsg.Data)
 		}
 		select {

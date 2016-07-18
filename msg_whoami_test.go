@@ -62,7 +62,7 @@ func TestWhoamiMisc(t *testing.T) {
 	if wai.String() != "whoamiMsg" {
 		t.Errorf("expected whoamiMsg, got %v", wai.String())
 	}
-	if ref := "client, 512"; ref != wai.Repr() {
+	if ref := "client,512"; ref != wai.Repr() {
 		t.Errorf("expected %v, got %v", ref, wai.Repr())
 	}
 

@@ -6,7 +6,6 @@ import "fmt"
 import "syscall"
 
 //import "runtime"
-import "compress/flate"
 import "sort"
 import "net"
 import "time"
@@ -308,12 +307,12 @@ func TestTransPostEmpty(t *testing.T) {
 
 func TestTransPostLarge(t *testing.T) {
 	addr := <-testBindAddrs
-	sconf := newconfig(tagOpaqueStart, tagOpaqueStart+10)
-	sconf["buffersize"] = 1024 * 1204
-	cconf := newconfig(tagOpaqueStart+11, tagOpaqueStart+20)
-	cconf["buffersize"] = 1024 * 1204
-	lis, serverch := newServerConfig("server", addr, sconf)      // init server
-	transc := newClientConfig("client", addr, cconf).Handshake() // init client
+	sconf := newsetts(tagOpaqueStart, tagOpaqueStart+10)
+	sconf["buffersize"] = uint64(1024 * 1204)
+	cconf := newsetts(tagOpaqueStart+11, tagOpaqueStart+20)
+	cconf["buffersize"] = uint64(1024 * 1204)
+	lis, serverch := newServersetts("server", addr, sconf)      // init server
+	transc := newClientsetts("client", addr, cconf).Handshake() // init client
 	transv := <-serverch
 	// test
 	msg := &largeMessage{}
@@ -557,27 +556,19 @@ func BenchmarkTransStats(b *testing.B) {
 
 //---- test fixture with client and server.
 
-func newconfig(start, end int) map[string]interface{} {
-	return map[string]interface{}{
-		"buffersize":   512,
-		"chansize":     100000,
-		"batchsize":    1,
-		"tags":         "",
-		"opaque.start": start,
-		"opaque.end":   end,
-		"gzip.level":   flate.BestSpeed,
-	}
+func newsetts(start, end uint64) map[string]interface{} {
+	return DefaultSettings(start, end)
 }
 
 func newServer(name, addr, tags string) (*net.TCPListener, chan *Transport) {
-	config := newconfig(tagOpaqueStart, tagOpaqueStart+10)
-	config["tags"] = tags
-	return newServerConfig(name, addr, config)
+	setts := newsetts(tagOpaqueStart, tagOpaqueStart+10)
+	setts["tags"] = tags
+	return newServersetts(name, addr, setts)
 }
 
-func newServerConfig(
+func newServersetts(
 	name, addr string,
-	config map[string]interface{}) (*net.TCPListener, chan *Transport) {
+	setts map[string]interface{}) (*net.TCPListener, chan *Transport) {
 
 	la, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
@@ -598,7 +589,7 @@ func newServerConfig(
 	go func() {
 		if conn, err := lis.Accept(); err == nil {
 			ver := testVersion(1)
-			trans, err := NewTransport(name, conn, &ver, config)
+			trans, err := NewTransport(name, conn, &ver, setts)
 			if err != nil {
 				panic("NewTransport server failed")
 			}
@@ -609,21 +600,21 @@ func newServerConfig(
 }
 
 func newClient(name, addr, tags string) *Transport {
-	config := newconfig(tagOpaqueStart+11, tagOpaqueStart+20)
-	config["tags"] = tags
-	return newClientConfig(name, addr, config)
+	setts := newsetts(tagOpaqueStart+11, tagOpaqueStart+20)
+	setts["tags"] = tags
+	return newClientsetts(name, addr, setts)
 }
 
-func newClientConfig(
+func newClientsetts(
 	name, addr string,
-	config map[string]interface{}) *Transport {
+	setts map[string]interface{}) *Transport {
 
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		panic(err)
 	}
 	ver := testVersion(1)
-	trans, err := NewTransport(name, conn, &ver, config)
+	trans, err := NewTransport(name, conn, &ver, setts)
 	if err != nil {
 		panic(err)
 	}

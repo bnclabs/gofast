@@ -41,16 +41,13 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmsg := "%v ##%v putstream recovered: %v\n"
-			log.Debugf(fmsg, t.logprefix, opaque, r)
+			log.Errorf(fmsg, t.logprefix, opaque, r)
 		}
 	}()
+
 	if stream == nil {
 		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
 		return
-	}
-	if stream.rxcallb != nil {
-		stream.rxcallb(BinMessage{}, false)
-		stream.rxcallb = nil
 	}
 	if tellrx {
 		t.putch(t.rxch, rxpacket{stream: stream})

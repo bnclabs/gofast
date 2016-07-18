@@ -160,10 +160,8 @@ func (t *Transport) doTx() {
 		}
 	}()
 
-	batchsize := t.config["batchsize"].(int)
-	buffersize := t.config["buffersize"].(int)
 	batch := make([]*txproto, 0, 64)
-	tcpwrite_buf := make([]byte, batchsize*buffersize)
+	tcpwrite_buf := make([]byte, t.batchsize*t.buffersize)
 
 	drainbuffers := func() {
 		atomic.AddUint64(&t.n_flushes, 1)
@@ -202,13 +200,13 @@ func (t *Transport) doTx() {
 		batch = batch[:0] // reset the batch
 	}
 
-	log.Infof("%v doTx(batch:%v) started ...\n", t.logprefix, batchsize)
+	log.Infof("%v doTx(batch:%v) started ...\n", t.logprefix, t.batchsize)
 loop:
 	for {
 		select {
 		case arg := <-t.txch:
 			batch = append(batch, arg)
-			if arg.flush || len(batch) >= batchsize {
+			if arg.flush || uint64(len(batch)) >= t.batchsize {
 				drainbuffers()
 			}
 

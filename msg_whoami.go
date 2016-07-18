@@ -1,15 +1,14 @@
 package gofast
 
-import "strings"
 import "reflect"
-import "strconv"
+import "fmt"
 
 // whoamiMsg is predefined message to exchange peer information.
 type whoamiMsg struct {
 	transport  *Transport
 	name       string
 	version    Version
-	buffersize int
+	buffersize uint64
 	tags       string
 }
 
@@ -18,9 +17,9 @@ func newWhoami(t *Transport) *whoamiMsg {
 		transport:  t,
 		name:       t.name,
 		version:    t.version,
-		buffersize: t.config["buffersize"].(int),
+		buffersize: t.buffersize,
 	}
-	if tags, ok := t.config["tags"]; ok {
+	if tags, ok := t.settings["tags"]; ok {
 		msg.tags = tags.(string)
 	}
 	return msg
@@ -34,7 +33,7 @@ func (msg *whoamiMsg) Encode(out []byte) int {
 	n := arrayStart(out)
 	n += valbytes2cbor(str2bytes(msg.name), out[n:])
 	n += msg.version.Marshal(out[n:])
-	n += valuint642cbor(uint64(msg.buffersize), out[n:])
+	n += valuint642cbor(msg.buffersize, out[n:])
 	n += valbytes2cbor(str2bytes(msg.tags), out[n:])
 	n += breakStop(out[n:])
 	return n
@@ -57,7 +56,7 @@ func (msg *whoamiMsg) Decode(in []byte) {
 	n += msg.version.Unmarshal(in[n:])
 	// buffersize
 	ln, m = cborItemLength(in[n:])
-	msg.buffersize = int(ln)
+	msg.buffersize = uint64(ln)
 	n += m
 	// tags
 	ln, m = cborItemLength(in[n:])
@@ -71,6 +70,5 @@ func (msg *whoamiMsg) String() string {
 }
 
 func (msg *whoamiMsg) Repr() string {
-	items := [2]string{msg.name, strconv.Itoa(msg.buffersize)}
-	return strings.Join(items[:], ", ")
+	return fmt.Sprintf("%s,%v", msg.name, msg.buffersize)
 }

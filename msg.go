@@ -48,7 +48,7 @@ type Version interface {
 	Marshal(out []byte) (n int)
 
 	// Unmarshal array of bytes to version object.
-	Unmarshal(out []byte) (n int)
+	Unmarshal(in []byte) (n int)
 }
 
 // handler for whoamiMsg, pingMsg, heartbeatMsg messages.
