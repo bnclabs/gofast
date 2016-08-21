@@ -2,6 +2,7 @@ package gofast
 
 import "sync/atomic"
 import "time"
+import "reflect"
 
 // BinMessage is a tuple of {id, encodedmsg-slice}
 type BinMessage struct {
@@ -16,10 +17,13 @@ type Message interface {
 	ID() uint64
 
 	// Encode message to binary blob.
-	Encode(out []byte) int
+	Encode(out []byte) []byte
 
 	// Decode this message from a binary blob.
-	Decode(in []byte)
+	Decode(in []byte) (n int64)
+
+	// Size return memory foot-print of encoded message
+	Size() int64
 
 	// String representation of this message, used for logging.
 	String() string
@@ -44,11 +48,14 @@ type Version interface {
 	// String representation of version, for logging.
 	String() string
 
-	// Marshal version into array of bytes.
-	Marshal(out []byte) (n int)
+	// Encode version into array of bytes.
+	Encode(out []byte) []byte
 
-	// Unmarshal array of bytes to version object.
-	Unmarshal(in []byte) (n int)
+	// Decode array of bytes to version object.
+	Decode(in []byte) (n int64)
+
+	// Size return memory foot-print encoded version
+	Size() int64
 }
 
 // handler for whoamiMsg, pingMsg, heartbeatMsg messages.
@@ -71,6 +78,8 @@ func (t *Transport) msghandler(stream *Stream, msg BinMessage) StreamCallback {
 		var m whoamiMsg
 
 		m.transport = t
+		typeOfVersion := reflect.ValueOf(t.version).Elem().Type()
+		m.version = reflect.New(typeOfVersion).Interface().(Version)
 		m.Decode(msg.Data)
 		t.peerver.Store(m.version)
 		rv := newWhoami(t) // respond back

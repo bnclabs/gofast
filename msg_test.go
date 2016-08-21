@@ -2,6 +2,7 @@ package gofast
 
 import "testing"
 import "strconv"
+import "encoding/binary"
 
 func TestIsReservedMsg(t *testing.T) {
 	if isReservedMsg(msgStart) == false {
@@ -31,19 +32,19 @@ func (msg *testMessage) ID() uint64 {
 	return msgTest
 }
 
-func (msg *testMessage) Encode(out []byte) int {
-	n := arrayStart(out)
-	n += valuint642cbor(uint64(msg.count), out[n:])
-	n += breakStop(out[n:])
-	return n
+func (msg *testMessage) Encode(out []byte) []byte {
+	out = fixbuffer(out, msg.Size())
+	binary.BigEndian.PutUint64(out, msg.count)
+	return out[:msg.Size()]
 }
 
-func (msg *testMessage) Decode(in []byte) {
-	if in[0] != 0x9f {
-		return
-	}
-	ln, _ := cborItemLength(in[1:])
-	msg.count = uint64(ln)
+func (msg *testMessage) Decode(in []byte) (n int64) {
+	msg.count = binary.BigEndian.Uint64(in)
+	return msg.Size()
+}
+
+func (msg *testMessage) Size() int64 {
+	return 8
 }
 
 func (msg *testMessage) String() string {
@@ -63,13 +64,16 @@ func (msg *emptyMessage) ID() uint64 {
 	return msgEmpty
 }
 
-func (msg *emptyMessage) Encode(out []byte) int {
-	n := 0
-	n += valbytes2cbor([]byte{}, out[n:])
-	return n
+func (msg *emptyMessage) Encode(out []byte) []byte {
+	return out[:0]
 }
 
-func (msg *emptyMessage) Decode(in []byte) {
+func (msg *emptyMessage) Decode(in []byte) int64 {
+	return 0
+}
+
+func (msg *emptyMessage) Size() int64 {
+	return 0
 }
 
 func (msg *emptyMessage) String() string {
@@ -90,13 +94,22 @@ func (msg *largeMessage) ID() uint64 {
 	return msgLarge
 }
 
-func (msg *largeMessage) Encode(out []byte) int {
-	n := 0
-	n += valbytes2cbor(msg.data[:], out[n:])
-	return n
+func (msg *largeMessage) Encode(out []byte) []byte {
+	out = fixbuffer(out, msg.Size())
+	binary.BigEndian.PutUint64(out, uint64(len(msg.data)))
+	n := 8
+	n += copy(out, msg.data[:])
+	return out[:n]
 }
 
-func (msg *largeMessage) Decode(in []byte) {
+func (msg *largeMessage) Decode(in []byte) int64 {
+	ln, n := int(binary.BigEndian.Uint64(in)), 8
+	n += copy(msg.data[:], in[n:n+ln])
+	return int64(n)
+}
+
+func (msg *largeMessage) Size() int64 {
+	return 8 + int64(len(msg.data))
 }
 
 func (msg *largeMessage) String() string {

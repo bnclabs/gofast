@@ -30,8 +30,8 @@ func TestUnmessage(t *testing.T) {
 
 	// read tag and its payload
 	payload := []byte{
-		216, 37, 191, 24, 39, 2, 24, 40, 78,
-		159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2, 0, 64, 255,
+		216, 37, 191, 24, 39, 2, 24, 40, 82,
+		6, 99, 108, 105, 101, 110, 116, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
 		255}
 
 	_, bs := readtp(payload)
@@ -40,6 +40,7 @@ func TestUnmessage(t *testing.T) {
 	ref := newWhoami(transc)
 	bmsg := transc.unmessage(100, bs)
 	wai.transport = transc
+	wai.version = transc.version
 	wai.Decode(bmsg.Data)
 	if ref.name != wai.name {
 		t.Errorf("expected %v, got %v", ref.name, wai.name)

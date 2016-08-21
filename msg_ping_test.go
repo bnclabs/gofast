@@ -10,20 +10,20 @@ var _ = fmt.Sprintf("dummy")
 func TestPingEncode(t *testing.T) {
 	out := make([]byte, 1024)
 	ref := []byte{
-		159, 75, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100, 255,
+		0, 11, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100,
 	}
 	ping := newPing("hello world")
-	if n := ping.Encode(out); bytes.Compare(ref, out[:n]) != 0 {
-		t.Errorf("expected %v, got %v", ref, out[:n])
+	if out := ping.Encode(out); bytes.Compare(ref, out) != 0 {
+		t.Errorf("expected %v, got %v", ref, out)
 	}
 }
 
 func TestPingDecode(t *testing.T) {
 	out := make([]byte, 1024)
 	ref := newPing("made in india")
-	n := ref.Encode(out)
+	out = ref.Encode(out)
 	ping := &pingMsg{}
-	ping.Decode(out[:n])
+	ping.Decode(out)
 	if !reflect.DeepEqual(ref, ping) {
 		t.Errorf("expected %v, got %v", ref, ping)
 	}
@@ -50,9 +50,9 @@ func BenchmarkPingEncode(b *testing.B) {
 func BenchmarkPingDecode(b *testing.B) {
 	out := make([]byte, 1024)
 	ref := newPing("made in india")
-	n := ref.Encode(out)
+	out = ref.Encode(out)
 	ping := newPing("")
 	for i := 0; i < b.N; i++ {
-		ping.Decode(out[:n])
+		ping.Decode(out)
 	}
 }

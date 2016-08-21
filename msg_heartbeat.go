@@ -1,6 +1,7 @@
 package gofast
 
 import "strconv"
+import "encoding/binary"
 
 // heartbeatMsg is predefined message, used by transport
 // to send periodic heartbeat to remote. Refer to
@@ -17,19 +18,19 @@ func (msg *heartbeatMsg) ID() uint64 {
 	return msgHeartbeat
 }
 
-func (msg *heartbeatMsg) Encode(out []byte) int {
-	n := arrayStart(out)
-	n += valuint642cbor(uint64(msg.count), out[n:])
-	n += breakStop(out[n:])
+func (msg *heartbeatMsg) Encode(out []byte) []byte {
+	out = fixbuffer(out, msg.Size())
+	binary.BigEndian.PutUint64(out, msg.count)
+	return out[:msg.Size()]
+}
+
+func (msg *heartbeatMsg) Decode(in []byte) (n int64) {
+	msg.count, n = binary.BigEndian.Uint64(in), n+8
 	return n
 }
 
-func (msg *heartbeatMsg) Decode(in []byte) {
-	if in[0] != 0x9f {
-		return
-	}
-	ln, _ := cborItemLength(in[1:])
-	msg.count = uint64(ln)
+func (msg *heartbeatMsg) Size() int64 {
+	return 8
 }
 
 func (msg *heartbeatMsg) String() string {

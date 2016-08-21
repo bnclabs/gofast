@@ -16,11 +16,11 @@ func TestWaiEncode(t *testing.T) {
 
 	out := make([]byte, 1024)
 	ref := []byte{
-		159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2, 0, 64, 255,
+		6, 99, 108, 105, 101, 110, 116, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
 	}
 	wai := newWhoami(transc)
-	if n := wai.Encode(out); bytes.Compare(ref, out[:n]) != 0 {
-		t.Errorf("expected %v, got %v", ref, out[:n])
+	if out := wai.Encode(out); bytes.Compare(ref, out) != 0 {
+		t.Errorf("expected %v, got %v", ref, out)
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -38,9 +38,9 @@ func TestWaiDecode(t *testing.T) {
 
 	ver, out := testVersion(1), make([]byte, 1024)
 	wai, ref := &whoamiMsg{}, newWhoami(transc)
-	n := ref.Encode(out)
+	out = ref.Encode(out)
 	wai.version, wai.transport = &ver, transc
-	wai.Decode(out[:n])
+	wai.Decode(out)
 	if !reflect.DeepEqual(ref, wai) {
 		t.Errorf("expected %#v, got %#v", ref, wai)
 	}
@@ -82,7 +82,7 @@ func BenchmarkWaiEncode(b *testing.B) {
 	out := make([]byte, 1024)
 	wai := newWhoami(transc)
 	for i := 0; i < b.N; i++ {
-		wai.Encode(out)
+		out = wai.Encode(out)
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -101,11 +101,11 @@ func BenchmarkWaiDecode(b *testing.B) {
 	ver, out := testVersion(1), make([]byte, 1024)
 	ref := newWhoami(transc)
 	ref.tags = "gzip"
-	n := ref.Encode(out)
+	out = ref.Encode(out)
 	wai := &whoamiMsg{}
 	wai.version, wai.transport = &ver, transc
 	for i := 0; i < b.N; i++ {
-		wai.Decode(out[:n])
+		wai.Decode(out)
 	}
 
 	time.Sleep(100 * time.Millisecond)

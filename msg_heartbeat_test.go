@@ -9,19 +9,19 @@ var _ = fmt.Sprintf("dummy")
 
 func TestHbEncode(t *testing.T) {
 	out := make([]byte, 1024)
-	ref := []byte{159, 26, 0, 152, 150, 128, 255}
+	ref := []byte{0, 0, 0, 0, 0, 152, 150, 128}
 	hb := newHeartbeat(10000000)
-	if n := hb.Encode(out); bytes.Compare(ref, out[:n]) != 0 {
-		t.Errorf("expected %v, got %v", ref, out[:n])
+	if out = hb.Encode(out); bytes.Compare(ref, out) != 0 {
+		t.Errorf("expected %v, got %v", ref, out)
 	}
 }
 
 func TestHbDecode(t *testing.T) {
 	out := make([]byte, 1024)
 	ref := newHeartbeat(10000000)
-	n := ref.Encode(out)
+	out = ref.Encode(out)
 	hb := &heartbeatMsg{}
-	hb.Decode(out[:n])
+	hb.Decode(out)
 	if !reflect.DeepEqual(ref, hb) {
 		t.Errorf("expected %v, got %v", ref, hb)
 	}
@@ -48,9 +48,9 @@ func BenchmarkHbEncode(b *testing.B) {
 func BenchmarkHbDecode(b *testing.B) {
 	out := make([]byte, 1024)
 	ref := newHeartbeat(10000000)
-	n := ref.Encode(out)
+	out = ref.Encode(out)
 	hb := newHeartbeat(1000000)
 	for i := 0; i < b.N; i++ {
-		hb.Decode(out[:n])
+		hb.Decode(out)
 	}
 }

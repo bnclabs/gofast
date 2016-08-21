@@ -35,13 +35,13 @@ func TestTransport(t *testing.T) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
 	} else if !verify(c_counts, "n_rxreq", "n_rxresp", 1) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 78) {
+	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 86) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
 	} else if !verify(s_counts, "n_flushes", "n_rx", "n_tx", 2) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
 	} else if !verify(s_counts, "n_rxreq", "n_rxresp", 1) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 78) {
+	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 86) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
 	}
 
@@ -719,14 +719,20 @@ func (v *testVersion) String() string {
 	return fmt.Sprintf("%v", int(*v))
 }
 
-func (v *testVersion) Marshal(out []byte) int {
-	return valuint642cbor(uint64(*v), out)
+func (v *testVersion) Encode(out []byte) []byte {
+	out = fixbuffer(out, 32)
+	n := valuint642cbor(uint64(*v), out)
+	return out[:n]
 }
 
-func (v *testVersion) Unmarshal(in []byte) int {
+func (v *testVersion) Decode(in []byte) int64 {
 	ln, n := cborItemLength(in)
 	*v = testVersion(ln)
-	return n
+	return int64(n)
+}
+
+func (v *testVersion) Size() int64 {
+	return 9
 }
 
 func printStats(counts map[string]uint64) {

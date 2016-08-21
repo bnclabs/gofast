@@ -395,7 +395,7 @@ func Stat(name string) map[string]uint64 {
 
 // Whoami shall return remote transport's information.
 func (t *Transport) Whoami() (Message, error) {
-	req, resp := newWhoami(t), &whoamiMsg{}
+	req, resp := newWhoami(t), newWhoami(t)
 	resp.transport = t
 	if err := t.Request(req, true /*flush*/, resp); err != nil {
 		return nil, err
