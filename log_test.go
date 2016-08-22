@@ -21,10 +21,7 @@ func TestSetLogger(t *testing.T) {
 	log = nil
 
 	// test a custom logger
-	setts := map[string]interface{}{
-		"log.level": "info",
-		"log.file":  logfile,
-	}
+	setts := Settings{"log.level": "info", "log.file": logfile}
 	clog := SetLogger(nil, setts)
 	clog.Infof(logline)
 	clog.Verbosef(logline)

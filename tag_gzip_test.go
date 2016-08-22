@@ -8,7 +8,7 @@ import "fmt"
 var _ = fmt.Sprintf("dummy")
 
 func TestTagGzip(t *testing.T) {
-	settings := map[string]interface{}{
+	settings := Settings{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.DefaultCompression,
 	}
@@ -35,7 +35,7 @@ func TestTagGzip(t *testing.T) {
 }
 
 func BenchmarkGzEnc1KFast(b *testing.B) {
-	settings := map[string]interface{}{
+	settings := Settings{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.BestSpeed,
 	}
@@ -55,7 +55,7 @@ func BenchmarkGzEnc1KFast(b *testing.B) {
 }
 
 func BenchmarkGzDec1KFast(b *testing.B) {
-	settings := map[string]interface{}{
+	settings := Settings{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.BestSpeed,
 	}
@@ -76,7 +76,7 @@ func BenchmarkGzDec1KFast(b *testing.B) {
 }
 
 func BenchmarkGzEnc10KSmall(b *testing.B) {
-	settings := map[string]interface{}{
+	settings := Settings{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.BestSpeed,
 	}
@@ -100,7 +100,7 @@ func BenchmarkGzEnc10KSmall(b *testing.B) {
 }
 
 func BenchmarkGzDec10KSmall(b *testing.B) {
-	settings := map[string]interface{}{
+	settings := Settings{
 		"buffersize": 1024 * 1024,
 		"gzip.level": flate.BestSpeed,
 	}

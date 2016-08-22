@@ -35,7 +35,7 @@ import "net"
 import "time"
 
 type tagfn func(in, out []byte) int
-type tagFactory func(*Transport, map[string]interface{}) (uint64, tagfn, tagfn)
+type tagFactory func(*Transport, Settings) (uint64, tagfn, tagfn)
 
 var tag_factory = make(map[string]tagFactory)
 var transports = unsafe.Pointer(&map[string]*Transporter{})
@@ -108,7 +108,7 @@ type Transport struct {
 	p_rxstrm *sync.Pool
 
 	// settings
-	settings   map[string]interface{}
+	settings   Settings
 	buffersize uint64
 	batchsize  uint64
 	chansize   uint64
@@ -119,12 +119,12 @@ type Transport struct {
 
 // NewTransport encapsulate a transport over this connection,
 // one connection one transport.
-func NewTransport(name string, conn Transporter, version Version, setts map[string]interface{}) (*Transport, error) {
-	buffersize := setts["buffersize"].(uint64)
-	opqstart := setts["opaque.start"].(uint64)
-	opqend := setts["opaque.end"].(uint64)
-	chansize := setts["chansize"].(uint64)
-	batchsize := setts["batchsize"].(uint64)
+func NewTransport(name string, conn Transporter, version Version, setts Settings) (*Transport, error) {
+	buffersize := setts.Uint64("buffersize")
+	opqstart := setts.Uint64("opaque.start")
+	opqend := setts.Uint64("opaque.end")
+	chansize := setts.Uint64("chansize")
+	batchsize := setts.Uint64("batchsize")
 
 	t := &Transport{
 		name:    name,
@@ -162,8 +162,8 @@ func NewTransport(name string, conn Transporter, version Version, setts map[stri
 	t.subscribeMessage(&heartbeatMsg{}, t.msghandler)
 
 	// educate transport with configured tag decoders.
-	tagcsv, _ := setts["tags"]
-	for _, tag := range t.getTags(tagcsv.(string), []string{}) {
+	tagcsv := setts.String("tags")
+	for _, tag := range t.getTags(tagcsv, []string{}) {
 		if factory, ok := tag_factory[tag]; ok {
 			tagid, _, dec := factory(t, setts)
 			t.tagdec[tagid] = dec
@@ -310,7 +310,7 @@ func (t *Transport) SendHeartbeat(ms time.Duration) {
 // Silentsince returns the timestamp of last heartbeat message received
 // from peer.
 func (t *Transport) Silentsince() time.Duration {
-	if t.aliveat == 0 {
+	if atomic.LoadInt64(&t.aliveat) == 0 {
 		log.Warnf("%v heartbeat not initialized\n", t.logprefix)
 		return time.Duration(0)
 	}

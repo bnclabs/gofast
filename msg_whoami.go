@@ -19,9 +19,7 @@ func newWhoami(t *Transport) *whoamiMsg {
 		version:    t.version,
 		buffersize: t.buffersize,
 	}
-	if tags, ok := t.settings["tags"]; ok {
-		msg.tags = tags.(string)
-	}
+	msg.tags = t.settings.String("tags")
 	return msg
 }
 

@@ -6,9 +6,9 @@ import "compress/gzip"
 import "bytes"
 import "fmt"
 
-func make_gzip(t *Transport, settings map[string]interface{}) (uint64, tagfn, tagfn) {
+func make_gzip(t *Transport, settings Settings) (uint64, tagfn, tagfn) {
 	enc := func(in, out []byte) int {
-		level := settings["gzip.level"].(int)
+		level := int(settings.Uint64("gzip.level"))
 		if len(in) == 0 { // empty input
 			return 0
 		}

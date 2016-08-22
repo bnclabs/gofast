@@ -51,7 +51,7 @@ func init() {
 }
 
 // SetLogger to integrate gofast logging with application logging.
-func SetLogger(logger Logger, setts map[string]interface{}) Logger {
+func SetLogger(logger Logger, setts Settings) Logger {
 	if logger != nil {
 		log = logger
 		return log
@@ -59,14 +59,10 @@ func SetLogger(logger Logger, setts map[string]interface{}) Logger {
 
 	var err error
 	level := logLevelInfo
-	vallevel, ok1 := setts["log.level"]
-	if ok1 {
-		level = string2logLevel(vallevel.(string))
-	}
+	level = string2logLevel(setts.String("log.level"))
 	logfd := os.Stdout
-	valfile, ok2 := setts["log.file"]
-	if ok2 {
-		logfile := valfile.(string)
+	logfile := setts.String("log.file")
+	if logfile != "" {
 		logfd, err = os.OpenFile(logfile, os.O_RDWR|os.O_APPEND, 0660)
 		if err != nil {
 			if logfd, err = os.Create(logfile); err != nil {
@@ -74,9 +70,7 @@ func SetLogger(logger Logger, setts map[string]interface{}) Logger {
 			}
 		}
 	}
-	if ok1 || ok2 {
-		log = &defaultLogger{level: level, output: logfd}
-	}
+	log = &defaultLogger{level: level, output: logfd}
 	return log
 }
 

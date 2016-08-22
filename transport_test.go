@@ -556,8 +556,8 @@ func BenchmarkTransStats(b *testing.B) {
 
 //---- test fixture with client and server.
 
-func newsetts(start, end uint64) map[string]interface{} {
-	return DefaultSettings(start, end)
+func newsetts(start, end uint64) Settings {
+	return DefaultSettings(int64(start), int64(end))
 }
 
 func newServer(name, addr, tags string) (*net.TCPListener, chan *Transport) {
@@ -566,10 +566,7 @@ func newServer(name, addr, tags string) (*net.TCPListener, chan *Transport) {
 	return newServersetts(name, addr, setts)
 }
 
-func newServersetts(
-	name, addr string,
-	setts map[string]interface{}) (*net.TCPListener, chan *Transport) {
-
+func newServersetts(name, addr string, setts Settings) (*net.TCPListener, chan *Transport) {
 	la, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		panic(err)
@@ -605,10 +602,7 @@ func newClient(name, addr, tags string) *Transport {
 	return newClientsetts(name, addr, setts)
 }
 
-func newClientsetts(
-	name, addr string,
-	setts map[string]interface{}) *Transport {
-
+func newClientsetts(name, addr string, setts Settings) *Transport {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		panic(err)

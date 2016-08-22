@@ -1,15 +1,153 @@
 package gofast
 
-import "compress/flate"
+import "strings"
+import "fmt"
 
-func DefaultSettings(start, end uint64) map[string]interface{} {
-	return map[string]interface{}{
-		"buffersize":   uint64(512),
-		"chansize":     uint64(100000),
-		"batchsize":    uint64(1),
-		"tags":         "",
-		"opaque.start": start,
-		"opaque.end":   end,
-		"gzip.level":   flate.BestSpeed,
+// Settings map of settings parameters.
+type Settings map[string]interface{}
+
+// Section will create a new settings object with parameters
+// starting with `prefix`.
+func (setts Settings) Section(prefix string) Settings {
+	section := make(Settings)
+	for key, value := range setts {
+		if strings.HasPrefix(key, prefix) {
+			section[key] = value
+		}
 	}
+	return section
+}
+
+// Trim settings parameter with `prefix` string.
+func (setts Settings) Trim(prefix string) Settings {
+	trimmed := make(Settings)
+	for key, value := range setts {
+		trimmed[strings.TrimPrefix(key, prefix)] = value
+	}
+	return trimmed
+}
+
+// Filter settings paramters that contain `subs`.
+func (setts Settings) Filter(subs string) Settings {
+	subsetts := make(Settings)
+	for key, value := range setts {
+		if strings.Contains(key, subs) {
+			subsetts[key] = value
+		}
+	}
+	return subsetts
+}
+
+// Mixin settings to override `setts` with `settings`.
+func (setts Settings) Mixin(settings ...interface{}) Settings {
+	update := func(arg map[string]interface{}) {
+		for key, value := range arg {
+			setts[key] = value
+		}
+	}
+	for _, arg := range settings {
+		switch cnf := arg.(type) {
+		case Settings:
+			update(map[string]interface{}(cnf))
+		case map[string]interface{}:
+			update(cnf)
+		}
+	}
+	return setts
+}
+
+// Bool return the boolean value for key.
+func (setts Settings) Bool(key string) bool {
+	if value, ok := setts[key]; !ok {
+		panic(fmt.Errorf("missing settings %q", key))
+	} else if val, ok := value.(bool); !ok {
+		panic(fmt.Errorf("settings %q not a bool: %T", key, value))
+	} else {
+		return val
+	}
+	panic("unreachable code")
+}
+
+// Int64 return the int64 value for key.
+func (setts Settings) Int64(key string) int64 {
+	value, ok := setts[key]
+	if !ok {
+		panic(fmt.Errorf("missing settings %q", key))
+	}
+	switch val := value.(type) {
+	case float64:
+		return int64(val)
+	case float32:
+		return int64(val)
+	case uint:
+		return int64(val)
+	case uint64:
+		return int64(val)
+	case uint32:
+		return int64(val)
+	case uint16:
+		return int64(val)
+	case uint8:
+		return int64(val)
+	case int:
+		return int64(val)
+	case int64:
+		return int64(val)
+	case int32:
+		return int64(val)
+	case int16:
+		return int64(val)
+	case int8:
+		return int64(val)
+	}
+	panic(fmt.Errorf("settings %v not a number: %T", key, value))
+	return 0
+}
+
+// Uint64 return the uint64 value for key.
+func (setts Settings) Uint64(key string) uint64 {
+	value, ok := setts[key]
+	if !ok {
+		panic(fmt.Errorf("missing settings %q", key))
+	}
+	switch val := value.(type) {
+	case float64:
+		return uint64(val)
+	case float32:
+		return uint64(val)
+	case uint:
+		return uint64(val)
+	case uint64:
+		return uint64(val)
+	case uint32:
+		return uint64(val)
+	case uint16:
+		return uint64(val)
+	case uint8:
+		return uint64(val)
+	case int:
+		return uint64(val)
+	case int64:
+		return uint64(val)
+	case int32:
+		return uint64(val)
+	case int16:
+		return uint64(val)
+	case int8:
+		return uint64(val)
+	}
+	panic(fmt.Errorf("settings %v not a number: %T", key, value))
+	return 0
+}
+
+// String return the string value for key.
+func (setts Settings) String(key string) string {
+	if value, ok := setts[key]; !ok {
+		panic(fmt.Errorf("missing settings %q", key))
+	} else if val, ok := value.(string); !ok {
+		panic(fmt.Errorf("settings %v not a number: %T", key, value))
+	} else {
+		return val
+	}
+	panic("unreachable code")
 }
