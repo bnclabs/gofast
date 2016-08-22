@@ -11,3 +11,4 @@
 * check whether select{} blocks are costly ?
 * support snappy compression.
 * find a way to add SendHeartbeat() in verify/{client.go,server.go}
+* $ client :9900 stream # fails for some reason. make it more resilient.
