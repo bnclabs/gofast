@@ -64,7 +64,9 @@ func hexstring(data []byte) string {
 }
 
 func fixbuffer(buffer []byte, size int64) []byte {
-	if buffer == nil || int64(cap(buffer)) < size {
+	if size == 0 {
+		return buffer
+	} else if buffer == nil || int64(cap(buffer)) < size {
 		return make([]byte, size)
 	}
 	return buffer[:size]

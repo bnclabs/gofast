@@ -95,6 +95,7 @@ type Transport struct {
 	tagdec   map[uint64]tagfn   // tagid -> func
 	messages map[uint64]Message // msgid -> message
 	handlers map[uint64]RequestCallback
+	defaulth RequestCallback
 	conn     Transporter
 	aliveat  int64
 	txch     chan *txproto
@@ -187,6 +188,12 @@ func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Tran
 		panic(fmt.Errorf("%v message id %v reserved", t.logprefix, id))
 	}
 	return t.subscribeMessage(msg, handler)
+}
+
+func (t *Transport) DefaultHandler(handler RequestCallback) *Transport {
+	t.defaulth = handler
+	log.Verbosef("%v subscribed default handler\n", t.logprefix)
+	return t
 }
 
 // Handshake with remote, shall be called after NewTransport().
@@ -499,21 +506,20 @@ func (t *Transport) getTags(line string, tags []string) []string {
 	return tags
 }
 
-func (t *Transport) subscribeMessage(
-	msg Message, handler RequestCallback) *Transport {
-
-	id := msg.ID()
-	t.messages[id] = msg
-	t.handlers[id] = handler
-
-	log.Verbosef("%v subscribed %v\n", t.logprefix, msg)
+func (t *Transport) subscribeMessage(m Message, h RequestCallback) *Transport {
+	id := m.ID()
+	t.messages[id] = m
+	t.handlers[id] = h
+	log.Verbosef("%v subscribed %v\n", t.logprefix, m)
 	return t
 }
 
-func (t *Transport) requestCallback(stream *Stream, msg BinMessage) StreamCallback {
+func (t *Transport) requestCallback(s *Stream, msg BinMessage) StreamCallback {
 	id := msg.ID
-	if fn := t.handlers[id]; fn != nil {
-		return fn(stream, msg)
+	if fn, ok := t.handlers[id]; ok && fn != nil {
+		return fn(s, msg)
+	} else if t.defaulth != nil {
+		return t.defaulth(s, msg)
 	}
 	return nil
 }
