@@ -128,9 +128,9 @@ godoc documentation.
 
 **useful links:**
 
-* `reserved tags <docs/reservedtags.rst>`_
-* `transport settings <docs/settings.rst>`_
-* `transport statistics <docs/statistics.rst>`_
+* `reserved-tags <docs/reservedtags.rst>`_
+* `settings <docs/settings.rst>`_
+* `statistics <docs/statistics.rst>`_
 
 .. _CBOR: http://cbor.io/
 
