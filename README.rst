@@ -136,8 +136,9 @@ godoc documentation.
 
 .. |buildstatus| image:: https://travis-ci.org/prataprc/gofast.png
     :target: https://travis-ci.org/prataprc/gofast
-.. |coveragestatus| image:: https://coveralls.io/repos/prataprc/gofast/badge.png?branch=master&service=github
+.. |coveragestatus| image:: https://coveralls.io/repos/github/prataprc/gofast/badge.svg?branch=master
     :target: https://coveralls.io/github/prataprc/gofast?branch=master
 .. |godoc| image:: https://godoc.org/github.com/prataprc/gofast?status.png
     :target: https://godoc.org/github.com/prataprc/gofast
+
 
