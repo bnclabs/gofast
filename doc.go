@@ -24,5 +24,4 @@
 //		t.Handshake()
 //		t.FlushPeriod(tm)                   // optional
 //		t.SendHeartbeat(tm)                 // optional
-
 package gofast
