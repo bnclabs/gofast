@@ -1,9 +1,2 @@
-verify/verify
 *.swp
-perf/perf
-perf/*.svg
-perf/*.mprof
-perf/*.pprof
-verify/*.svg
-verify/*.mprof
-verify/*.pprof
+*.swo
