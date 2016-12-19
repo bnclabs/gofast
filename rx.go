@@ -217,7 +217,7 @@ func (t *Transport) unframepkt(
 		log.Infof("%v doRx() received EOF\n", t.logprefix)
 		return
 	} else if err != nil && isConnClosed(err) {
-		log.Infof("%v doRx() Closed connection", t.logprefix)
+		log.Infof("%v doRx() Closed connection\n", t.logprefix)
 		atomic.AddUint64(&t.n_dropped, uint64(m))
 		return
 	} else if err != nil || m != (int(ln)-n) {

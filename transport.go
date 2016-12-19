@@ -192,7 +192,7 @@ func (t *Transport) Handshake() *Transport {
 			t.tagenc[tagid] = enc
 			continue
 		}
-		log.Warnf("%v remote ask for unknown tag: %v", t.logprefix, tag)
+		log.Warnf("%v remote ask for unknown tag: %v\n", t.logprefix, tag)
 	}
 	fmsg := "%v handshake completed with peer: %#v ...\n"
 	log.Verbosef(fmsg, t.logprefix, msg)
