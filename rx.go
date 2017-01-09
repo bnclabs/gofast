@@ -105,10 +105,6 @@ func (t *Transport) syncRx() {
 			} else {
 				stream.rxcallb(rxpkt.msg, true)
 			}
-			if (cap(t.p_data) - len(t.p_data)) > 0 {
-				t.p_data <- rxpkt.msg.Data
-			}
-			rxpkt.msg.Data = nil
 		}
 
 		if streamok && rxpkt.request { //means response
@@ -135,6 +131,10 @@ loop:
 				rxpkt.stream = nil
 			} else {
 				handlepkt(rxpkt)
+				if rxpkt.msg.Data != nil {
+					t.putdata(rxpkt.msg.Data)
+					rxpkt.msg.Data = nil
+				}
 				atomic.AddUint64(&t.n_rx, 1)
 			}
 		case <-t.killch:
@@ -292,12 +292,8 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) (bmsg BinMessage) {
 		log.Errorf("%v ##%v rx invalid message packet\n", t.logprefix, opaque)
 		return
 	}
-	select {
-	case bmsg.Data = <-t.p_data:
-	default:
-		bmsg.Data = make([]byte, t.buffersize)
-	}
-	bmsg.ID, bmsg.Data = uint64(id), bmsg.Data[:len(data)]
+	bmsg.ID = uint64(id)
+	bmsg.Data = t.getdata(len(data))
 	copy(bmsg.Data, data)
 	return
 }

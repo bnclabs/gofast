@@ -109,7 +109,7 @@ func NewTransport(name string, conn Transporter, version Version, setts Settings
 		p_strms: nil, // shall be initialized after setOpaqueRange() call
 		p_txcmd: nil, // shall be initialized after setOpaqueRange() call
 		// TODO: avoid magic number
-		p_data:   make(chan []byte, 64),
+		p_data:   make(chan []byte, 1000),
 		messages: make(map[uint64]Message),
 		handlers: make(map[uint64]RequestCallback),
 
@@ -519,6 +519,25 @@ func (t *Transport) fromtxpool() *txproto {
 	arg.flush, arg.async = false, false
 	arg.n, arg.err, arg.respch = 0, nil, nil
 	return arg
+}
+
+func (t *Transport) getdata(size int) (data []byte) {
+	select {
+	case data = <-t.p_data:
+		if cap(data) < size {
+			data = make([]byte, size)
+		}
+	default:
+		data = make([]byte, size)
+	}
+	return data[:size]
+}
+
+func (t *Transport) putdata(data []byte) {
+	select {
+	case t.p_data <- data:
+	default: // let GC collect the data
+	}
 }
 
 // add a new trasnport.
