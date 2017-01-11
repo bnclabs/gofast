@@ -31,7 +31,7 @@ func server() {
 func runserver(lis net.Listener) {
 	ver := testVersion(1)
 
-	opqend := (1000 + (options.routines * 3))
+	opqend := 1000 + options.routines
 	config := newconfig(1000, opqend)
 	config["tags"] = options.tags
 	config["batchsize"] = options.batchsize
