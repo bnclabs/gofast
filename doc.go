@@ -16,7 +16,7 @@
 //
 // transport instantiation steps:
 //
-//		setts := Settings{"log.level": "info", "log.file": logfile}
+//		setts := gosettings.Settings{"log.level": "info", "log.file": logfile}
 //		log := SetLogger(nil /* use-default-logging */, setts)
 //		t := NewTransport(conn, &ver, nil, settings)
 //		t.SubscribeMessage(&msg1, handler1) // subscribe message

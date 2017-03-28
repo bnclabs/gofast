@@ -4,7 +4,9 @@ import "compress/gzip"
 import "bytes"
 import "fmt"
 
-func make_gzip(t *Transport, settings Settings) (uint64, tagfn, tagfn) {
+import s "github.com/prataprc/gosettings"
+
+func make_gzip(t *Transport, settings s.Settings) (uint64, tagfn, tagfn) {
 	enc := func(in, out []byte) int {
 		level := int(settings.Uint64("gzip.level"))
 		if len(in) == 0 { // empty input

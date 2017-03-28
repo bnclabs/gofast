@@ -4,13 +4,13 @@ import "testing"
 import "reflect"
 import "fmt"
 import "syscall"
-
-//import "runtime"
 import "sort"
 import "net"
 import "time"
 import "sync"
 import "strings"
+
+import s "github.com/prataprc/gosettings"
 
 func TestTransport(t *testing.T) {
 	ver, addr := testVersion(1), <-testBindAddrs
@@ -556,7 +556,7 @@ func BenchmarkTransStats(b *testing.B) {
 
 //---- test fixture with client and server.
 
-func newsetts(start, end uint64) Settings {
+func newsetts(start, end uint64) s.Settings {
 	return DefaultSettings(int64(start), int64(end))
 }
 
@@ -566,7 +566,7 @@ func newServer(name, addr, tags string) (*net.TCPListener, chan *Transport) {
 	return newServersetts(name, addr, setts)
 }
 
-func newServersetts(name, addr string, setts Settings) (*net.TCPListener, chan *Transport) {
+func newServersetts(name, addr string, setts s.Settings) (*net.TCPListener, chan *Transport) {
 	la, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		panic(err)
@@ -602,7 +602,7 @@ func newClient(name, addr, tags string) *Transport {
 	return newClientsetts(name, addr, setts)
 }
 
-func newClientsetts(name, addr string, setts Settings) *Transport {
+func newClientsetts(name, addr string, setts s.Settings) *Transport {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		panic(err)

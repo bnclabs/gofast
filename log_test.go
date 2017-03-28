@@ -6,6 +6,8 @@ import "strings"
 import "fmt"
 import "io/ioutil"
 
+import s "github.com/prataprc/gosettings"
+
 var _ = fmt.Sprintf("dummy")
 
 func TestSetLogger(t *testing.T) {
@@ -21,7 +23,7 @@ func TestSetLogger(t *testing.T) {
 	log = nil
 
 	// test a custom logger
-	setts := Settings{"log.level": "info", "log.file": logfile}
+	setts := s.Settings{"log.level": "info", "log.file": logfile}
 	clog := SetLogger(nil, setts)
 	clog.Infof(logline)
 	clog.Verbosef(logline)

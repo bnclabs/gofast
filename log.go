@@ -6,6 +6,8 @@ import "fmt"
 import "time"
 import "strings"
 
+import s "github.com/prataprc/gosettings"
+
 // Logger interface for gofast logging, applications can
 // supply a logger object implementing this interface or
 // gofast will fall back to the defaultLogger{}.
@@ -49,7 +51,7 @@ func init() {
 }
 
 // SetLogger to integrate gofast logging with application logging.
-func SetLogger(logger Logger, setts Settings) Logger {
+func SetLogger(logger Logger, setts s.Settings) Logger {
 	if logger != nil {
 		log = logger
 		return log

@@ -5,7 +5,9 @@ import "bytes"
 import "io"
 import "fmt"
 
-func make_lzw(t *Transport, _ Settings) (uint64, tagfn, tagfn) {
+import s "github.com/prataprc/gosettings"
+
+func make_lzw(t *Transport, _ s.Settings) (uint64, tagfn, tagfn) {
 	var wbuf bytes.Buffer
 	enc := func(in, out []byte) int {
 		if len(in) == 0 {

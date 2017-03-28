@@ -8,8 +8,10 @@ import "strings"
 import "net"
 import "time"
 
+import s "github.com/prataprc/gosettings"
+
 type tagfn func(in, out []byte) int
-type tagFactory func(*Transport, Settings) (uint64, tagfn, tagfn)
+type tagFactory func(*Transport, s.Settings) (uint64, tagfn, tagfn)
 
 var tag_factory = make(map[string]tagFactory)
 var transports = unsafe.Pointer(&map[string]*Transporter{})
@@ -83,7 +85,7 @@ type Transport struct {
 	p_rxstrm *sync.Pool
 
 	// settings
-	settings   Settings
+	settings   s.Settings
 	buffersize uint64
 	batchsize  uint64
 	chansize   uint64
@@ -94,7 +96,10 @@ type Transport struct {
 
 // NewTransport encapsulate a transport over this connection,
 // one connection one transport.
-func NewTransport(name string, conn Transporter, version Version, setts Settings) (*Transport, error) {
+func NewTransport(
+	name string, conn Transporter, version Version,
+	setts s.Settings) (*Transport, error) {
+
 	buffersize := setts.Uint64("buffersize")
 	opqstart := setts.Uint64("opaque.start")
 	opqend := setts.Uint64("opaque.end")
