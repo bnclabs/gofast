@@ -247,52 +247,6 @@ func (t *Transport) Name() string {
 	return t.name
 }
 
-// FlushPeriod to periodically flush batched packets.
-func (t *Transport) FlushPeriod(ms time.Duration) {
-	tick := time.Tick(ms)
-	go func() {
-		for {
-			<-tick
-			if t.tx([]byte{} /*empty*/, true /*flush*/) != nil {
-				return
-			}
-
-			//TODO: Issue #2, remove or prevent value escape to heap
-			//log.Debugf("%v flushed ... \n", t.logprefix)
-
-			select {
-			case <-t.killch:
-				return
-			default:
-			}
-		}
-	}()
-}
-
-// SendHeartbeat to periodically send keep-alive message.
-func (t *Transport) SendHeartbeat(ms time.Duration) {
-	count, tick := uint64(0), time.Tick(ms)
-	go func() {
-		for {
-			<-tick
-			msg := newHeartbeat(count)
-			if t.Post(msg, true /*flush*/) != nil {
-				return
-			}
-			count++
-
-			//TODO: Issue #2, remove or prevent value escape to heap
-			//log.Debugf("%v posted heartbeat %v\n", t.logprefix, count)
-
-			select {
-			case <-t.killch:
-				return
-			default:
-			}
-		}
-	}()
-}
-
 // Silentsince returns the timestamp of last heartbeat message received
 // from peer.
 func (t *Transport) Silentsince() time.Duration {
