@@ -1,3 +1,4 @@
+* block diagram of go-routines.
 * improve code-coverage to 90%.
 * run travis for go1.4, go1.5, go1.6
 * write-up on using `peerversion` to build distributed applications
