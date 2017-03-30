@@ -7,6 +7,8 @@ import "net"
 import "sync/atomic"
 import "runtime/debug"
 
+import "github.com/prataprc/golog"
+
 func (t *Transport) doRx() {
 	defer func() {
 		if r := recover(); r != nil {

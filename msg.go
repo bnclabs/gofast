@@ -4,6 +4,8 @@ import "sync/atomic"
 import "time"
 import "reflect"
 
+import "github.com/prataprc/golog"
+
 // BinMessage is a tuple of {id, encodedmsg-slice}
 type BinMessage struct {
 	ID   uint64

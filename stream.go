@@ -2,6 +2,8 @@ package gofast
 
 import "sync/atomic"
 
+import "github.com/prataprc/golog"
+
 // Stream for a newly started stream on the transport. Refer to
 // Stream() method on the transport.
 type Stream struct {

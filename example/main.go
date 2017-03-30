@@ -12,7 +12,7 @@ import "runtime/pprof"
 import "net/http"
 import _ "net/http/pprof"
 
-import "github.com/prataprc/gofast"
+import golog "github.com/prataprc/golog"
 import s "github.com/prataprc/gosettings"
 
 var options struct {
@@ -85,7 +85,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	log.Printf("setting gofast logging\n")
-	gofast.SetLogger(nil, s.Settings{"log.level": "warn", "log.file": ""})
+	golog.SetLogger(nil, s.Settings{"log.level": "warn", "log.file": ""})
 
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6062", nil))

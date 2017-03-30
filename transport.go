@@ -9,6 +9,7 @@ import "net"
 import "time"
 
 import s "github.com/prataprc/gosettings"
+import "github.com/prataprc/golog"
 
 type tagfn func(in, out []byte) int
 type tagFactory func(*Transport, s.Settings) (uint64, tagfn, tagfn)

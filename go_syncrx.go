@@ -4,6 +4,8 @@ import "sync/atomic"
 import "fmt"
 import "runtime/debug"
 
+import "github.com/prataprc/golog"
+
 type rxpacket struct {
 	stream  *Stream
 	msg     BinMessage

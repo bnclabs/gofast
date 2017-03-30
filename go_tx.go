@@ -4,6 +4,8 @@ import "fmt"
 import "runtime/debug"
 import "sync/atomic"
 
+import "github.com/prataprc/golog"
+
 func (t *Transport) doTx() {
 	defer func() {
 		if r := recover(); r != nil {

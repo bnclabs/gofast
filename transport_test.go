@@ -11,6 +11,7 @@ import "sync"
 import "strings"
 
 import s "github.com/prataprc/gosettings"
+import "github.com/prataprc/golog"
 
 func TestTransport(t *testing.T) {
 	ver, addr := testVersion(1), <-testBindAddrs
@@ -786,4 +787,7 @@ func init() {
 		testBindAddrs <- fmt.Sprintf("127.0.0.1:%v", 9100+i)
 	}
 	//runtime.GOMAXPROCS(runtime.NumCPU())
+
+	logsetts := map[string]interface{}{"log.level": "warn", "log.file": ""}
+	log.SetLogger(nil, logsetts)
 }
