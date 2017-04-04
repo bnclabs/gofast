@@ -3,7 +3,7 @@ language: go
 sudo: false
 
 go:
-  - 1.4
+  - 1.7
 
 before_install:
   - go get github.com/axw/gocov/gocov
@@ -13,4 +13,5 @@ before_install:
 script:
   - go get ./...
   - go test -v -race -test.run= -test.bench=. -test.benchmem=true ./...
-  - $HOME/gopath/bin/goveralls -service=travis-ci
+  - go test -coverprofile=.coverprofile .
+  - $HOME/gopath/bin/goveralls -coverprofile=.coverprofile  -service=travis-ci
