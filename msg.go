@@ -32,11 +32,11 @@ type Message interface {
 }
 
 const (
-	msgStart     uint64 = 0x0 // reserve start.
-	msgPing             = 0x1 // to ping/echo with peer.
-	msgWhoami           = 0x2 // to supplying/obtaining peer info.
-	msgHeartbeat        = 0x3 // to send/receive heartbeat.
-	msgEnd              = 0xf // reserve end.
+	msgStart     uint64 = 0x1000 // reserve start.
+	msgPing             = 0x1001 // to ping/echo with peer.
+	msgWhoami           = 0x1002 // to supplying/obtaining peer info.
+	msgHeartbeat        = 0x1003 // to send/receive heartbeat.
+	msgEnd              = 0x100f // reserve end.
 )
 
 // Version interface to exchange and manage transport's version.

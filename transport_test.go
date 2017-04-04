@@ -36,13 +36,13 @@ func TestTransport(t *testing.T) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
 	} else if !verify(c_counts, "n_rxreq", "n_rxresp", 1) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 86) {
+	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 90) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
 	} else if !verify(s_counts, "n_flushes", "n_rx", "n_tx", 2) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
 	} else if !verify(s_counts, "n_rxreq", "n_rxresp", 1) {
 		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 86) {
+	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 90) {
 		t.Errorf("unexpected s_counts: %v", s_counts)
 	}
 
