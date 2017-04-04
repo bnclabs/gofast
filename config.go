@@ -9,7 +9,8 @@ import s "github.com/prataprc/gosettings"
 // Configurable parameters:
 //
 // "buffersize" (int64, default: 512)
-//		maximum size that a single message will need for encoding.
+//      maximum size that a single message will need for encoding.
+//
 // "batchsize" (int64, default:1 )
 //		number of messages to batch before writing to socket, transport
 //		will create a local buffer of size buffersize * batchsize.

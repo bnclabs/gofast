@@ -1,12 +1,16 @@
-Gofast
-------
+-------
+Summary
+-------
 
 High performance protocol, accompanied by a programming model, for distributed
 applications.
 
 |buildstatus| |coveragestatus| |godoc|
 
-**Under development**, aims at following goal
+**Under development**
+
+Goal
+----
 
 * CBOR_,(Concise Binary Object Representation) based protocol.
   framing, avoid yet another protocol frame.
@@ -35,7 +39,8 @@ applications.
 * ``Transport{}`` is safe for concurrent access.
 * ``Stream{}`` is not safe for concurrent access.
 
-**frame-format**
+Frame-format
+------------
 
 A frame is encoded as finite length CBOR_ map with predefined list
 of keys, for example, "id", "data" etc... keys are typically encoded
@@ -83,7 +88,8 @@ the stream by sending a 0xff,
 except for post-request, the exchange between client and server is always
 symmetrical.
 
-**packet-format**
+Packet-format
+-------------
 
 a single block of binary blob in CBOR_ format, transmitted
 from client to server or server to client,
@@ -120,17 +126,45 @@ from client to server or server to client,
 * if packet denotes a stream-end, payload will be 1-byte 0xff,
   and not encoded as byte-array.
 
-**http endpoints:**
+Reserved-tags
+-------------
+
+Following list of CBOR_ tags are reserved for gofast protocol.
+
+`tag-6`
+    tagPost, following tagged CBOR byte-array carries a POST request.
+
+`tag-7`
+    tagStream, following tagged CBOR byte-array carries a STREAM message.
+
+`tag-8`
+    tagFinish, following is tagged CBOR breakstop (0xff) item.
+
+`tag-37`
+    tagMsg, following CBOR map carries message header and data.
+
+`tag-38`
+    tagId, used as key in CBOR header-data mapping to unique message ID.
+
+`tag-39`
+    tagData, used as key in CBOR header-data mapping to message, binary
+    encoded as CBOR byte-array.
+
+`tag-40`
+    tagGzip, following CBOR byte array is compressed using gzip encoding.
+
+`tag-41`
+    tagLzw, following CBOR byte array is compressed using gzip encoding.
+
+These reserved tags are not part of CBOR specification or IANA registry,
+please refer/follow issue `#1 <https://github.com/prataprc/gofast/issues/1>`_.
+
+http endpoints
+--------------
 
 Gofast exports per transport statistics and aggregated statistics for
 debugging and performance tracking. For more details check out the
 godoc documentation.
-
-**useful links:**
-
-* `reserved-tags <docs/reservedtags.rst>`_
-* `settings <docs/settings.rst>`_
-* `statistics <docs/statistics.rst>`_
 
 .. _CBOR: http://cbor.io/
 
@@ -140,5 +174,3 @@ godoc documentation.
     :target: https://coveralls.io/github/prataprc/gofast?branch=master
 .. |godoc| image:: https://godoc.org/github.com/prataprc/gofast?status.png
     :target: https://godoc.org/github.com/prataprc/gofast
-
-

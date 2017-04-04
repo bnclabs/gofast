@@ -1,0 +1,331 @@
+PACKAGE DOCUMENTATION
+
+package gofast
+    import "."
+
+    Package gofast implements a high performance symmetric protocol for on
+    the wire data transport. A single socket connection can be used to
+    create a gofast.Transport, and once created application can concurrently
+    post, request, stream messages on the same transport (same socket).
+    Internally this library maintains a global collection of all active
+    gofast.Transport that are created during the life of the program.
+
+    Opaque-space, is range of uint64 values reserved for tagging packets.
+    They shall be supplied via settings while instantiating the transport.
+
+    Messages are golang objects implementing the Message{} interface.
+    Message objects need to be subscribed with transport before they are
+    exchanged over the transport. It is also expected that distributed
+    systems must pre-define messages and their Ids.
+
+    message ids, need to be unique for every type of message transfered over
+    using gofast protocol, following id range is reserved for internal use:
+
+	0x1000 - 0x100F -- reserved messages ids.
+
+    transport instantiation steps:
+
+	setts := gosettings.Settings{"log.level": "info", "log.file": logfile}
+	golog.SetLogger(nil /* use-default-logging */, setts)
+	t := NewTransport(conn, &ver, nil, settings)
+	t.SubscribeMessage(&msg1, handler1) // subscribe message
+	t.SubscribeMessage(&msg2, handler2) // subscribe another message
+	t.Handshake()
+	t.FlushPeriod(tm)                   // optional
+	t.SendHeartbeat(tm)                 // optional
+
+FUNCTIONS
+
+func DefaultSettings(start, end int64) s.Settings
+    DefaultSettings for gofast, start and end arguments are used to generate
+    opaque id for streams on the same socket.
+
+    Configurable parameters:
+
+    "buffersize" (int64, default: 512)
+
+	maximum size that a single message will need for encoding.
+
+    "batchsize" (int64, default:1 )
+
+	number of messages to batch before writing to socket, transport
+	will create a local buffer of size buffersize * batchsize.
+
+    "chansize" (int64, default: 100000)
+
+	buffered channel size to use for internal go-routines.
+
+    "opaque.start" (int64, default: <start-argument>)
+
+	starting opaque range, inclusive.
+
+    "opaque.end" (int64, default: <end-argument>)
+
+	ending opaque range, inclusive.
+
+    "tags" (int64, default: "")
+
+	comma separated list of tags to apply, in specified order.
+
+    "gzip.level" (int64, default: <flate.BestSpeed>)
+
+	gzip compression level, if `tags` contain "gzip".
+
+func Stat(name string) map[string]uint64
+    Stat count for specified transport object.
+
+    Available statistics:
+
+    `n_tx`
+
+	number of messages transmitted.
+
+    `n_flushes`
+
+	number of times message-batches where flushed.
+
+    `n_txbyte`
+
+	number of bytes transmitted on socket.
+
+    `n_txpost`
+
+	number of post messages transmitted.
+
+    `n_txreq`
+
+	number of request messages transmitted.
+
+    `n_txresp`
+
+	number of response messages transmitted.
+
+    `n_txstart`
+
+	number of start messages transmitted, indicates the number of
+	streams started by this local node.
+
+    `n_txstream`
+
+	number of stream messages transmitted.
+
+    `n_txfin`
+
+	number of finish messages transmitted, indicates the number of
+	streams closed by this local node, should always match `n_txstart`.
+
+    `n_rx`
+
+	number of packets received.
+
+    `n_rxbyte`
+
+	number of bytes received from socket.
+
+    `n_rxpost`
+
+	number of post messages received.
+
+    `n_rxreq`
+
+	number of request messages received.
+
+    `n_rxresp`
+
+	number of response messages received.
+
+    `n_rxstart`
+
+	number of start messages received, indicates the number of
+	streams started by the remote node.
+
+    `n_rxstream`
+
+	number of stream messages received.
+
+    `n_rxfin`
+
+	number of finish messages received, indicates the number
+	of streams closed by the remote node, should always match
+	`n_rxstart`
+
+    `n_rxbeats`
+
+	number of heartbeats received.
+
+    `n_dropped`
+
+	bytes dropped.
+
+    `n_mdrops`
+
+	messages dropped.
+
+    Note that ``n_dropped`` and ``n_mdrops`` are counted because gofast
+    supports either end to finish an ongoing stream of messages.
+
+func Stats() map[string]uint64
+    Stats return consolidated counts of all transport objects.
+
+func Statshandler(w http.ResponseWriter, r *http.Request)
+    Statshandler http handler to handle statistics endpoint, returns
+    statistics for specified transport or aggregate statistics of all
+    transports, based on the query parameters.
+
+TYPES
+
+type BinMessage struct {
+    ID   uint64
+    Data []byte
+}
+    BinMessage is a tuple of {id, encodedmsg-slice}
+
+type Message interface {
+    // ID return a unique message identifier.
+    ID() uint64
+
+    // Encode message to binary blob.
+    Encode(out []byte) []byte
+
+    // Decode this message from a binary blob.
+    Decode(in []byte) (n int64)
+
+    // Size return memory foot-print of encoded message
+    Size() int64
+
+    // String representation of this message, used for logging.
+    String() string
+}
+    Message interface, implemented by all messages exchanged via
+    gofast-transport.
+
+type RequestCallback func(*Stream, BinMessage) StreamCallback
+    RequestCallback handler called for an incoming post, request or stream;
+    to be supplied by application before using the transport.
+
+type Stream struct {
+    // contains filtered or unexported fields
+}
+    Stream for a newly started stream on the transport. Refer to Stream()
+    method on the transport.
+
+func (s *Stream) Close() error
+    Close this stream.
+
+func (s *Stream) Response(msg Message, flush bool) error
+    Response to a request, to batch the response pass flush as false.
+
+func (s *Stream) Stream(msg Message, flush bool) (err error)
+    Stream a single message, to batch the message pass flush as false.
+
+func (s *Stream) Transport() *Transport
+    Transport return the underlying transport carrying this stream.
+
+type StreamCallback func(BinMessage, bool)
+    StreamCallback handler called for an incoming message on a stream, the
+    boolean argument indicates whether remote has closed the stream.
+
+type Transport struct {
+    // contains filtered or unexported fields
+}
+    Transport is a peer-to-peer transport enabler.
+
+func NewTransport(
+    name string, conn Transporter, version Version,
+    setts s.Settings) (*Transport, error)
+    NewTransport encapsulate a transport over this connection, one
+    connection one transport.
+
+func (t *Transport) Close() error
+    Close this transport, connection shall be closed as well.
+
+func (t *Transport) DefaultHandler(handler RequestCallback) *Transport
+
+func (t *Transport) FlushPeriod(ms time.Duration)
+    FlushPeriod to periodically flush batched packets.
+
+func (t *Transport) Handshake() *Transport
+    Handshake with remote, shall be called after NewTransport().
+
+func (t *Transport) IsClosed() bool
+    IsClosed return whether this transport is closed or not.
+
+func (t *Transport) LocalAddr() net.Addr
+    LocalAddr of this connection.
+
+func (t *Transport) Name() string
+    Name returns the transport-name.
+
+func (t *Transport) PeerVersion() Version
+    PeerVersion from peer node.
+
+func (t *Transport) Ping(echo string) (string, error)
+    Ping pong with peer.
+
+func (t *Transport) Post(msg Message, flush bool) error
+    Post request to peer.
+
+func (t *Transport) RemoteAddr() net.Addr
+    RemoteAddr of this connection.
+
+func (t *Transport) Request(msg Message, flush bool, resp Message) error
+    Request a response from peer.
+
+func (t *Transport) SendHeartbeat(ms time.Duration)
+    SendHeartbeat to periodically send keep-alive message.
+
+func (t *Transport) Silentsince() time.Duration
+    Silentsince returns the timestamp of last heartbeat message received
+    from peer.
+
+func (t *Transport) Stat() map[string]uint64
+    Stat shall return the stat counts for this transport. Refer
+    gofast.Stats() api for more information.
+
+func (t *Transport) Stream(msg Message, flush bool, rxcallb StreamCallback) (*Stream, error)
+    Request a bi-directional stream with peer.
+
+func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Transport
+    SubscribeMessage that shall be exchanged via this transport. Only
+    subscribed messages can be exchanged.
+
+func (t *Transport) Whoami() (Message, error)
+    Whoami shall return remote transport's information.
+
+type Transporter interface {
+    Read(b []byte) (n int, err error)
+    Write(b []byte) (n int, err error)
+    LocalAddr() net.Addr
+    RemoteAddr() net.Addr
+    Close() error
+}
+    Transporter interface to send and receive packets, connection object
+    shall implement this interface.
+
+type Version interface {
+    // Less than supplied version.
+    Less(ver Version) bool
+
+    // Equal to the supplied version.
+    Equal(ver Version) bool
+
+    // String representation of version, for logging.
+    String() string
+
+    // Encode version into array of bytes.
+    Encode(out []byte) []byte
+
+    // Decode array of bytes to version object.
+    Decode(in []byte) (n int64)
+
+    // Size return memory foot-print encoded version
+    Size() int64
+}
+    Version interface to exchange and manage transport's version.
+
+SUBDIRECTORIES
+
+	docs
+	example
+	http
+
