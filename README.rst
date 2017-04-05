@@ -181,7 +181,7 @@ sizing.
 * as many tx protocol encode buffers will be pre-created and pooled:
   ``((opaque.end-opaque.start)+1) * buffersize``
 
-http endpoints
+Http-endpoints
 --------------
 
 Gofast exports per transport statistics and aggregated statistics for
