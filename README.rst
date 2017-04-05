@@ -159,6 +159,28 @@ Following list of CBOR_ tags are reserved for gofast protocol.
 These reserved tags are not part of CBOR specification or IANA registry,
 please refer/follow issue `#1 <https://github.com/prataprc/gofast/issues/1>`_.
 
+Sizing
+------
+
+Based on the configuration following heap allocations can affect memory
+sizing.
+
+* batch of packets copied into a single buffers before flushing into socket:
+  ``tcpwrite_buf := make([]byte, batchsize*buffersize)``
+  for configured range of opaque space between [opaque.start, opaque.end]
+
+* as many stream{} objects will be pre-created and pooled:
+  ``((opaque.end-opaque.start)+1) * sizeof(stream{})``
+
+* each stream will allocate 3 buffers for sending/receiving packets.
+  ``buffersize * 3``
+
+* as many txproto{} objects will be pre-create and pooled:
+  ``((opaque.end-opaque.start)+1) * sizeof(txproto{})``
+
+* as many tx protocol encode buffers will be pre-created and pooled:
+  ``((opaque.end-opaque.start)+1) * buffersize``
+
 http endpoints
 --------------
 
