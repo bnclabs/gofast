@@ -6,6 +6,19 @@ import "reflect"
 
 import "github.com/prataprc/golog"
 
+// Streamer interface to send/receive bidirectional streams of several
+// messages.
+type Streamer interface {
+	// Response to a request, to batch the response pass flush as false.
+	Response(msg Message, flush bool) error
+
+	// Stream a single message, to batch the message pass flush as false.
+	Stream(msg Message, flush bool) error
+
+	// Close this stream.
+	Close() error
+}
+
 // BinMessage is a tuple of {id, encodedmsg-slice}
 type BinMessage struct {
 	ID   uint64
