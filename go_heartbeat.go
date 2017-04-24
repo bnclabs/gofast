@@ -4,6 +4,10 @@ import "time"
 
 // SendHeartbeat to periodically send keep-alive message.
 func (t *Transport) SendHeartbeat(ms time.Duration) {
+	if ms == 0 {
+		return
+	}
+
 	count, tick := uint64(0), time.Tick(ms)
 	go func() {
 		for {
