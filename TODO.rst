@@ -1,4 +1,6 @@
 * block diagram of go-routines.
+* auto-detection of half open connections and other un-detectable failures
+  by blocking sockets.
 * improve code-coverage to 90%.
 * run travis for go1.4, go1.5, go1.6
 * write-up on using `peerversion` to build distributed applications
