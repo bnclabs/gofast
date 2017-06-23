@@ -14,7 +14,7 @@ Goal
 * [CBOR](http://cbor.io),(Concise Binary Object Representation) based
   protocol, avoids yet another protocol frame.
 * Well formed gofast packets are fully [CBOR](http://cbor.io) compliant.
-* Symmetic protocol - like all socket programming client initiates
+* Symmetric protocol - like all socket programming client initiates
   the connection, but there after client and server can exchange
   messages like peers, that is both ends can:
   - `POST` messages to remote node.
@@ -68,7 +68,10 @@ the stream by sending a 0xff:
             | 0xd9 0xd9f7  | 0xc8 | end-packet |
 ```
 
-* `Packet` shall always be encoded as CBOR byte-array.
+* `0xd9` says frame is a tag with 2-bye extension.
+* Following two bytes `0xd9f7` is tag-number `Tag-55799`.
+* As per the RFC `0xd9 0xd9f7 appears not to be in use as a
+  distinguishing mark for frequently used file types`.
 * Maximum length of a packet can be 4GB.
 * 0xc6 is gofast reserved tag (tagvalue-6) to denote that the following
   packet is a post.
@@ -77,9 +80,10 @@ the stream by sending a 0xff:
 * 0x9f denotes a cbor array of indefinite items, a special meaning
   for a new request that starts a bi-directional stream.
 * 0xc7 is gofast reserved tag (tagvalue-7) to denote that the following
-  package is part of a stream.
+  packet is part of a stream.
 * 0xc8 is gofast reserved tag (tagvalue-8) to denote that this packet
   is a end-packet closing the bi-directional stream.
+* `Packet` shall always be encoded as CBOR byte-array.
 
 Except for post-request, the exchange between client and server is always
 symmetrical.
@@ -97,12 +101,15 @@ from client to server or server to client,
                              | tag 4 | hdr-data |
 ```
 
+* Entire package is encoded as CBOR byte-array.
+* `len` is nothing but the byte-array length (Major-type-2).
 * Payload shall always be encoded as CBOR byte-array.
 * HDR-DATA shall always be encoded as CBOR map.
 * Tags are uint64 numbers that will either be prefixed to payload or hdr-data.
 * Tag1, will always be a opaque number falling within a reserved tag-space
   called opaque-space.
-* Tag2, tag3 can be one of the values predefined by this library.
+* **Opaque-space should not start before 256**.
+* Tag2, Tag3 can be one of the values predefined by this library.
 * Final embedded tag, in this case tag4, shall always be tagMsg (value 37).
 
 **hdr-data**
@@ -110,14 +117,32 @@ from client to server or server to client,
 * TagId, identifies message with unique id.
 * TagData, identified encoded message as byte array.
 
-**end-of-stream:**
+**end-packet**
 
 ```text
-    | tag1  | 0xff |
+    | len | tag1  | 0xff |
 ```
 
 * If packet denotes a stream-end, payload will be 1-byte 0xff,
   and not encoded as byte-array.
+
+**Reading a frame from socket**
+
+Framing of packets are done such that any gofast packet will at-least be 9
+bytes long. Here is how it happens:
+
+* The smallest `payload` should be at-least 1 byte length, because it is
+encoded as CBOR byte-array or as end-packet (0xff).
+* Every payload will be prefix with opaque-tag, which is always >= 256 in
+value. That is 3 bytes.
+* Entire `packet` is encoded as CBOR byte-array, that is another 1 byte
+overhead.
+* And finally framing always takes up 4 bytes.
+
+That is a total of: 1 + 3 + 1 + 4
+
+Incidentally these 9 bytes are enough to learn how many more bytes to read
+from the socket to complete the entire packet.
 
 Reserved-tags
 -------------
