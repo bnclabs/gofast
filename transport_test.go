@@ -130,8 +130,8 @@ func TestHeartbeat(t *testing.T) {
 		t.Errorf("mismatch %v, %v", x, y)
 	} else if !verify(s_counts, "n_rxbeats", "n_rxpost") {
 		t.Errorf("mismatch %v, %v", s_counts["n_rxbeats"], s_counts["n_rxpost"])
-	} else if n := s_counts["n_rxpost"]; n != 99 && n != 100 {
-		t.Errorf("neither 100, nor 99: %v", n)
+	} else if n := s_counts["n_rxpost"]; n != 99 && n != 100 && n != 98 {
+		t.Errorf("not 100, not 99, not 98: %v", n)
 	}
 
 	ref, since := (200 * time.Millisecond), transv.Silentsince()

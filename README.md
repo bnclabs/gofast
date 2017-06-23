@@ -65,19 +65,19 @@ the stream by sending a 0xff:
 
 * `0xd9` says frame is a tag with 2-bye extension.
 * Following two bytes `0xd9f7` is tag-number `Tag-55799`.
-* As per the RFC `0xd9 0xd9f7 appears not to be in use as a
-  distinguishing mark for frequently used file types`.
+* As per the RFC - **0xd9 0xd9f7 appears not to be in use as a
+  distinguishing mark for frequently used file types**.
 * Maximum length of a packet can be 4GB.
 * 0xc6 is gofast reserved tag (tagvalue-6) to denote that the following
   packet is a post.
 * 0x81 denotes a cbor array of single item, a special meaning for new
-  request that expects a single response from peer.
+  request that expects a single response from remote.
 * 0x9f denotes a cbor array of indefinite items, a special meaning
   for a new request that starts a bi-directional stream.
 * 0xc7 is gofast reserved tag (tagvalue-7) to denote that the following
   packet is part of a stream.
 * 0xc8 is gofast reserved tag (tagvalue-8) to denote that this packet
-  is a end-packet closing the bi-directional stream.
+  is an end-packet closing the bi-directional stream.
 * `Packet` shall always be encoded as CBOR byte-array.
 
 Except for post-request, the exchange between client and server is always
@@ -200,3 +200,13 @@ Http-endpoints
 Gofast exports per transport statistics and aggregated statistics for
 debugging and performance tracking. For more details check out the
 godoc documentation.
+
+How to contribute
+-----------------
+
+* Pick an issue, or create an new issue. Provide adequate documentation for
+  the issue.
+* Assign the issue or get it assigned.
+* Work on the code, once finished, raise a pull request.
+* Golog is written in [golang](https://golang.org/), hence expected to follow the
+  global guidelines for writing go programs.
