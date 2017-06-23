@@ -19,7 +19,7 @@ Goal
   messages like peers, that is both ends can:
   - `POST` messages to remote node.
   - `REQUEST` a `RESPONSE` from remote node.
-  - start one or more bi-direction `STREAM` with remote node.
+  - Start one or more bi-direction `STREAM` with remote node.
 * Concurrent request on a single connection, improves throughput when
   latency is high.
 * Configurable batching of packets scheduled for transmission.
