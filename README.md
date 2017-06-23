@@ -38,13 +38,8 @@ Goal
 Frame-format
 ------------
 
-A frame is encoded as finite length CBOR map with predefined list
-of keys, for example, "id", "data" etc ... keys are typically encoded
-as numbers so that they can be efficiently packed. This implies that
-each of the predefined keys shall be assigned a unique number.
-
-An exchange shall be initiated either by client or server, exchange
-can be one of the following.
+Frames encode packet in CBOR compliant form, identifying the exchange
+as one of the following:
 
 **Post-request**, client post a packet and expects no response:
 
@@ -91,8 +86,8 @@ symmetrical.
 Packet-format
 -------------
 
-A single block of binary blob in CBOR format, transmitted
-from client to server or server to client,
+A packet is CBOR byte-array that can carry tags and payloads, it has
+the following format:
 
 ```text
   | len | tag1 |         payload1               |
@@ -101,7 +96,7 @@ from client to server or server to client,
                              | tag 4 | hdr-data |
 ```
 
-* Entire package is encoded as CBOR byte-array.
+* Entire packet is encoded as CBOR byte-array.
 * `len` is nothing but the byte-array length (Major-type-2).
 * Payload shall always be encoded as CBOR byte-array.
 * HDR-DATA shall always be encoded as CBOR map.
