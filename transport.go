@@ -327,72 +327,74 @@ func Stats() map[string]uint64 {
 // Available statistics:
 //
 // "n_tx"
-// 		number of messages transmitted.
+//		number of messages transmitted.
 //
 // "n_flushes"
 //		number of times message-batches where flushed.
 //
 // "n_txbyte"
-//     	number of bytes transmitted on socket.
+//		number of bytes transmitted on socket.
 //
 // "n_txpost"
-//     	number of post messages transmitted.
+//		number of post messages transmitted.
 //
 // "n_txreq"
-//     	number of request messages transmitted.
+//		number of request messages transmitted.
 //
 // "n_txresp"
-//     	number of response messages transmitted.
+//		number of response messages transmitted.
 //
 // "n_txstart"
-//     	number of start messages transmitted, indicates the number of
-//     	streams started by this local node.
+//		number of start messages transmitted, indicates the number of
+//		streams started by this local node.
 //
 // "n_txstream"
-//     	number of stream messages transmitted.
+//		number of stream messages transmitted.
 //
 // "n_txfin"
-//     	number of finish messages transmitted, indicates the number of
-//     	streams closed by this local node, should always match "n_txstart".
+//		number of finish messages transmitted, indicates the number of
+//		streams closed by this local node, should always match "n_txstart"
+//		plus active streams.
 //
 // "n_rx"
-//     	number of packets received.
+//		number of packets received.
 //
 // "n_rxbyte"
-//     	number of bytes received from socket.
+//		number of bytes received from socket.
 //
 // "n_rxpost"
-//     	number of post messages received.
+//		number of post messages received.
 //
 // "n_rxreq"
-//     	number of request messages received.
+//		number of request messages received.
 //
 // "n_rxresp"
-//     	number of response messages received.
+//		number of response messages received.
 //
 // "n_rxstart"
-//     	number of start messages received, indicates the number of
-//     	streams started by the remote node.
+//		number of start messages received, indicates the number of
+//		streams started by the remote node.
 //
 // "n_rxstream"
-//     	number of stream messages received.
+//		number of stream messages received.
 //
 // "n_rxfin"
-//     	number of finish messages received, indicates the number
-//     	of streams closed by the remote node, should always match
-//     	"n_rxstart"
+//		number of finish messages received, indicates the number
+//		of streams closed by the remote node, should always match
+//		"n_rxstart" plus active streams.
 //
 // "n_rxbeats"
-//     	number of heartbeats received.
+//		number of heartbeats received.
 //
 // "n_dropped"
-//     	bytes dropped.
+//		bytes dropped.
 //
 // "n_mdrops"
-//     	messages dropped.
+//		messages dropped.
 //
 // Note that `n_dropped` and `n_mdrops` are counted because gofast
-// supports either end to finish an ongoing stream of messages.
+// supports either end to finish an ongoing stream of messages. So
+// it is might be normal to see non-ZERO values.
 func Stat(name string) map[string]uint64 {
 	op := atomic.LoadPointer(&transports)
 	transm := (*map[string]*Transport)(op)

@@ -4,7 +4,7 @@ import "compress/flate"
 import s "github.com/prataprc/gosettings"
 
 // DefaultSettings for gofast, start and end arguments are used to generate
-// opaque id for streams on the same socket.
+// opaque id for streams.
 //
 // Configurable parameters:
 //
@@ -19,7 +19,7 @@ import s "github.com/prataprc/gosettings"
 //		buffered channel size to use for internal go-routines.
 //
 // "opaque.start" (int64, default: <start-argument>)
-//		starting opaque range, inclusive.
+//		starting opaque range, inclusive. must be > 255
 //
 // "opaque.end" (int64, default: <end-argument>)
 //		ending opaque range, inclusive.
