@@ -393,8 +393,8 @@ func Stats() map[string]uint64 {
 //		messages dropped.
 //
 // Note that `n_dropped` and `n_mdrops` are counted because gofast
-// supports either end to finish an ongoing stream of messages. So
-// it is might be normal to see non-ZERO values.
+// supports either end to finish an ongoing stream of messages.
+// It might be normal to see non-ZERO values.
 func Stat(name string) map[string]uint64 {
 	op := atomic.LoadPointer(&transports)
 	transm := (*map[string]*Transport)(op)

@@ -7,7 +7,7 @@
 //
 // Opaque-space, is range of uint64 values reserved for tagging packets. They
 // shall be supplied via settings while instantiating the transport. Note that
-// Opaque-space can be less than 256.
+// Opaque-space can't be less than 256.
 //
 // Messages are golang objects implementing the Message{} interface. Message
 // objects need to be subscribed with transport before they are exchanged over
@@ -21,9 +21,7 @@
 //
 // transport instantiation steps:
 //
-//		setts := gosettings.Settings{
-//				"log.level": "info", "log.file": logfile,
-//		}
+//		setts := gosettings.Settings{"log.level": "info", "log.file": logfile}
 //		golog.SetLogger(nil /* use-default-logging */, setts)
 //
 //		t := NewTransport(conn, &ver, nil, settings)
