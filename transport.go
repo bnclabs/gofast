@@ -17,13 +17,23 @@ type tagFactory func(*Transport, s.Settings) (uint64, tagfn, tagfn)
 var tag_factory = make(map[string]tagFactory)
 var transports = unsafe.Pointer(&map[string]*Transporter{})
 
-// StreamCallback handler called for an incoming message on a stream,
-// the boolean argument indicates whether remote has closed the stream.
-type StreamCallback func(BinMessage, bool)
-
-// RequestCallback handler called for an incoming post, request or stream;
-// to be supplied by application before using the transport.
+// RequestCallback handler called for an incoming post, or request,
+// or stream message. On either side of the connection, RequestCallback
+// initiates a new exchange - be it a Post or Request or Stream type.
+// Applications should first register request-handler for expecting
+// message-ids, and register a default handler to catch all other
+// messages:
+//
+//   * Stream pointer will be nil if incoming message is a POST.
+//   * Handler shall not block and must be as light-weight as possible
+//   * If request is initiating a stream of messages from remote,
+//   handler should return a stream-callback. StreamCallback will
+//   dispatched for every new messages on this stream.
 type RequestCallback func(*Stream, BinMessage) StreamCallback
+
+// StreamCallback handler called for an incoming message on a stream,
+// the boolean argument, if false, indicates whether remote has closed.
+type StreamCallback func(BinMessage, bool)
 
 // Transporter interface to send and receive packets, connection object
 // shall implement this interface.
@@ -161,7 +171,10 @@ func NewTransport(
 }
 
 // SubscribeMessage that shall be exchanged via this transport. Only
-// subscribed messages can be exchanged.
+// subscribed messages can be exchanged. And for every incoming message
+// with its ID equal to msg.ID(), handler will be dispatch.
+//
+// NOTE: handler shall not block and must be as light-weight as possible
 func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Transport {
 	id := msg.ID()
 	if isReservedMsg(id) {
@@ -170,13 +183,19 @@ func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Tran
 	return t.subscribeMessage(msg, handler)
 }
 
+// DefaultHandler register a default handler to handle all messages. If
+// incoming message-id does not have a matching handler, default handler
+// is dispatched, it is more like a catch-all for incoming messages.
+//
+// NOTE: handler shall not block and must be as light-weight as possible
 func (t *Transport) DefaultHandler(handler RequestCallback) *Transport {
 	t.defaulth = handler
 	log.Verbosef("%v subscribed default handler\n", t.logprefix)
 	return t
 }
 
-// Handshake with remote, shall be called after NewTransport().
+// Handshake with remote, shall be called after NewTransport(), before
+// application messages are exchanged between nodes.
 func (t *Transport) Handshake() *Transport {
 
 	// now spawn the socket receiver, do this only after all messages
@@ -249,10 +268,9 @@ func (t *Transport) Name() string {
 }
 
 // Silentsince returns the timestamp of last heartbeat message received
-// from peer.
+// from peer. If ZERO, remote is not using the heart-beat mechanism.
 func (t *Transport) Silentsince() time.Duration {
 	if atomic.LoadInt64(&t.aliveat) == 0 {
-		log.Warnf("%v heartbeat not initialized\n", t.logprefix)
 		return time.Duration(0)
 	}
 	then := time.Unix(0, atomic.LoadInt64(&t.aliveat))
@@ -274,8 +292,8 @@ func (t *Transport) PeerVersion() Version {
 	return t.peerver.Load().(Version)
 }
 
-// Stat shall return the stat counts for this transport. Refer gofast.Stats()
-// api for more information.
+// Stat shall return the stat counts for this transport.
+// Refer gofast.Stat() api for more information.
 func (t *Transport) Stat() map[string]uint64 {
 	stats := map[string]uint64{
 		"n_tx":       atomic.LoadUint64(&t.n_tx),
@@ -303,7 +321,7 @@ func (t *Transport) Stat() map[string]uint64 {
 }
 
 // Stats return consolidated counts of all transport objects.
-// Refer gofast.Stats() api for more information.
+// Refer gofast.Stat() api for more information.
 func Stats() map[string]uint64 {
 	stats := map[string]uint64{}
 
@@ -418,7 +436,7 @@ func (t *Transport) Whoami() (Message, error) {
 	return resp, nil
 }
 
-// Ping pong with peer.
+// Ping pong with peer, returns the pong string.
 func (t *Transport) Ping(echo string) (string, error) {
 	req, resp := newPing(echo), &pingMsg{}
 	if err := t.Request(req, true /*flush*/, resp); err != nil {
@@ -436,7 +454,10 @@ func (t *Transport) Post(msg Message, flush bool) error {
 	return t.txasync(stream.out[:n], flush)
 }
 
-// Request a response from peer.
+// Request a response from peer. Caller is expected to pass reference to
+// an expected response message, this also implies that every request can
+// expect only one response type. This also have an added benefit of
+// reducing the memory pressure on GC.
 func (t *Transport) Request(msg Message, flush bool, resp Message) error {
 	donech := make(chan struct{})
 	stream := t.getlocalstream(true /*tellrx*/, func(bmsg BinMessage, ok bool) {

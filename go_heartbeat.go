@@ -2,7 +2,8 @@ package gofast
 
 import "time"
 
-// SendHeartbeat to periodically send keep-alive message.
+// SendHeartbeat periodically to remote peer, this can help in detecting
+// inactive, or half-open connections.
 func (t *Transport) SendHeartbeat(ms time.Duration) {
 	if ms == 0 {
 		return
