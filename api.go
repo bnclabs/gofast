@@ -31,7 +31,7 @@ type Message interface {
 	// Decode this message from a binary blob.
 	Decode(in []byte) (n int64)
 
-	// Size return memory foot-print of encoded message
+	// Size is maximum memory foot-print needed for encoding this message.
 	Size() int64
 
 	// String representation of this message, used for logging.

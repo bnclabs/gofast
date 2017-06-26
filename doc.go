@@ -17,7 +17,7 @@
 // message ids, need to be unique for every type of message transfered
 // using gofast protocol, following id range is reserved for internal use:
 //
-//		0x1000 - 0x100F -- reserved messages ids.
+//		0x1000 - 0x100F -- reserved messageid.
 //
 // transport instantiation steps:
 //
