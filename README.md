@@ -30,6 +30,13 @@ Goal
 * Scales with number of connection and number of cores.
 * And most importantly - does not attempt to solve all the world's problem.
 
+Quick links
+-----------
+
+* [Frame-format](#frame-format).
+* [Settings](https://godoc.org/github.com/prataprc/gofast#DefaultSettings).
+* [Getting-started](docs/gettingstarted.md)
+
 **dev-notes**
 
 * `Transport{}` is safe for concurrent access.
@@ -142,7 +149,9 @@ from the socket to complete the entire packet.
 Reserved-tags
 -------------
 
-Following list of CBOR tags are reserved for gofast protocol.
+Following list of CBOR tags are reserved for gofast protocol. Some of these
+tags may be standardised by CBOR specification, but the choice of these
+tag values will speed-up frame encoding and decoding.
 
 `tag-6`
     TagPost, following tagged CBOR byte-array carries a POST request.
