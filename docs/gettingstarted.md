@@ -141,9 +141,8 @@ no other exchange for that request.
 
 **To request a stream response from remote**
 
-With any network programs streaming protocols demand a learning curve. Gofast
-is no exception. But once the basic idea is understood peer-to-peer,
-bi-directional streaming becomes easy.
+Streaming protocols have some learning curve. Gofast is no exception. But once
+the basic idea is understood peer-to-peer, bi-directional streaming becomes easy.
 
 ```go
 var resps []*RangeResponse // place to collect all streamed response.
