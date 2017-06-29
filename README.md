@@ -36,6 +36,7 @@ Quick links
 * [Frame-format](#frame-format).
 * [Settings](https://godoc.org/github.com/prataprc/gofast#DefaultSettings).
 * [Getting-started](docs/gettingstarted.md)
+* [Performance benchmark](perf/README.md)
 * [How to contribute](#how-to-contribute)
 
 **dev-notes**

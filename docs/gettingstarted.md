@@ -61,6 +61,9 @@ StreamCallback as part of the request-handler's return value.
 as light-weight as possible. In other-words, it should quickly return back
 to the caller, or else it will impact the latency and eventually throughput.
 
+**IMPORTANT: Both sides must close the stream to release the stream object
+back to the transport**
+
 **DefaultSettings**
 
 It is possible to tune gofast transport for latency, throughput, and memory
