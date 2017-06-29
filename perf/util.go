@@ -41,8 +41,11 @@ func printCounts(
 	if options.client {
 		// quick bites.
 		fmt.Println()
-		fmt.Printf("Latency Average: %v\n", time.Duration(av.mean()))
 		seconds := elapsed / time.Second
+		if seconds < 1 {
+			log.Fatalf("Run client for longer duration !!")
+		}
+		fmt.Printf("Latency Average: %v\n", time.Duration(av.mean()))
 		switch options.do {
 		case "post":
 			throughput := counts["n_txpost"] / uint64(seconds)
