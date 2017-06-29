@@ -110,7 +110,7 @@ func TestHeartbeat(t *testing.T) {
 	transc.SendHeartbeat(10 * time.Millisecond)
 	time.Sleep(1 * time.Second)
 	transc.Close()
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 	c_counts := transc.Stat()
 	s_counts := transv.Stat()
 
@@ -134,7 +134,7 @@ func TestHeartbeat(t *testing.T) {
 		t.Errorf("not 100, not 99, not 98: %v", n)
 	}
 
-	ref, since := (200 * time.Millisecond), transv.Silentsince()
+	ref, since := (1100 * time.Millisecond), transv.Silentsince()
 	if since > ref {
 		t.Errorf("expected less than %v, got %v", ref, since)
 	}

@@ -10,7 +10,7 @@ var _ = fmt.Sprintf("dummy")
 func TestReadtagp(t *testing.T) {
 	// read tag and its payload
 	payload := []byte{
-		216, 37, 191, 216, 39, 2, 216, 40, 87, 159, 109, 116, 101, 115,
+		216, 43, 191, 216, 44, 2, 216, 45, 87, 159, 109, 116, 101, 115,
 		116, 116, 114, 97, 110, 115, 112, 111, 114, 116, 1, 26, 0,
 		160, 0, 0, 96, 255, 255}
 	tag, bs := readtp(payload)
@@ -30,7 +30,7 @@ func TestUnmessage(t *testing.T) {
 
 	// read tag and its payload
 	payload := []byte{
-		216, 37, 191, 216, 38, 2, 216, 39, 82,
+		216, 43, 191, 216, 44, 2, 216, 45, 82,
 		6, 99, 108, 105, 101, 110, 116, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
 		255}
 
@@ -60,7 +60,7 @@ func TestUnmessage(t *testing.T) {
 func BenchmarkReadtagp(b *testing.B) {
 	// read tag and its payload
 	payload := []byte{
-		216, 37, 191, 216, 38, 2, 216, 39, 87,
+		216, 43, 191, 216, 44, 2, 216, 45, 87,
 		159, 109, 116, 101, 115, 116, 116, 114, 97, 110, 115, 112, 111,
 		114, 116, 1, 26, 0, 160, 0, 0, 96, 255,
 		255}
@@ -77,7 +77,7 @@ func BenchmarkUnmessage(b *testing.B) {
 
 	// read tag and its payload
 	payload := []byte{
-		216, 37, 191, 216, 38, 2, 216, 39, 78,
+		216, 43, 191, 216, 44, 2, 216, 45, 78,
 		159, 70, 99, 108, 105, 101, 110, 116, 1, 25, 2, 0, 64, 255,
 		255}
 	_, bs := readtp(payload)

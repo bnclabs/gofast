@@ -63,17 +63,17 @@ const ( // pre-defined tag values
 	tagRegexp                   // PCRE and ECMA262 regular expression
 	tagMime                     // MIME defined by rfc2045
 
-	// tag 37 (unassigned as per spec). says payload is encoded message
+	// tag 43 (unassigned as per spec). says payload is encoded message
 	// that shall be passed on to the subscribed handler.
-	tagMsg
-	// tag 38 (unassigned as per spec). place-holder for "id" header key.
+	tagMsg = iota + 28
+	// tag 44 (unassigned as per spec). place-holder for "id" header key.
 	tagId
-	// tag 39 (unassigned as per spec). place-holder for "data" header key.
+	// tag 45 (unassigned as per spec). place-holder for "data" header key.
 	tagData
-	// tag 40 (unassigned as per spec). says payload is compressed using
+	// tag 46 (unassigned as per spec). says payload is compressed using
 	// Gzip compression method.
 	tagGzip
-	// tag 41 (unassinged as per spec). says payload is compressed using
+	// tag 47 (unassinged as per spec). says payload is compressed using
 	// Lzw compression method.
 	tagLzw
 

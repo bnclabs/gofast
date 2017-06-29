@@ -114,7 +114,7 @@ the following format:
   called opaque-space.
 * **Opaque-space should not start before 256**.
 * Tag2, Tag3 can be one of the values predefined by this library.
-* Final embedded tag, in this case tag4, shall always be tagMsg (value 37).
+* Final embedded tag, in this case tag4, shall always be tagMsg (value 43).
 
 **hdr-data**
 
@@ -164,20 +164,20 @@ tag values will speed-up frame encoding and decoding.
 `tag-8`
     TagFinish, following is tagged CBOR breakstop (0xff) item.
 
-`tag-37`
+`tag-43`
     TagMsg, following CBOR map carries message header and data.
 
-`tag-38`
+`tag-44`
     TagId, used as key in CBOR header-data mapping to unique message ID.
 
-`tag-39`
+`tag-45`
     TagData, used as key in CBOR header-data mapping to message, binary
     encoded as CBOR byte-array.
 
-`tag-40`
+`tag-46`
     TagGzip, following CBOR byte array is compressed using gzip encoding.
 
-`tag-41`
+`tag-47`
     TagLzw, following CBOR byte array is compressed using gzip encoding.
 
 These reserved tags are not part of CBOR specification or IANA registry,
