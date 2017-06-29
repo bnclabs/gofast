@@ -1,4 +1,4 @@
-// http package to handle gofast http endpoints, subscribed
+// Package http implement gofast http endpoints, subscribed
 // to net/http.DefaultServerMux.
 //
 // import _ github.com/prataprc/gofast/http
@@ -9,16 +9,16 @@
 //   /gofast/statistics?keys=n_tx,n_rx
 //   /gofast/memstats
 //
-// * if `name` query-parameter is supplied, complete set of statistics
-// for the specified <transport-name> will be returned as JSON
-// text.
-//
-// * if `name` query-parameter is skipped, endpoint returns complete set
-// of statistics for all transport objects.
-//
-// * if `keys` query-parameter is supplied, as comma separated values of
-// count-name, only specified list of count values will be returned
-// as JSON text.
+//   * If `name` query-parameter is supplied, complete set of statistics
+//     for the specified <transport-name> will be returned as JSON text.
+//   * If `name` query-parameter is skipped, endpoint returns complete set
+//     of statistics for all transport objects.
+//   * If `keys` query-parameter is supplied, as comma separated values of
+//     count-name, only specified list of count values will be returned
+//     as JSON text.
+//	 * Note that `name` and `keys` parameter can be mixed.
+//   * Other than supported stats keys, http response object will also include
+//     `timestamp` at which statistic was gathered.
 package http
 
 import "runtime"
