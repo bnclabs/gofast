@@ -1,2 +1,6 @@
 *.swp
 *.swo
+perf/*.mprof
+perf/*.pprof
+perf/*.svg
+perf/perf
