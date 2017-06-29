@@ -115,7 +115,28 @@ For a similar configuration, POST alone can do about 166K/sec. This is because
 REQUEST involves rounding trip of 64-byte payload from client to server and
 back from server to client, which leads to 2ms latency and just 50K/Sec. throughput.
 
-By increasing the number of connections to 8:
+To decrease the latency reduce batchsize to 1:
+
+```bash
+time ./perf -c -addr localhost:9900 -do request -conns 1 -batchsize 1 -routines 1 -payload 64 -count 1000000
+
+Latency Average: 85.735µs
+Throughput: 11627
+```
+
+We could bring down latency to **85us**, by throughput suffers lets us tune it
+further to get better throughput, increase batchsize to 8 and increase
+concurrency to 20:
+
+```bash
+time ./perf -c -addr localhost:9900 -do request -conns 1 -batchsize 8 -routines 20 -payload 64 -count 1000000
+
+Latency Average: 464.587µs
+Throughput: 33334
+```
+
+By increasing the number of connections to 8, with batchsize and concurrency
+at 100:
 
 ```bash
 time ./perf -c -addr localhost:9900 -do request -conns 8 -batchsize 100 -routines 100 -payload 64 -count 1000000
@@ -124,7 +145,7 @@ Latency Average: 12.843589ms
 Throughput: 61544
 ```
 
-Only marginal improvements but latency is suffering by 6 times.
+We get good throughput but poor latency.
 
 **STREAM Benchmark**
 
@@ -180,4 +201,14 @@ Latency Average: 11.354511ms
 Throughput: 91666
 ```
 
-**100K/Sec. througput** at **11ms** latency.
+**100K/Sec. througput** at **11ms** latency. Repeat this on many
+connections.
+
+```bash
+time ./perf -c -addr localhost:9900 -do streamtx -batchsize 100 -routines 100 -payload 64 -conns 8 -count 100000  -stream 10
+
+Latency Average: 28.065024ms
+Throughput: 237837
+```
+
+**237K/Sec. througput** at **23ms** latency.
