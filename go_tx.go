@@ -25,6 +25,7 @@ func (t *Transport) doTx() {
 		// consolidate.
 		for _, arg := range batch {
 			if len(arg.packet) > 0 {
+				//fmt.Println(hexstring(arg.packet))
 				n += copy(tcpwrite_buf[n:], arg.packet)
 				atomic.AddUint64(&t.n_tx, 1)
 			}

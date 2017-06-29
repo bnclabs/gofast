@@ -57,12 +57,14 @@ func (t *Transport) finish(stream *Stream, out []byte) (n int) {
 	atomic.AddUint64(&t.n_txfin, 1)
 	var scratch [16]byte
 	n = tag2cbor(tagCborPrefix, out)         // prefix
-	out[n] = 0xc8                            // 0xc7 (end stream, 0b110_01000 <tag,8>)
+	out[n] = 0xc8                            // 0xc8 (end stream, 0b110_01000 <tag,8>)
 	n += 1                                   //
 	m := tag2cbor(stream.opaque, scratch[:]) // tag-opaque
-	scratch[m] = 0xff                        // 0xff (payload)
+	scratch[m] = 0x40                        // zero-len byte-string
 	m += 1
 	n += valbytes2cbor(scratch[:m], out[n:]) // packet
+	out[n] = 0xff                            // 0xff CBOR indefinite end.
+	n += 1
 	return n
 }
 

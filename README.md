@@ -124,11 +124,16 @@ the following format:
 **end-packet**
 
 ```text
-    | len | tag1  | 0xff |
+    | len | tag1  | 0x40 | 0xff |
 ```
 
-* If packet denotes a stream-end, payload will be 1-byte 0xff,
-  and not encoded as byte-array.
+* End-packet does not carry any useful payload, it simply signifies a stream
+  close.
+* For that, tag1 opaque-value is required to identify the stream.
+* 0x40 is the single-byte payload for this packet, which says that the
+  payload-data is ZERO bytes.
+* The last 0xff is important since it will match with 0x9f that indicates
+  a stream-start as Indefinite array of items.
 
 **Reading a frame from socket**
 
@@ -147,6 +152,14 @@ That is a total of: 1 + 3 + 1 + 4
 
 Incidentally these 9 bytes are enough to learn how many more bytes to read
 from the socket to complete the entire packet.
+
+**Regarding Opaque-value**
+
+By design opaque value should be >= 256. These are ephimeral tag values
+that do not carry any meaning other than identifying the stream. Opaque
+values will continuously reused for the life-time of connection. Users
+are expected to give a range of these ephemeral tag-values, and gofast
+will skip [reserved TAGS](https://www.iana.org/assignments/cbor-tags/cbor-tags.xhtml).
 
 Reserved-tags
 -------------

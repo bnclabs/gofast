@@ -74,6 +74,9 @@ func (t *Transport) unframepkt(
 
 	ln, m := cborItemLength(pad[n:])
 	n += m
+	if finish { // railing 0xff
+		ln++
+	}
 
 	// read the full packet
 	n = copy(packet, pad[n:])
@@ -98,7 +101,7 @@ func (t *Transport) unframepkt(
 	rxpkt.opaque, payload = readtp(packet[:ln])
 	rxpkt.post, rxpkt.request = post, request
 	rxpkt.start, rxpkt.strmsg, rxpkt.finish = start, stream, finish
-	if rxpkt.finish /*rxpkt.payload[0] == 0xff*/ { // end-of-stream
+	if rxpkt.finish { // end-of-stream
 		return
 	}
 	// tags

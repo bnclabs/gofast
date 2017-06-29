@@ -132,7 +132,7 @@ func TestFinish(t *testing.T) {
 	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 
-	ref := []byte{217, 217, 247, 200, 68, 217, 1, 12, 255}
+	ref := []byte{217, 217, 247, 200, 68, 217, 1, 12, 64, 255}
 	stream := transc.getlocalstream(false, nil)
 	out := make([]byte, 1024)
 	n := transc.finish(stream, out)
