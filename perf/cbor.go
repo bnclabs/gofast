@@ -66,22 +66,20 @@ const ( // pre-defined tag values
 	// tag 37 (unassigned as per spec). says payload is encoded message
 	// that shall be passed on to the subscribed handler.
 	tagMsg
-	// tag 38 (unassigned as per spec). place-holder for "version" header key.
-	tagVersion
-	// tag 39 (unassigned as per spec). place-holder for "id" header key.
+	// tag 37 (unassigned as per spec). place-holder for "version" header key.
 	tagId
-	// tag 40 (unassigned as per spec). place-holder for "data" header key.
+	// tag 39 (unassigned as per spec). place-holder for "data" header key.
 	tagData
-	// tag 41 (unassigned as per spec). says payload is compressed using
+	// tag 40 (unassigned as per spec). says payload is compressed using
 	// Gzip compression method.
 	tagGzip
-	// tag 42 (unassinged as per spec). says payload is compressed using
+	// tag 41 (unassinged as per spec). says payload is compressed using
 	// Lzw compression method.
 	tagLzw
 
 	// opaque-space 256..55798
-	tagOpaqueStart = iota + 235
-	tagOpaqueEnd   = iota + 55776
+	tagOpaqueStart = iota + 236
+	tagOpaqueEnd   = iota + 55777
 
 	tagCborPrefix
 
