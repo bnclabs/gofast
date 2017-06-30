@@ -1,5 +1,6 @@
 package gofast
 
+import "fmt"
 import "testing"
 import "strconv"
 import "encoding/binary"
@@ -20,6 +21,7 @@ func TestIsReservedMsg(t *testing.T) {
 
 const msgTest = msgEnd + 1
 const msgEmpty = msgTest + 1
+const msgOnebyte = msgTest + 1
 const msgLarge = msgTest + 1
 
 //-- test message
@@ -82,6 +84,38 @@ func (msg *emptyMessage) String() string {
 
 func (msg *emptyMessage) Repr() string {
 	return msg.String()
+}
+
+//-- onebyte message
+
+type onebyteMessage struct {
+	field byte
+}
+
+func (msg *onebyteMessage) ID() uint64 {
+	return msgOnebyte
+}
+
+func (msg *onebyteMessage) Encode(out []byte) []byte {
+	out[0] = msg.field
+	return out[:1]
+}
+
+func (msg *onebyteMessage) Decode(in []byte) int64 {
+	msg.field = in[0]
+	return 1
+}
+
+func (msg *onebyteMessage) Size() int64 {
+	return 1
+}
+
+func (msg *onebyteMessage) String() string {
+	return "onebyteMessage"
+}
+
+func (msg *onebyteMessage) Repr() string {
+	return fmt.Sprintf("onebyteMessage.%v", msg.field)
 }
 
 //-- large message

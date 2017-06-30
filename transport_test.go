@@ -308,6 +308,50 @@ func TestTransPostEmpty(t *testing.T) {
 	transv.Close()
 }
 
+func TestTransPostOnebyte(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	msg := &onebyteMessage{field: 'a'}
+	donech := make(chan bool, 2)
+	transc.SubscribeMessage(
+		&onebyteMessage{},
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m onebyteMessage
+			m.Decode(rxmsg.Data)
+			if s != nil {
+				t.Errorf("expected nil, got %v", s)
+			} else if !reflect.DeepEqual(&m, msg) {
+				t.Errorf("expected %v, got %v", msg, m)
+			}
+			donech <- true
+			return nil
+		})
+	transv.SubscribeMessage(
+		&onebyteMessage{},
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m onebyteMessage
+			m.Decode(rxmsg.Data)
+			if s != nil {
+				t.Errorf("expected nil, got %v", s)
+			} else if !reflect.DeepEqual(&m, msg) {
+				t.Errorf("expected %v, got %v", msg, m)
+			}
+			transv.Post(&m, true)
+			return nil
+		})
+	transc.Post(msg, true)
+	<-donech
+
+	time.Sleep(100 * time.Millisecond)
+
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
 func TestTransPostLarge(t *testing.T) {
 	addr := <-testBindAddrs
 	sconf := newsetts(tagOpaqueStart, tagOpaqueStart+10)
@@ -391,6 +435,36 @@ func TestTransRequestEmpty(t *testing.T) {
 			return nil
 		})
 	resp := &emptyMessage{}
+	if err := transc.Request(msg, true, resp); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(resp, msg) {
+		t.Errorf("expected %v, got %v", msg, resp)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestTransRequestOnebyte(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	msg := &onebyteMessage{field: 'a'}
+	transc.SubscribeMessage(&onebyteMessage{}, nil)
+	transv.SubscribeMessage(
+		&onebyteMessage{},
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m onebyteMessage
+			m.Decode(rxmsg.Data)
+			s.Response(&m, true)
+			return nil
+		})
+	resp := &onebyteMessage{}
 	if err := transc.Request(msg, true, resp); err != nil {
 		t.Error(err)
 	} else if !reflect.DeepEqual(resp, msg) {
@@ -506,6 +580,64 @@ func TestClientStreamEmpty(t *testing.T) {
 	// validate
 	if uint64(len(refch)) != n+1 {
 		t.Errorf("expected %v, got %v", n+1, len(refch))
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestClientStreamOnebyte(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	n := uint64(1235)
+	msg := &onebyteMessage{field: 'a'}
+	refch := make(chan Message, n+2)
+	transc.SubscribeMessage(&onebyteMessage{}, nil)
+	transv.SubscribeMessage(
+		&onebyteMessage{},
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m onebyteMessage
+			m.Decode(rxmsg.Data)
+			refch <- &m
+			return func(rxmsg BinMessage, ok bool) {
+				if ok {
+					var m onebyteMessage
+					m.Decode(rxmsg.Data)
+					refch <- &m
+				} else {
+					close(refch)
+				}
+			}
+		})
+	stream, err := transc.Stream(msg, true, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	for i := uint64(0); i < n; i++ {
+		err = stream.Stream(&onebyteMessage{field: 'a'}, true)
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	if err = stream.Close(); err != nil {
+		t.Error(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	// validate
+	if uint64(len(refch)) != n+1 {
+		t.Errorf("expected %v, got %v", n+1, len(refch))
+	}
+	for checkmsg := range refch {
+		if reflect.DeepEqual(checkmsg, msg) == false {
+			t.Errorf("expected %v, got %v", msg, checkmsg)
+		}
 	}
 
 	time.Sleep(100 * time.Millisecond)
