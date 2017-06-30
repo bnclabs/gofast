@@ -14,7 +14,8 @@ $ cd perf/
 $ go build
 ```
 
-**Start the server**
+Start the server
+----------------
 
 To start the `perf` program as server use the `-s` switch, supply port address
 via `-addr` argument.
@@ -23,7 +24,8 @@ via `-addr` argument.
 $ ./perf -s -addr :9900
 ```
 
-**POST Benchmark**
+POST Benchmark
+--------------
 
 To start the `perf` program as client use the `-c` switch, supply the server
 address via `-addr` argument. Do sufficiently large number of POST so that
@@ -96,7 +98,8 @@ Throughput: 666674 /second
 Decreasing the payload improves the latency by 50% and it reflects in
 throughput as well.
 
-**REQUEST Benchmark**
+REQUEST Benchmark
+-----------------
 
 Now that we have exercised most of the options, like number-of-connections,
 payload-size, batchsize, number-of-routines. For the remaining experiment
@@ -147,7 +150,8 @@ Throughput: 61544
 
 We get good throughput but poor latency.
 
-**STREAM Benchmark**
+STREAM Benchmark
+----------------
 
 Client can initiate a stream request, using `-do streamtx` and send `-stream` number of messages to
 remote. To initiate a stream request in reverse direction, use `-do streamrx`.
