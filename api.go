@@ -46,9 +46,6 @@ type Version interface {
 	// Equal to the supplied version.
 	Equal(ver Version) bool
 
-	// String representation of version, for logging.
-	String() string
-
 	// Encode version into array of bytes.
 	Encode(out []byte) []byte
 
@@ -57,4 +54,7 @@ type Version interface {
 
 	// Size return memory foot-print encoded version
 	Size() int64
+
+	// String representation of version, for logging.
+	String() string
 }
