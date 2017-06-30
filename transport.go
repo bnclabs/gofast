@@ -111,6 +111,10 @@ func NewTransport(
 	name string, conn Transporter, version Version,
 	setts s.Settings) (*Transport, error) {
 
+	if setts == nil {
+		setts = DefaultSettings(1000, 5000)
+	}
+
 	buffersize := setts.Uint64("buffersize")
 	opqstart := setts.Uint64("opaque.start")
 	opqend := setts.Uint64("opaque.end")
