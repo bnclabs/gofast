@@ -21,11 +21,12 @@
 //     `timestamp` at which statistic was gathered.
 package http
 
+import _ "fmt"
 import "runtime"
 import "strings"
 import "net/http"
-import "encoding/json"
 
+import "github.com/prataprc/gson"
 import "github.com/prataprc/gofast"
 
 func init() {
@@ -68,12 +69,17 @@ func memstats(w http.ResponseWriter, r *http.Request) {
 	oldNumGC = ms.NumGC
 
 	// marshal and send
-	jsonstats, err := json.Marshal(stats)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error() + "\n"))
-		return
-	}
+	buf, conf := make([]byte, 1024), gson.NewDefaultConfig()
+	jsonstats := conf.NewValue(stats).Tojson(conf.NewJson(buf, 0)).Bytes()
+
+	// TODO: remove this once gson becomes stable.
+	//jsonstats, err := json.Marshal(stats)
+	//if err != nil {
+	//	w.WriteHeader(http.StatusInternalServerError)
+	//	w.Write([]byte(err.Error() + "\n"))
+	//	return
+	//}
+
 	header := w.Header()
 	header["Content-Type"] = []string{"application/json"}
 	header["Access-Control-Allow-Origin"] = []string{"*"}

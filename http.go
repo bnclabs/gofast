@@ -1,9 +1,11 @@
 package gofast
 
 import "strings"
-import "encoding/json"
 import "net/http"
 import "time"
+import _ "fmt"
+
+import "github.com/prataprc/gson"
 
 // Statshandler http handler to handle statistics endpoint, returns
 // statistics for specified transport or aggregate statistics of all
@@ -26,12 +28,16 @@ func Statshandler(w http.ResponseWriter, r *http.Request) {
 		stats = filterstats(stats, keys)
 		stats["timestamp"] = uint64(time.Now().UnixNano())
 
-		jsonstats, err := json.Marshal(stats)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(err.Error() + "\n"))
-			return
-		}
+		buf, conf := make([]byte, 1024), gson.NewDefaultConfig()
+		jsonstats := conf.NewValue(stats).Tojson(conf.NewJson(buf, 0)).Bytes()
+
+		// TODO: remove this once gson becomes stable.
+		//jsonstats, err := json.Marshal(stats)
+		//if err != nil {
+		//	w.WriteHeader(http.StatusInternalServerError)
+		//	w.Write([]byte(err.Error() + "\n"))
+		//	return
+		//}
 
 		header := w.Header()
 		header["Content-Type"] = []string{"application/json"}
