@@ -84,7 +84,7 @@ func (msg *emptyMessage) Repr() string {
 	return msg.String()
 }
 
-//-- empty message
+//-- large message
 
 type largeMessage struct {
 	data [65 * 1024]byte

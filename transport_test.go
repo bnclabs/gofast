@@ -120,13 +120,15 @@ func TestHeartbeat(t *testing.T) {
 		t.Errorf("atleast %v, got %v", limit, c_counts["n_flushes"])
 	} else if !verify(c_counts, "n_tx", "n_flushes") {
 		t.Errorf("failed c_counts: %v", c_counts)
-	} else if !verify(s_counts, "n_rxreq", "n_txresp", 1, "n_flushes", "n_tx", 2) {
+	}
+	if !verify(s_counts, "n_rxreq", "n_txresp", 1, "n_flushes", "n_tx", 2) {
 		t.Errorf("unexpected s_counts %v", s_counts)
 	} else if c_counts["n_rxbyte"] != s_counts["n_txbyte"] {
 		t.Errorf("mismatch %v, %v", c_counts["n_rxbyte"], s_counts["n_txbyte"])
 	} else if c_counts["n_txbyte"] != s_counts["n_rxbyte"] {
 		t.Errorf("mismatch %v, %v", c_counts["n_txbyte"], s_counts["n_rxbyte"])
-	} else if x, y := c_counts["n_flushes"], s_counts["n_rx"]; x != y && x != (y+1) {
+	}
+	if x, y := c_counts["n_flushes"], s_counts["n_rx"]; x != y && x != (y+1) {
 		t.Errorf("mismatch %v, %v", x, y)
 	} else if !verify(s_counts, "n_rxbeats", "n_rxpost") {
 		t.Errorf("mismatch %v, %v", s_counts["n_rxbeats"], s_counts["n_rxpost"])
@@ -372,6 +374,36 @@ func TestTransRequest(t *testing.T) {
 	transv.Close()
 }
 
+func TestTransRequestEmpty(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	msg := &emptyMessage{}
+	transc.SubscribeMessage(&emptyMessage{}, nil)
+	transv.SubscribeMessage(
+		&emptyMessage{},
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m emptyMessage
+			m.Decode(rxmsg.Data)
+			s.Response(&m, true)
+			return nil
+		})
+	resp := &emptyMessage{}
+	if err := transc.Request(msg, true, resp); err != nil {
+		t.Error(err)
+	} else if !reflect.DeepEqual(resp, msg) {
+		t.Errorf("expected %v, got %v", msg, resp)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
 func TestClientStream(t *testing.T) {
 	addr := <-testBindAddrs
 	lis, serverch := newServer("server", addr, "")      // init server
@@ -422,6 +454,58 @@ func TestClientStream(t *testing.T) {
 	}
 	if ref := uint64(1234) + 100 + 1; i != ref {
 		t.Errorf("expected %v, got %v", ref, i)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	lis.Close()
+	transc.Close()
+	transv.Close()
+}
+
+func TestClientStreamEmpty(t *testing.T) {
+	addr := <-testBindAddrs
+	lis, serverch := newServer("server", addr, "")      // init server
+	transc := newClient("client", addr, "").Handshake() // init client
+	transv := <-serverch
+	// test
+	n := uint64(1235)
+	msg := &emptyMessage{}
+	refch := make(chan Message, n+2)
+	transc.SubscribeMessage(&emptyMessage{}, nil)
+	transv.SubscribeMessage(
+		&emptyMessage{},
+		func(s *Stream, rxmsg BinMessage) StreamCallback {
+			var m emptyMessage
+			m.Decode(rxmsg.Data)
+			refch <- &m
+			return func(rxmsg BinMessage, ok bool) {
+				if ok {
+					var m emptyMessage
+					m.Decode(rxmsg.Data)
+					refch <- &m
+				} else {
+					close(refch)
+				}
+			}
+		})
+	stream, err := transc.Stream(msg, true, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	for i := uint64(0); i < n; i++ {
+		if err = stream.Stream(&emptyMessage{}, true); err != nil {
+			t.Error(err)
+		}
+	}
+	if err = stream.Close(); err != nil {
+		t.Error(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+
+	// validate
+	if uint64(len(refch)) != n+1 {
+		t.Errorf("expected %v, got %v", n+1, len(refch))
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -567,7 +651,9 @@ func newServer(name, addr, tags string) (*net.TCPListener, chan *Transport) {
 	return newServersetts(name, addr, setts)
 }
 
-func newServersetts(name, addr string, setts s.Settings) (*net.TCPListener, chan *Transport) {
+func newServersetts(
+	name, addr string, setts s.Settings) (*net.TCPListener, chan *Transport) {
+
 	la, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		panic(err)
