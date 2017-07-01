@@ -43,7 +43,7 @@ func (t *Transport) syncRx() {
 			//log.Debugf(fmsg, t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
 			if stream.remote == false {
-				t.p_strms <- stream // don't collect remote streams
+				t.pStrms <- stream // don't collect remote streams
 			}
 		} else if stream.rxcallb != nil {
 			//TODO: Issue #2, remove or prevent value escape to heap
@@ -65,14 +65,14 @@ func (t *Transport) syncRx() {
 			}
 			t.putstream(rxpkt.opaque, stream, false /*tellrx*/)
 			delete(livestreams, rxpkt.opaque)
-			atomic.AddUint64(&t.n_rxfin, 1)
+			atomic.AddUint64(&t.nRxfin, 1)
 			return
 
 		} else if rxpkt.finish {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d unknown stream-fin from remote ...\n"
 			//log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
-			atomic.AddUint64(&t.n_mdrops, 1)
+			atomic.AddUint64(&t.nMdrops, 1)
 			return
 		}
 		//TODO: Issue #2, remove or prevent value escape to heap
@@ -81,18 +81,18 @@ func (t *Transport) syncRx() {
 		if streamok == false { // post, request, stream-start
 			if rxpkt.post {
 				t.requestCallback(nil /*stream*/, rxpkt.msg)
-				atomic.AddUint64(&t.n_rxpost, 1)
+				atomic.AddUint64(&t.nRxpost, 1)
 			} else if rxpkt.request {
 				stream = t.newremotestream(rxpkt.opaque)
 				t.requestCallback(stream, rxpkt.msg)
-				atomic.AddUint64(&t.n_rxreq, 1)
+				atomic.AddUint64(&t.nRxreq, 1)
 			} else if rxpkt.start { // stream
 				stream = t.newremotestream(rxpkt.opaque)
 				stream.rxcallb = t.requestCallback(stream, rxpkt.msg)
 				livestreams[stream.opaque] = stream
-				atomic.AddUint64(&t.n_rxstart, 1)
+				atomic.AddUint64(&t.nRxstart, 1)
 			} else { // message for a closed stream.
-				atomic.AddUint64(&t.n_mdrops, 1)
+				atomic.AddUint64(&t.nMdrops, 1)
 			}
 			return
 		}
@@ -107,13 +107,13 @@ func (t *Transport) syncRx() {
 		}
 
 		if streamok && rxpkt.request { //means response
-			atomic.AddUint64(&t.n_rxresp, 1)
+			atomic.AddUint64(&t.nRxresp, 1)
 		} else if rxpkt.strmsg {
-			atomic.AddUint64(&t.n_rxstream, 1)
+			atomic.AddUint64(&t.nRxstream, 1)
 		} else {
 			fmsg := "%v duplicate rxpkt ##%d for stream ##%d %#v ...\n"
 			log.Warnf(fmsg, t.logprefix, rxpkt.opaque, stream.opaque, rxpkt)
-			atomic.AddUint64(&t.n_mdrops, 1)
+			atomic.AddUint64(&t.nMdrops, 1)
 		}
 	}
 
@@ -134,7 +134,7 @@ loop:
 					t.putdata(rxpkt.msg.Data)
 					rxpkt.msg.Data = nil
 				}
-				atomic.AddUint64(&t.n_rx, 1)
+				atomic.AddUint64(&t.nRx, 1)
 			}
 		case <-t.killch:
 			break loop
@@ -151,7 +151,6 @@ func (t *Transport) putch(ch chan rxpacket, val rxpacket) bool {
 	case <-t.killch:
 		return false
 	}
-	return false
 }
 
 func (t *Transport) flushrxch() {

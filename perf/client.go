@@ -72,7 +72,7 @@ func doTransport() map[string]uint64 {
 	var wg sync.WaitGroup
 
 	ver := testVersion(1)
-	n_trans := make([]*gf.Transport, 0, 16)
+	transs := make([]*gf.Transport, 0, 16)
 
 	var doit func() int
 
@@ -113,7 +113,7 @@ func doTransport() map[string]uint64 {
 			trans.SubscribeMessage(&msgStreamTx{}, nil)
 			trans.Handshake()
 
-			n_trans = append(n_trans, trans)
+			transs = append(transs, trans)
 
 			doers := make([]chan int, 0, 100)
 			for j := 0; j < options.routines; j++ {
@@ -134,10 +134,10 @@ func doTransport() map[string]uint64 {
 		}(i)
 	}
 	wg.Wait()
-	for _, trans := range n_trans {
+	for _, trans := range transs {
 		trans.Close()
 	}
-	return addCounts(n_trans...)
+	return addCounts(transs...)
 }
 
 func worker(t *gf.Transport, doch chan int, wg *sync.WaitGroup) {

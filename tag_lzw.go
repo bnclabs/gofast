@@ -7,7 +7,7 @@ import "fmt"
 
 import s "github.com/prataprc/gosettings"
 
-func make_lzw(t *Transport, _ s.Settings) (uint64, tagfn, tagfn) {
+func makeLZW(t *Transport, _ s.Settings) (uint64, tagfn, tagfn) {
 	var wbuf bytes.Buffer
 	enc := func(in, out []byte) int {
 		if len(in) == 0 {
@@ -52,5 +52,5 @@ func readAll(r io.Reader, out []byte) (n int, err error) {
 }
 
 func init() {
-	tag_factory["lzw"] = make_lzw
+	tagFactory["lzw"] = makeLZW
 }

@@ -22,7 +22,7 @@ func (t *Transport) doRx() {
 	pad := make([]byte, 9)
 	packet := make([]byte, t.buffersize)
 	tagouts := make(map[uint64][]byte, t.buffersize)
-	for _, factory := range tag_factory {
+	for _, factory := range tagFactory {
 		tag, _, _ := factory(t, t.settings)
 		tagouts[tag] = make([]byte, t.buffersize)
 	}
@@ -52,15 +52,15 @@ func (t *Transport) unframepkt(
 		return
 	} else if err != nil && isConnClosed(err) {
 		log.Infof("%v doRx() Closed connection\n", t.logprefix)
-		atomic.AddUint64(&t.n_dropped, uint64(n))
+		atomic.AddUint64(&t.nDropped, uint64(n))
 		return
 	} else if err != nil || n != 9 {
 		log.Errorf("%v reading prefix: %v,%v\n", t.logprefix, n, err)
-		atomic.AddUint64(&t.n_dropped, uint64(n))
+		atomic.AddUint64(&t.nDropped, uint64(n))
 		return
 	} else if pad[0] != 0xd9 || pad[1] != 0xd9 || pad[2] != 0xf7 { // prefix
 		err = fmt.Errorf("%v wrong prefix %v", t.logprefix, hexstring(pad))
-		atomic.AddUint64(&t.n_dropped, uint64(n))
+		atomic.AddUint64(&t.nDropped, uint64(n))
 		log.Errorf("%v\n", err)
 		return
 	}
@@ -70,7 +70,7 @@ func (t *Transport) unframepkt(
 	n = 3
 	post, request := pad[n] == 0xc6, pad[n] == 0x81
 	start, stream, finish := pad[n] == 0x9f, pad[n] == 0xc7, pad[n] == 0xc8
-	n += 1
+	n++
 
 	ln, m := cborItemLength(pad[n:])
 	n += m
@@ -85,14 +85,14 @@ func (t *Transport) unframepkt(
 		return
 	} else if err != nil && isConnClosed(err) {
 		log.Infof("%v doRx() Closed connection\n", t.logprefix)
-		atomic.AddUint64(&t.n_dropped, uint64(m))
+		atomic.AddUint64(&t.nDropped, uint64(m))
 		return
 	} else if err != nil || m != (int(ln)-n) {
 		log.Errorf("%v reading packet %v,%v:%v\n", t.logprefix, ln, n, err)
-		atomic.AddUint64(&t.n_dropped, uint64(m))
+		atomic.AddUint64(&t.nDropped, uint64(m))
 		return
 	}
-	atomic.AddUint64(&t.n_rxbyte, uint64(9+m))
+	atomic.AddUint64(&t.nRxbyte, uint64(9+m))
 	//TODO: Issue #2, remove or prevent value escape to heap
 	//log.Debugf("%v doRx() io.ReadFull() second %v\n", t.logprefix, packet[:ln])
 
@@ -136,7 +136,7 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) (bmsg BinMessage) {
 		tag, k := cborItemLength(msgdata[n:])
 		n += k
 		switch tag {
-		case tagId:
+		case tagID:
 			id, v = cborItemLength(msgdata[n:])
 			n += v
 		case tagData:
@@ -152,7 +152,7 @@ func (t *Transport) unmessage(opaque uint64, msgdata []byte) (bmsg BinMessage) {
 		log.Warnf("%v ##%d insufficient data length\n", t.logprefix, opaque)
 		return
 	}
-	n += 1 // skip the breakstop (0xff)
+	n++ // skip the breakstop (0xff)
 
 	// check whether id, data is present
 	if id == 0 || data == nil {

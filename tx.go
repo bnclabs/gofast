@@ -5,7 +5,7 @@ import "sync/atomic"
 
 // | 0xd9 0xd9f7 | 0xc6 | packet |
 func (t *Transport) post(msg Message, stream *Stream, out []byte) (n int) {
-	atomic.AddUint64(&t.n_txpost, 1)
+	atomic.AddUint64(&t.nTxpost, 1)
 	n = tag2cbor(tagCborPrefix, out)      // prefix
 	out[n] = 0xc6                         // 0xc6 (post, 0b100_00110 <tag,6>
 	n++                                   //
@@ -15,27 +15,27 @@ func (t *Transport) post(msg Message, stream *Stream, out []byte) (n int) {
 
 // | 0xd9 0xd9f7 | 0x81 | packet |
 func (t *Transport) request(msg Message, stream *Stream, out []byte) (n int) {
-	atomic.AddUint64(&t.n_txreq, 1)
+	atomic.AddUint64(&t.nTxreq, 1)
 	n = tag2cbor(tagCborPrefix, out)      // prefix
 	out[n] = 0x81                         // 0x81 (request, 0b100_10001 <arr,1>)
-	n += 1                                //
+	n++                                   //
 	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
 // | 0xd9 0xd9f7 | 0x81 | packet |
 func (t *Transport) response(msg Message, stream *Stream, out []byte) (n int) {
-	atomic.AddUint64(&t.n_txresp, 1)
+	atomic.AddUint64(&t.nTxresp, 1)
 	n = tag2cbor(tagCborPrefix, out)      // prefix
 	out[n] = 0x81                         // 0x81 (response, 0b100_10001 <arr,1>)
-	n += 1                                //
+	n++                                   //
 	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
 // | 0xd9 0xd9f7  | 0x9f | packet2    |
 func (t *Transport) start(msg Message, stream *Stream, out []byte) (n int) {
-	atomic.AddUint64(&t.n_txstart, 1)
+	atomic.AddUint64(&t.nTxstart, 1)
 	n = tag2cbor(tagCborPrefix, out)      // prefix
 	n += arrayStart(out[n:])              // 0x9f (start stream as cbor array)
 	n += t.framepkt(msg, stream, out[n:]) // packet
@@ -44,27 +44,27 @@ func (t *Transport) start(msg Message, stream *Stream, out []byte) (n int) {
 
 // | 0xd9 0xd9f7  | 0xc7 | packet2    |
 func (t *Transport) stream(msg Message, stream *Stream, out []byte) (n int) {
-	atomic.AddUint64(&t.n_txstream, 1)
+	atomic.AddUint64(&t.nTxstream, 1)
 	n = tag2cbor(tagCborPrefix, out)      // prefix
 	out[n] = 0xc7                         // 0xc7 (stream msg, 0b110_00111 <tag,7>)
-	n += 1                                //
+	n++                                   //
 	n += t.framepkt(msg, stream, out[n:]) // packet
 	return n
 }
 
 // | 0xd9 0xd9f7  | 0xc8 | end-packet |
 func (t *Transport) finish(stream *Stream, out []byte) (n int) {
-	atomic.AddUint64(&t.n_txfin, 1)
+	atomic.AddUint64(&t.nTxfin, 1)
 	var scratch [16]byte
 	n = tag2cbor(tagCborPrefix, out)         // prefix
 	out[n] = 0xc8                            // 0xc8 (end stream, 0b110_01000 <tag,8>)
-	n += 1                                   //
+	n++                                      //
 	m := tag2cbor(stream.opaque, scratch[:]) // tag-opaque
 	scratch[m] = 0x40                        // zero-len byte-string
-	m += 1
+	m++
 	n += valbytes2cbor(scratch[:m], out[n:]) // packet
 	out[n] = 0xff                            // 0xff CBOR indefinite end.
-	n += 1
+	n++
 	return n
 }
 
@@ -74,7 +74,7 @@ func (t *Transport) framepkt(msg Message, stream *Stream, ping []byte) (n int) {
 	// tagMsg
 	n = tag2cbor(tagMsg, ping) // tagMsg
 	n += mapStart(ping[n:])
-	n += tag2cbor(tagId, ping[n:])          // hdr-tagId
+	n += tag2cbor(tagID, ping[n:])          // hdr-tagId
 	n += valuint642cbor(msg.ID(), ping[n:]) // value
 	n += tag2cbor(tagData, ping[n:])        // hdr-tagData
 	data = msg.Encode(data)                 // value
@@ -114,7 +114,7 @@ func (t *Transport) tx(out []byte, flush bool) (err error) {
 	arg := t.fromtxpool()
 	defer func() {
 		arg.packet = arg.packet[:cap(arg.packet)]
-		t.p_txcmd <- arg
+		t.pTxcmd <- arg
 	}()
 
 	n := copy(arg.packet, out)
@@ -136,7 +136,6 @@ func (t *Transport) tx(out []byte, flush bool) (err error) {
 	case <-t.killch:
 		return fmt.Errorf("transport closed")
 	}
-	return nil
 }
 
 func (t *Transport) txasync(out []byte, flush bool) (err error) {

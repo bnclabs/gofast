@@ -2,6 +2,7 @@ package gofast
 
 import "fmt"
 
+// Version64 example version implementation.
 type Version64 uint64
 
 // Less implement Version interface{}.

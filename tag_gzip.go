@@ -6,7 +6,7 @@ import "fmt"
 
 import s "github.com/prataprc/gosettings"
 
-func make_gzip(t *Transport, settings s.Settings) (uint64, tagfn, tagfn) {
+func makeGzip(t *Transport, settings s.Settings) (uint64, tagfn, tagfn) {
 	enc := func(in, out []byte) int {
 		level := int(settings.Uint64("gzip.level"))
 		if len(in) == 0 { // empty input
@@ -43,5 +43,5 @@ func make_gzip(t *Transport, settings s.Settings) (uint64, tagfn, tagfn) {
 }
 
 func init() {
-	tag_factory["gzip"] = make_gzip
+	tagFactory["gzip"] = makeGzip
 }

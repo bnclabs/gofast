@@ -16,37 +16,37 @@ func (t *Transport) doTx() {
 	}()
 
 	batch := make([]*txproto, 0, 64)
-	tcpwrite_buf := make([]byte, t.batchsize*t.buffersize)
+	tcpwriteBuf := make([]byte, t.batchsize*t.buffersize)
 
 	drainbuffers := func() {
-		atomic.AddUint64(&t.n_flushes, 1)
+		atomic.AddUint64(&t.nFlushes, 1)
 		var err error
 		m, n := 0, 0
 		// consolidate.
 		for _, arg := range batch {
 			if len(arg.packet) > 0 {
 				//fmt.Println(hexstring(arg.packet))
-				n += copy(tcpwrite_buf[n:], arg.packet)
-				atomic.AddUint64(&t.n_tx, 1)
+				n += copy(tcpwriteBuf[n:], arg.packet)
+				atomic.AddUint64(&t.nTx, 1)
 			}
 		}
 		// send.
 		if n > 0 {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v doTx() socket write %v:%v\n"
-			//log.Debugf(fmsg, t.logprefix, n, tcpwrite_buf[:n])
-			m, err = t.conn.Write(tcpwrite_buf[:n])
+			//log.Debugf(fmsg, t.logprefix, n, tcpwriteBuf[:n])
+			m, err = t.conn.Write(tcpwriteBuf[:n])
 			if m != n {
 				err = fmt.Errorf("wrote only %d, expected %d", m, n)
 			}
 		}
-		atomic.AddUint64(&t.n_txbyte, uint64(m))
+		atomic.AddUint64(&t.nTxbyte, uint64(m))
 		// unblock the callers.
 		for _, arg := range batch {
 			arg.n, arg.err = len(arg.packet), err
 			if arg.async {
 				arg.packet = arg.packet[:cap(arg.packet)]
-				t.p_txcmd <- arg
+				t.pTxcmd <- arg
 			} else {
 				arg.respch <- arg
 			}

@@ -3,7 +3,6 @@ package gofast
 import "strings"
 import "net/http"
 import "time"
-import _ "fmt"
 
 import "github.com/prataprc/gson"
 

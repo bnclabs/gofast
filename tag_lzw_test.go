@@ -8,7 +8,7 @@ import "fmt"
 var _ = fmt.Sprintf("dummy")
 
 func TestTagLzw(t *testing.T) {
-	tag, enc, dec := make_lzw(nil, nil)
+	tag, enc, dec := makeLZW(nil, nil)
 	if tag != tagLzw {
 		t.Errorf("expected %v, got %v", tagLzw, tag)
 	}
@@ -31,7 +31,7 @@ func TestTagLzw(t *testing.T) {
 }
 
 func BenchmarkLzwEnc1KFast(b *testing.B) {
-	_, enc, _ := make_lzw(nil, nil)
+	_, enc, _ := makeLZW(nil, nil)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)
@@ -51,7 +51,7 @@ func BenchmarkLzwDec1KFast(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	_, enc, dec := make_lzw(nil, nil)
+	_, enc, dec := makeLZW(nil, nil)
 	in, out := make([]byte, 1024*1024), make([]byte, 1024*1024)
 	n := enc(s, in)
 	b.ResetTimer()
@@ -64,7 +64,7 @@ func BenchmarkLzwDec1KFast(b *testing.B) {
 }
 
 func BenchmarkLzwEnc10KSmall(b *testing.B) {
-	_, enc, _ := make_lzw(nil, nil)
+	_, enc, _ := makeLZW(nil, nil)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)
@@ -84,7 +84,7 @@ func BenchmarkLzwEnc10KSmall(b *testing.B) {
 }
 
 func BenchmarkLzwDec10KSmall(b *testing.B) {
-	_, enc, dec := make_lzw(nil, nil)
+	_, enc, dec := makeLZW(nil, nil)
 	s, err := ioutil.ReadFile("testdata/1k.json")
 	if err != nil {
 		panic(err)

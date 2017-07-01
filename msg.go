@@ -19,7 +19,7 @@ func (t *Transport) msghandler(stream *Stream, msg BinMessage) StreamCallback {
 	switch msg.ID {
 	case msgHeartbeat:
 		atomic.StoreInt64(&t.aliveat, time.Now().UnixNano())
-		atomic.AddUint64(&t.n_rxbeats, 1)
+		atomic.AddUint64(&t.nRxbeats, 1)
 
 	case msgPing:
 		var m pingMsg
@@ -46,7 +46,7 @@ func (t *Transport) msghandler(stream *Stream, msg BinMessage) StreamCallback {
 		}
 
 	default:
-		log.Errorf("%v message %T : %v not expected\n", t.logprefix, msg)
+		log.Errorf("%v message %T:%v not expected\n", t.logprefix, msg, msg)
 	}
 	return nil
 }

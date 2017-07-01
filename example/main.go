@@ -101,7 +101,7 @@ func main() {
 	}
 	fmt.Println("server exited")
 	mu.Lock()
-	printCounts(addCounts(n_trans...))
+	printCounts(addCounts(transs...))
 	mu.Unlock()
 
 	// take memory profile.

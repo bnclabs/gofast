@@ -12,9 +12,9 @@ import s "github.com/prataprc/gosettings"
 import "github.com/prataprc/golog"
 
 type tagfn func(in, out []byte) int
-type tagFactory func(*Transport, s.Settings) (uint64, tagfn, tagfn)
+type fnTagFactory func(*Transport, s.Settings) (uint64, tagfn, tagfn)
 
-var tag_factory = make(map[string]tagFactory)
+var tagFactory = make(map[string]fnTagFactory)
 var transports = unsafe.Pointer(&map[string]*Transporter{})
 
 // RequestCallback handler called for an incoming post, or request,
@@ -48,26 +48,26 @@ type Transporter interface { // facilitates unit testing
 // Transport is a peer-to-peer transport enabler.
 type Transport struct {
 	// statistics, keep this 8-byte aligned.
-	n_tx       uint64 // number of packets transmitted
-	n_flushes  uint64 // number of times message-batches where flushed
-	n_txbyte   uint64 // number of bytes transmitted on socket
-	n_txpost   uint64 // number of post messages transmitted
-	n_txreq    uint64 // number of request messages transmitted
-	n_txresp   uint64 // number of response messages transmitted
-	n_txstart  uint64 // number of start messages transmitted
-	n_txstream uint64 // number of stream messages transmitted
-	n_txfin    uint64 // number of finish messages transmitted
-	n_rx       uint64 // number of packets received
-	n_rxbyte   uint64 // number of bytes received from socket
-	n_rxpost   uint64 // number of post messages received
-	n_rxreq    uint64 // number of request messages received
-	n_rxresp   uint64 // number of response messages received
-	n_rxstart  uint64 // number of start messages received
-	n_rxstream uint64 // number of stream messages received
-	n_rxfin    uint64 // number of finish messages received
-	n_rxbeats  uint64 // number of heartbeats received
-	n_dropped  uint64 // number of dropped bytes
-	n_mdrops   uint64 // number of dropped messages
+	nTx       uint64 // number of packets transmitted
+	nFlushes  uint64 // number of times message-batches where flushed
+	nTxbyte   uint64 // number of bytes transmitted on socket
+	nTxpost   uint64 // number of post messages transmitted
+	nTxreq    uint64 // number of request messages transmitted
+	nTxresp   uint64 // number of response messages transmitted
+	nTxstart  uint64 // number of start messages transmitted
+	nTxstream uint64 // number of stream messages transmitted
+	nTxfin    uint64 // number of finish messages transmitted
+	nRx       uint64 // number of packets received
+	nRxbyte   uint64 // number of bytes received from socket
+	nRxpost   uint64 // number of post messages received
+	nRxreq    uint64 // number of request messages received
+	nRxresp   uint64 // number of response messages received
+	nRxstart  uint64 // number of start messages received
+	nRxstream uint64 // number of stream messages received
+	nRxfin    uint64 // number of finish messages received
+	nRxbeats  uint64 // number of heartbeats received
+	nDropped  uint64 // number of dropped bytes
+	nMdrops   uint64 // number of dropped messages
 
 	// 0 no handshake
 	// 1 oneway handshake
@@ -90,10 +90,10 @@ type Transport struct {
 	killch   chan struct{}
 
 	// memory pools
-	p_strms  chan *Stream // for locally initiated streams
-	p_txcmd  chan *txproto
-	p_data   chan []byte
-	p_rxstrm *sync.Pool
+	pStrms  chan *Stream // for locally initiated streams
+	pTxcmd  chan *txproto
+	pData   chan []byte
+	pRxstrm *sync.Pool
 
 	// settings
 	settings   s.Settings
@@ -126,10 +126,10 @@ func NewTransport(
 		version: version,
 		tagenc:  make(map[uint64]tagfn),
 		tagdec:  make(map[uint64]tagfn),
-		p_strms: nil, // shall be initialized after setOpaqueRange() call
-		p_txcmd: nil, // shall be initialized after setOpaqueRange() call
+		pStrms:  nil, // shall be initialized after setOpaqueRange() call
+		pTxcmd:  nil, // shall be initialized after setOpaqueRange() call
 		// TODO: avoid magic number
-		p_data:   make(chan []byte, 1000),
+		pData:    make(chan []byte, 1000),
 		messages: make(map[uint64]Message),
 		handlers: make(map[uint64]RequestCallback),
 
@@ -147,7 +147,7 @@ func NewTransport(
 
 	laddr, raddr := conn.LocalAddr(), conn.RemoteAddr()
 	t.logprefix = fmt.Sprintf("GFST[%v; %v<->%v]", name, laddr, raddr)
-	t.p_rxstrm = &sync.Pool{
+	t.pRxstrm = &sync.Pool{
 		New: func() interface{} { return &Stream{} },
 	}
 
@@ -159,7 +159,7 @@ func NewTransport(
 	// educate transport with configured tag decoders.
 	tagcsv := setts.String("tags")
 	for _, tag := range t.getTags(tagcsv, []string{}) {
-		if factory, ok := tag_factory[tag]; ok {
+		if factory, ok := tagFactory[tag]; ok {
 			tagid, _, dec := factory(t, setts)
 			t.tagdec[tagid] = dec
 			continue
@@ -218,7 +218,7 @@ func (t *Transport) Handshake() *Transport {
 
 	// parse tag list, tags shall be applied in the specified order.
 	for _, tag := range t.getTags(wai.tags, []string{}) {
-		if factory, ok := tag_factory[tag]; ok {
+		if factory, ok := tagFactory[tag]; ok {
 			tagid, enc, _ := factory(t, t.settings)
 			t.tagenc[tagid] = enc
 			continue
@@ -261,9 +261,8 @@ func (t *Transport) IsClosed() bool {
 	case <-t.killch:
 		return true
 	default:
-		return false
 	}
-	panic("unreachable code")
+	return false
 }
 
 //---- maintenance APIs
@@ -302,26 +301,26 @@ func (t *Transport) PeerVersion() Version {
 // Refer gofast.Stat() api for more information.
 func (t *Transport) Stat() map[string]uint64 {
 	stats := map[string]uint64{
-		"n_tx":       atomic.LoadUint64(&t.n_tx),
-		"n_flushes":  atomic.LoadUint64(&t.n_flushes),
-		"n_txbyte":   atomic.LoadUint64(&t.n_txbyte),
-		"n_txpost":   atomic.LoadUint64(&t.n_txpost),
-		"n_txreq":    atomic.LoadUint64(&t.n_txreq),
-		"n_txresp":   atomic.LoadUint64(&t.n_txresp),
-		"n_txstart":  atomic.LoadUint64(&t.n_txstart),
-		"n_txstream": atomic.LoadUint64(&t.n_txstream),
-		"n_txfin":    atomic.LoadUint64(&t.n_txfin),
-		"n_rx":       atomic.LoadUint64(&t.n_rx),
-		"n_rxbyte":   atomic.LoadUint64(&t.n_rxbyte),
-		"n_rxpost":   atomic.LoadUint64(&t.n_rxpost),
-		"n_rxreq":    atomic.LoadUint64(&t.n_rxreq),
-		"n_rxresp":   atomic.LoadUint64(&t.n_rxresp),
-		"n_rxstart":  atomic.LoadUint64(&t.n_rxstart),
-		"n_rxstream": atomic.LoadUint64(&t.n_rxstream),
-		"n_rxfin":    atomic.LoadUint64(&t.n_rxfin),
-		"n_rxbeats":  atomic.LoadUint64(&t.n_rxbeats),
-		"n_dropped":  atomic.LoadUint64(&t.n_dropped),
-		"n_mdrops":   atomic.LoadUint64(&t.n_mdrops),
+		"n_tx":       atomic.LoadUint64(&t.nTx),
+		"n_flushes":  atomic.LoadUint64(&t.nFlushes),
+		"n_txbyte":   atomic.LoadUint64(&t.nTxbyte),
+		"n_txpost":   atomic.LoadUint64(&t.nTxpost),
+		"n_txreq":    atomic.LoadUint64(&t.nTxreq),
+		"n_txresp":   atomic.LoadUint64(&t.nTxresp),
+		"n_txstart":  atomic.LoadUint64(&t.nTxstart),
+		"n_txstream": atomic.LoadUint64(&t.nTxstream),
+		"n_txfin":    atomic.LoadUint64(&t.nTxfin),
+		"n_rx":       atomic.LoadUint64(&t.nRx),
+		"n_rxbyte":   atomic.LoadUint64(&t.nRxbyte),
+		"n_rxpost":   atomic.LoadUint64(&t.nRxpost),
+		"n_rxreq":    atomic.LoadUint64(&t.nRxreq),
+		"n_rxresp":   atomic.LoadUint64(&t.nRxresp),
+		"n_rxstart":  atomic.LoadUint64(&t.nRxstart),
+		"n_rxstream": atomic.LoadUint64(&t.nRxstream),
+		"n_rxfin":    atomic.LoadUint64(&t.nRxfin),
+		"n_rxbeats":  atomic.LoadUint64(&t.nRxbeats),
+		"n_dropped":  atomic.LoadUint64(&t.nDropped),
+		"n_mdrops":   atomic.LoadUint64(&t.nMdrops),
 	}
 	return stats
 }
@@ -487,7 +486,7 @@ func (t *Transport) Request(msg Message, flush bool, resp Message) error {
 	return nil
 }
 
-// Request a bi-directional stream with peer.
+// Stream a bi-directional stream with peer.
 func (t *Transport) Stream(
 	msg Message, flush bool, rxcallb StreamCallback) (*Stream, error) {
 
@@ -513,7 +512,7 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 	fmsg = "%v local streams (%v,%v) pre-created\n"
 	log.Debugf(fmsg, t.logprefix, start, end)
 
-	t.p_strms = make(chan *Stream, end-start+1) // inclusive [start,end]
+	t.pStrms = make(chan *Stream, end-start+1) // inclusive [start,end]
 	for opaque := start; opaque <= end; opaque++ {
 		if istagok(opaque) == false {
 			continue
@@ -526,14 +525,14 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 			data:      make([]byte, t.buffersize),
 			tagout:    make([]byte, t.buffersize),
 		}
-		t.p_strms <- stream
+		t.pStrms <- stream
 		fmsg := "%v ##%d(remote:%v) stream created ...\n"
 		log.Verbosef(fmsg, t.logprefix, opaque, false)
 	}
 
-	t.p_txcmd = make(chan *txproto, end-start+1+uint64(t.batchsize))
-	for i := 0; i < cap(t.p_txcmd); i++ {
-		t.p_txcmd <- &txproto{packet: make([]byte, t.buffersize)}
+	t.pTxcmd = make(chan *txproto, end-start+1+uint64(t.batchsize))
+	for i := 0; i < cap(t.pTxcmd); i++ {
+		t.pTxcmd <- &txproto{packet: make([]byte, t.buffersize)}
 	}
 }
 
@@ -565,7 +564,7 @@ func (t *Transport) requestCallback(s *Stream, msg BinMessage) StreamCallback {
 }
 
 func (t *Transport) fromrxstrm() *Stream {
-	stream := t.p_rxstrm.Get().(*Stream)
+	stream := t.pRxstrm.Get().(*Stream)
 	stream.transport, stream.rxcallb, stream.opaque = nil, nil, 0
 	stream.remote = false
 	if stream.out == nil {
@@ -581,7 +580,7 @@ func (t *Transport) fromrxstrm() *Stream {
 }
 
 func (t *Transport) fromtxpool() *txproto {
-	arg := <-t.p_txcmd
+	arg := <-t.pTxcmd
 	arg.flush, arg.async = false, false
 	arg.n, arg.err, arg.respch = 0, nil, nil
 	return arg
@@ -589,7 +588,7 @@ func (t *Transport) fromtxpool() *txproto {
 
 func (t *Transport) getdata(size int) (data []byte) {
 	select {
-	case data = <-t.p_data:
+	case data = <-t.pData:
 		if cap(data) < size {
 			data = make([]byte, size)
 		}
@@ -601,12 +600,12 @@ func (t *Transport) getdata(size int) (data []byte) {
 
 func (t *Transport) putdata(data []byte) {
 	select {
-	case t.p_data <- data:
+	case t.pData <- data:
 	default: // let GC collect the data
 	}
 }
 
-// add a new trasnport.
+// add a new transport.
 func addtransport(name string, t *Transport) {
 	for {
 		op := atomic.LoadPointer(&transports)

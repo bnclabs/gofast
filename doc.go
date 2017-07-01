@@ -14,7 +14,7 @@
 // the transport. It is also expected that applications using gofast should
 // pre-define messages and their Ids.
 //
-// message ids, need to be unique for every type of message transfered
+// message ids, need to be unique for every type of message transferred
 // using gofast protocol, following id range is reserved for internal use:
 //
 //		0x1000 - 0x100F -- reserved messageid.

@@ -20,7 +20,7 @@ func doTransport() {
 	var wg sync.WaitGroup
 
 	ver := testVersion(1)
-	n_trans := make([]*gf.Transport, 0, 16)
+	transs := make([]*gf.Transport, 0, 16)
 
 	var doit func() int
 
@@ -58,7 +58,7 @@ func doTransport() {
 			trans.SubscribeMessage(&msgPost{}, nil)
 			trans.Handshake()
 
-			n_trans = append(n_trans, trans)
+			transs = append(transs, trans)
 
 			doers := make([]chan int, 0, 100)
 			for j := 0; j < options.routines; j++ {
@@ -81,10 +81,10 @@ func doTransport() {
 	start := time.Now()
 	wg.Wait()
 	elapsed := time.Since(start)
-	for _, trans := range n_trans {
+	for _, trans := range transs {
 		trans.Close()
 	}
-	printCounts(addCounts(n_trans...))
+	printCounts(addCounts(transs...))
 	fmsg := "request stats: n:%v mean:%v var:%v sd:%v\n"
 	n, m := av.samples(), time.Duration(av.mean())
 	v, s := time.Duration(av.variance()), time.Duration(av.sd())

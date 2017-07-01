@@ -67,7 +67,7 @@ const ( // pre-defined tag values
 	// that shall be passed on to the subscribed handler.
 	tagMsg = iota + 28
 	// tag 44 (unassigned as per spec). place-holder for "version" header key.
-	tagId
+	tagID
 	// tag 45 (unassigned as per spec). place-holder for "data" header key.
 	tagData
 	// tag 46 (unassigned as per spec). says payload is compressed using

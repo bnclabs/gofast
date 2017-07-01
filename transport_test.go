@@ -19,8 +19,8 @@ func TestTransport(t *testing.T) {
 	transc := newClient("client", addr, "gzip").Handshake() // init client
 	transv := <-serverch
 
-	c_counts := transv.Stat()
-	s_counts := transv.Stat()
+	cCounts := transv.Stat()
+	sCounts := transv.Stat()
 	// test
 	if ref := "server"; transv.Name() != ref {
 		t.Errorf("expected %v, got %v", ref, transv.Name())
@@ -32,18 +32,18 @@ func TestTransport(t *testing.T) {
 		t.Errorf("expected %v, got %v", ver, transc.peerver.Load().(Version))
 	} else if s := transc.RemoteAddr().String(); s != addr {
 		t.Errorf("expected %v, got %v", s, addr)
-	} else if !verify(c_counts, "n_flushes", "n_rx", "n_tx", 2) {
-		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(c_counts, "n_rxreq", "n_rxresp", 1) {
-		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(c_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 90) {
-		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(s_counts, "n_flushes", "n_rx", "n_tx", 2) {
-		t.Errorf("unexpected s_counts: %v", s_counts)
-	} else if !verify(s_counts, "n_rxreq", "n_rxresp", 1) {
-		t.Errorf("unexpected c_counts: %v", c_counts)
-	} else if !verify(s_counts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 90) {
-		t.Errorf("unexpected s_counts: %v", s_counts)
+	} else if !verify(cCounts, "n_flushes", "n_rx", "n_tx", 2) {
+		t.Errorf("unexpected cCounts: %v", cCounts)
+	} else if !verify(cCounts, "n_rxreq", "n_rxresp", 1) {
+		t.Errorf("unexpected cCounts: %v", cCounts)
+	} else if !verify(cCounts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 90) {
+		t.Errorf("unexpected cCounts: %v", cCounts)
+	} else if !verify(sCounts, "n_flushes", "n_rx", "n_tx", 2) {
+		t.Errorf("unexpected sCounts: %v", sCounts)
+	} else if !verify(sCounts, "n_rxreq", "n_rxresp", 1) {
+		t.Errorf("unexpected cCounts: %v", cCounts)
+	} else if !verify(sCounts, "n_txresp", 1, "n_rxbyte", "n_txbyte", 90) {
+		t.Errorf("unexpected sCounts: %v", sCounts)
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -88,8 +88,8 @@ func TestFlushPeriod(t *testing.T) {
 	// test
 	transc.FlushPeriod(10 * time.Millisecond) // 99 flushes + 1 from handshake
 	time.Sleep(2 * time.Second)
-	c_counts := transc.Stat()
-	if ref, n := uint64(10), c_counts["n_flushes"]; n < ref {
+	cCounts := transc.Stat()
+	if ref, n := uint64(10), cCounts["n_flushes"]; n < ref {
 		t.Errorf("expected less than %v, got %v", ref, n)
 	}
 
@@ -111,28 +111,28 @@ func TestHeartbeat(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	transc.Close()
 	time.Sleep(1 * time.Second)
-	c_counts := transc.Stat()
-	s_counts := transv.Stat()
+	cCounts := transc.Stat()
+	sCounts := transv.Stat()
 
-	if !verify(c_counts, "n_txreq", "n_rxresp", 1, "n_rx", 2) {
-		t.Errorf("unexpected c_counts %v", c_counts)
-	} else if limit := uint64(5); c_counts["n_flushes"] < limit {
-		t.Errorf("atleast %v, got %v", limit, c_counts["n_flushes"])
-	} else if !verify(c_counts, "n_tx", "n_flushes") {
-		t.Errorf("failed c_counts: %v", c_counts)
+	if !verify(cCounts, "n_txreq", "n_rxresp", 1, "n_rx", 2) {
+		t.Errorf("unexpected cCounts %v", cCounts)
+	} else if limit := uint64(5); cCounts["n_flushes"] < limit {
+		t.Errorf("atleast %v, got %v", limit, cCounts["n_flushes"])
+	} else if !verify(cCounts, "n_tx", "n_flushes") {
+		t.Errorf("failed cCounts: %v", cCounts)
 	}
-	if !verify(s_counts, "n_rxreq", "n_txresp", 1, "n_flushes", "n_tx", 2) {
-		t.Errorf("unexpected s_counts %v", s_counts)
-	} else if c_counts["n_rxbyte"] != s_counts["n_txbyte"] {
-		t.Errorf("mismatch %v, %v", c_counts["n_rxbyte"], s_counts["n_txbyte"])
-	} else if c_counts["n_txbyte"] != s_counts["n_rxbyte"] {
-		t.Errorf("mismatch %v, %v", c_counts["n_txbyte"], s_counts["n_rxbyte"])
+	if !verify(sCounts, "n_rxreq", "n_txresp", 1, "n_flushes", "n_tx", 2) {
+		t.Errorf("unexpected sCounts %v", sCounts)
+	} else if cCounts["n_rxbyte"] != sCounts["n_txbyte"] {
+		t.Errorf("mismatch %v, %v", cCounts["n_rxbyte"], sCounts["n_txbyte"])
+	} else if cCounts["n_txbyte"] != sCounts["n_rxbyte"] {
+		t.Errorf("mismatch %v, %v", cCounts["n_txbyte"], sCounts["n_rxbyte"])
 	}
-	if x, y := c_counts["n_flushes"], s_counts["n_rx"]; x != y && x != (y+1) {
+	if x, y := cCounts["n_flushes"], sCounts["n_rx"]; x != y && x != (y+1) {
 		t.Errorf("mismatch %v, %v", x, y)
-	} else if !verify(s_counts, "n_rxbeats", "n_rxpost") {
-		t.Errorf("mismatch %v, %v", s_counts["n_rxbeats"], s_counts["n_rxpost"])
-	} else if n := s_counts["n_rxpost"]; n != 99 && n != 100 && n != 98 {
+	} else if !verify(sCounts, "n_rxbeats", "n_rxpost") {
+		t.Errorf("mismatch %v, %v", sCounts["n_rxbeats"], sCounts["n_rxpost"])
+	} else if n := sCounts["n_rxpost"]; n != 99 && n != 100 && n != 98 {
 		t.Errorf("not 100, not 99, not 98: %v", n)
 	}
 
@@ -903,7 +903,7 @@ func (tc *testConnection) reset() *testConnection {
 	return tc
 }
 
-func (tx *testConnection) Close() error {
+func (tc *testConnection) Close() error {
 	return nil
 }
 

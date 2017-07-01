@@ -85,10 +85,10 @@ func printCounts(
 	}
 }
 
-func addCounts(n_trans ...*gofast.Transport) map[string]uint64 {
-	if len(n_trans) > 0 {
-		counts := n_trans[0].Stat()
-		for _, trans := range n_trans[1:] {
+func addCounts(transs ...*gofast.Transport) map[string]uint64 {
+	if len(transs) > 0 {
+		counts := transs[0].Stat()
+		for _, trans := range transs[1:] {
 			for k, v := range trans.Stat() {
 				counts[k] += v
 			}

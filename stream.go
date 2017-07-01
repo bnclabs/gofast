@@ -30,7 +30,7 @@ func (t *Transport) newremotestream(opaque uint64) *Stream {
 
 // called only be tx.
 func (t *Transport) getlocalstream(tellrx bool, rxcallb StreamCallback) *Stream {
-	stream := <-t.p_strms
+	stream := <-t.pStrms
 	stream.rxcallb = rxcallb
 	atomic.StoreUint64(&stream.opaque, stream.opaque)
 	if tellrx {
@@ -48,19 +48,19 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	}()
 
 	if stream == nil {
-		log.Errorf("%v ##%v unkown stream\n", t.logprefix, opaque)
+		log.Errorf("%v ##%v unknown stream\n", t.logprefix, opaque)
 		return
 	}
 	if tellrx {
 		t.putch(t.rxch, rxpacket{stream: stream})
 	} else if stream.remote == false {
-		t.p_strms <- stream // don't collect remote streams
+		t.pStrms <- stream // don't collect remote streams
 	}
 }
 
 // Response to a request, to batch the response pass flush as false.
 func (s *Stream) Response(msg Message, flush bool) error {
-	defer s.transport.p_rxstrm.Put(s)
+	defer s.transport.pRxstrm.Put(s)
 	n := s.transport.response(msg, s, s.out)
 	return s.transport.txasync(s.out[:n], flush)
 }

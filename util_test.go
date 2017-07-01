@@ -35,11 +35,11 @@ func TestHasString(t *testing.T) {
 
 func TestCsv2strings(t *testing.T) {
 	testcases := [][2]interface{}{
-		[2]interface{}{"a ,, b,c", []string{"a", "b", "c"}},
-		[2]interface{}{" , a", []string{"a"}},
-		[2]interface{}{" a, ", []string{"a"}},
-		[2]interface{}{" , ", []string{}},
-		[2]interface{}{"", []string{}},
+		{"a ,, b,c", []string{"a", "b", "c"}},
+		{" , a", []string{"a"}},
+		{" a, ", []string{"a"}},
+		{" , ", []string{}},
+		{"", []string{}},
 	}
 	for _, tcase := range testcases {
 		in, ref := tcase[0].(string), tcase[1].([]string)

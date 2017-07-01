@@ -74,7 +74,7 @@ const ( // pre-defined tag values
 	// that shall be passed on to the subscribed handler.
 	tagMsg = iota + 25
 	// tag 44 (unassigned as per spec). place-holder for "id" header key.
-	tagId
+	tagID
 	// tag 45 (unassigned as per spec). place-holder for "data" header key.
 	tagData
 	// tag 46 (unassigned as per spec). says payload is compressed using
@@ -93,7 +93,7 @@ const TagOpaqueStart = 266
 // TagOpaqueEnd ending value for opaque-space
 const TagOpaqueEnd = 15309735
 
-var brkstp byte = cborHdr(cborType7, cborItemBreak)
+var brkstp = cborHdr(cborType7, cborItemBreak)
 
 func cborMajor(b byte) byte {
 	return b & 0xe0

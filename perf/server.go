@@ -16,7 +16,7 @@ import gf "github.com/prataprc/gofast"
 import _ "github.com/prataprc/gofast/http"
 
 var mu sync.Mutex
-var n_trans = make([]*gf.Transport, 0, 100)
+var transs = make([]*gf.Transport, 0, 100)
 
 func server() {
 	// start http server
@@ -49,7 +49,7 @@ func server() {
 	fmt.Println("server exited")
 	mu.Lock()
 	elapsed := time.Since(start)
-	printCounts(addCounts(n_trans...), elapsed, nil)
+	printCounts(addCounts(transs...), elapsed, nil)
 	mu.Unlock()
 
 	// take memory profile.
@@ -76,7 +76,7 @@ func runserver(lis net.Listener) {
 				panic("NewTransport server failed")
 			}
 			mu.Lock()
-			n_trans = append(n_trans, trans)
+			transs = append(transs, trans)
 			mu.Unlock()
 			go func(trans *gf.Transport) {
 				trans.FlushPeriod(options.flushtick * time.Millisecond)
