@@ -61,8 +61,8 @@ func (av *averageInt64) variance() float64 {
 		return 0
 	}
 	nf, meanf := float64(n), float64(av.mean())
-	sumsq_f := math.Float64frombits(sumsq)
-	return (sumsq_f / nf) - (meanf * meanf)
+	sumsqf := math.Float64frombits(sumsq)
+	return (sumsqf / nf) - (meanf * meanf)
 }
 
 func (av *averageInt64) sd() float64 {

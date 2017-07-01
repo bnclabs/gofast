@@ -21,7 +21,6 @@
 //     `timestamp` at which statistic was gathered.
 package http
 
-import _ "fmt"
 import "runtime"
 import "strings"
 import "net/http"
