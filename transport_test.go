@@ -188,8 +188,7 @@ func TestWhoami(t *testing.T) {
 	transc := newClient("client", addr, "").Handshake() // init client
 	transv := <-serverch
 	// test
-	msg, err := transc.Whoami()
-	wai := msg.(*whoamiMsg)
+	wai, err := transc.Whoami()
 	if err != nil {
 		t.Error(err)
 	} else if string(wai.name) != "server" {

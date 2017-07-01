@@ -199,19 +199,21 @@ func (t *Transport) DefaultHandler(handler RequestCallback) *Transport {
 }
 
 // Handshake with remote, shall be called after NewTransport(), before
-// application messages are exchanged between nodes.
+// application messages are exchanged between nodes. Specifically, following
+// information will be gathered from romote:
+//   * Peer version, can later be queried via PeerVersion() API.
+//   * Tags settings.
 func (t *Transport) Handshake() *Transport {
 
 	// now spawn the socket receiver, do this only after all messages
 	// are subscribed.
 	go t.syncRx() // shall spawn another go-routine doRx().
 
-	msg, err := t.Whoami()
+	wai, err := t.Whoami()
 	if err != nil {
 		panic(fmt.Errorf("%v Handshake(): %v", t.logprefix, err))
 	}
 
-	wai := msg.(*whoamiMsg)
 	t.peerver.Store(wai.version)
 
 	// parse tag list, tags shall be applied in the specified order.
@@ -224,7 +226,7 @@ func (t *Transport) Handshake() *Transport {
 		log.Warnf("%v remote ask for unknown tag: %v\n", t.logprefix, tag)
 	}
 	fmsg := "%v handshake completed with peer: %#v ...\n"
-	log.Verbosef(fmsg, t.logprefix, msg)
+	log.Verbosef(fmsg, t.logprefix, wai)
 
 	atomic.AddInt64(&t.xchngok, 1)
 	for atomic.LoadInt64(&t.xchngok) < 2 { // wait till remote handshake
@@ -430,14 +432,14 @@ func Stat(name string) map[string]uint64 {
 
 //---- transport APIs
 
-// Whoami shall return remote transport's information.
-func (t *Transport) Whoami() (Message, error) {
+// Whoami shall return remote's Whoami.
+func (t *Transport) Whoami() (wai Whoami, err error) {
 	req, resp := newWhoami(t), newWhoami(t)
 	resp.transport = t
-	if err := t.Request(req, true /*flush*/, resp); err != nil {
-		return nil, err
+	if err = t.Request(req, true /*flush*/, resp); err != nil {
+		return
 	}
-	return resp, nil
+	return Whoami{whoamiMsg: *resp}, nil
 }
 
 // Ping pong with peer, returns the pong string.

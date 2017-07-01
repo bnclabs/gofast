@@ -3,6 +3,11 @@ package gofast
 import "fmt"
 import "encoding/binary"
 
+// Whoami messages exchanged by remotes.
+type Whoami struct {
+	whoamiMsg
+}
+
 // whoamiMsg is predefined message to exchange peer information.
 type whoamiMsg struct {
 	transport  *Transport
@@ -23,10 +28,12 @@ func newWhoami(t *Transport) *whoamiMsg {
 	return msg
 }
 
+// ID implement Message interface{}.
 func (msg *whoamiMsg) ID() uint64 {
 	return msgWhoami
 }
 
+// Encode implement Message interface{}.
 func (msg *whoamiMsg) Encode(out []byte) []byte {
 	// TODO: there seem to be unexpected memory allocation happening here.
 	out = fixbuffer(out, msg.Size())
@@ -45,6 +52,7 @@ func (msg *whoamiMsg) Encode(out []byte) []byte {
 	return out[:n]
 }
 
+// Decode implement Message interface{}.
 func (msg *whoamiMsg) Decode(in []byte) int64 {
 	ln, n := int64(in[0]), int64(1)
 	msg.name, n = string(in[n:n+ln]), n+ln
@@ -55,13 +63,35 @@ func (msg *whoamiMsg) Decode(in []byte) int64 {
 	return n
 }
 
+// Size implement Message interface{}.
 func (msg *whoamiMsg) Size() int64 {
 	return 1 + int64(len(msg.name)) +
 		msg.version.Size() + 8 + 2 + int64(len(msg.tags))
 }
 
+// String implement Message interface{}.
 func (msg *whoamiMsg) String() string {
 	return "whoamiMsg"
+}
+
+//---- accessors for Whoami{}.
+
+// Name return name of the transport, either local or remote based on the
+// context in which Whoami was obtained.
+func (msg *Whoami) Name() string {
+	return msg.name
+}
+
+// Version return endpoint's Version, either local or remote based on the
+// context in which Whoami was obtained.
+func (msg *Whoami) Version() Version {
+	return msg.version
+}
+
+// Tags return comma separated value of tags, either local or remote based on
+// the context in which Whoami was obtained.
+func (msg *Whoami) Tags() string {
+	return msg.tags
 }
 
 func (msg *whoamiMsg) Repr() string {
