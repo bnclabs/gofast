@@ -488,7 +488,9 @@ func (t *Transport) Request(msg Message, flush bool, resp Message) error {
 }
 
 // Request a bi-directional stream with peer.
-func (t *Transport) Stream(msg Message, flush bool, rxcallb StreamCallback) (*Stream, error) {
+func (t *Transport) Stream(
+	msg Message, flush bool, rxcallb StreamCallback) (*Stream, error) {
+
 	stream := t.getlocalstream(true /*tellrx*/, rxcallb)
 	n := t.start(msg, stream, stream.out)
 	if err := t.tx(stream.out[:n], false); err != nil {
@@ -502,10 +504,10 @@ func (t *Transport) Stream(msg Message, flush bool, rxcallb StreamCallback) (*St
 
 func (t *Transport) setOpaqueRange(start, end uint64) {
 	fmsg := "%v opaques should within [`%v`,`%v`], got  (%v,%v)"
-	tagos, tagoe := tagOpaqueStart, tagOpaqueEnd
-	if start < tagOpaqueStart {
+	tagos, tagoe := TagOpaqueStart, TagOpaqueEnd
+	if start < TagOpaqueStart {
 		panic(fmt.Errorf(fmsg, t.logprefix, tagos, tagoe, start, end))
-	} else if end > tagOpaqueEnd {
+	} else if end > TagOpaqueEnd {
 		panic(fmt.Errorf(fmsg, t.logprefix, tagos, tagoe, start, end))
 	}
 	fmsg = "%v local streams (%v,%v) pre-created\n"
@@ -513,6 +515,9 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 
 	t.p_strms = make(chan *Stream, end-start+1) // inclusive [start,end]
 	for opaque := start; opaque <= end; opaque++ {
+		if istagok(opaque) == false {
+			continue
+		}
 		stream := &Stream{
 			transport: t,
 			remote:    false,
@@ -637,5 +642,27 @@ func deltransport(name string) *Transport {
 		if atomic.CompareAndSwapPointer(&transports, op, unsafe.Pointer(&newm)) {
 			return t
 		}
+	}
+}
+
+func istagok(tag uint64) bool {
+	if tag < 266 {
+		return false
+	} else if tag <= 1000 {
+		return true
+	} else if tag < 1004 {
+		return false
+	} else if tag <= 22097 {
+		return true
+	} else if tag == 22098 {
+		return false
+	} else if tag <= 55798 {
+		return true
+	} else if tag == 55799 {
+		return false
+	} else if tag <= 15309735 {
+		return true
+	} else {
+		return false
 	}
 }

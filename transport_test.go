@@ -353,9 +353,9 @@ func TestTransPostOnebyte(t *testing.T) {
 
 func TestTransPostLarge(t *testing.T) {
 	addr := <-testBindAddrs
-	sconf := newsetts(tagOpaqueStart, tagOpaqueStart+10)
+	sconf := newsetts(TagOpaqueStart, TagOpaqueStart+10)
 	sconf["buffersize"] = uint64(1024 * 1204)
-	cconf := newsetts(tagOpaqueStart+11, tagOpaqueStart+20)
+	cconf := newsetts(TagOpaqueStart+11, TagOpaqueStart+20)
 	cconf["buffersize"] = uint64(1024 * 1204)
 	lis, serverch := newServersetts("server", addr, sconf)      // init server
 	transc := newClientsetts("client", addr, cconf).Handshake() // init client
@@ -777,7 +777,7 @@ func newsetts(start, end uint64) s.Settings {
 }
 
 func newServer(name, addr, tags string) (*net.TCPListener, chan *Transport) {
-	setts := newsetts(tagOpaqueStart, tagOpaqueStart+10)
+	setts := newsetts(TagOpaqueStart, TagOpaqueStart+10)
 	setts["tags"] = tags
 	return newServersetts(name, addr, setts)
 }
@@ -815,7 +815,7 @@ func newServersetts(
 }
 
 func newClient(name, addr, tags string) *Transport {
-	setts := newsetts(tagOpaqueStart+11, tagOpaqueStart+20)
+	setts := newsetts(TagOpaqueStart+11, TagOpaqueStart+20)
 	setts["tags"] = tags
 	return newClientsetts(name, addr, setts)
 }

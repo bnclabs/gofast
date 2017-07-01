@@ -92,7 +92,7 @@ func doTransport() map[string]uint64 {
 	for i := 0; i < options.conns; i++ {
 		wg.Add(options.routines)
 		go func(i int) {
-			opqstart, opqend := 16000, (16000 + (options.routines * 3))
+			opqstart, opqend := 160000, (160000 + (options.routines * 3))
 			name := fmt.Sprintf("client-%v", i)
 			config := newconfig(opqstart, opqend)
 			config["tags"] = options.tags

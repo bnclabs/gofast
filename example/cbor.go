@@ -77,13 +77,7 @@ const ( // pre-defined tag values
 	// Lzw compression method.
 	tagLzw
 
-	// opaque-space 256..55798
-	tagOpaqueStart = iota + 236
-	tagOpaqueEnd   = iota + 55777
-
-	tagCborPrefix
-
-	// unassigned 55800..
+	tagCborPrefix = 55799
 )
 
 var brkstp byte = cborHdr(cborType7, cborItemBreak)
