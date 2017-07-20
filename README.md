@@ -218,6 +218,26 @@ sizing.
 * As many tx protocol encode buffers will be pre-created and pooled:
   `((opaque.end-opaque.start)+1) * buffersize`
 
+Panic and Recovery
+------------------
+
+Panics are to expected when APIs are misused. Programmers might choose
+to ignore the errors and cannot ignore panics. For example:
+
+* When trying to subscribe message to transport whose ID is already
+  reserved.
+* When transport is created with invalid opaque-range.
+* All transport instances are named, and if transports are created twice
+  with same name.
+* Trying to close an invalid transport.
+* When unforeseen panic happens in doTx() routine, it recovers
+  from panic, dumps the stack-trace, closes the transport and exits.
+* When unforeseen panic happens in doRx() routine, it recovers
+  from panic, dumps the stack-trace, closes the transport and exits.
+* When unforeseen panic happens in syncRx() routine, it recovers from
+  panic, dumps the stack trace, closes the transport, all live pending
+  streams and exits.
+
 Http-endpoints
 --------------
 
