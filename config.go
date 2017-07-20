@@ -9,26 +9,26 @@ import s "github.com/prataprc/gosettings"
 // Configurable parameters:
 //
 // "buffersize" (int64, default: 512)
-//      maximum size that a single message will need for encoding.
+//      Maximum size that a single message will need for encoding.
 //
 // "batchsize" (int64, default:1 )
-//		number of messages to batch before writing to socket, transport
+//		Number of messages to batch before writing to socket, transport
 //		will create a local buffer of size buffersize * batchsize.
 //
 // "chansize" (int64, default: 100000)
-//		buffered channel size to use for internal go-routines.
+//		Buffered channel size to use for internal go-routines.
 //
 // "opaque.start" (int64, default: <start-argument>)
-//		starting opaque range, inclusive. must be > 255
+//		Starting opaque range, inclusive. must be > 255
 //
 // "opaque.end" (int64, default: <end-argument>)
-//		ending opaque range, inclusive.
+//		Ending opaque range, inclusive.
 //
 // "tags" (int64, default: "")
-//    comma separated list of tags to apply, in specified order.
+//    	Comma separated list of tags to apply, in specified order.
 //
 // "gzip.level" (int64, default: <flate.BestSpeed>)
-//    gzip compression level, if `tags` contain "gzip".
+//    	Gzip compression level, if `tags` contain "gzip".
 //
 func DefaultSettings(start, end int64) s.Settings {
 	return s.Settings{

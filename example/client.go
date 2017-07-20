@@ -56,7 +56,9 @@ func doTransport() {
 			trans.FlushPeriod(options.flushtick * time.Millisecond)
 			trans.SendHeartbeat(1 * time.Second)
 			trans.SubscribeMessage(&msgPost{}, nil)
-			trans.Handshake()
+			if err := trans.Handshake(); err != nil {
+				panic(err)
+			}
 
 			transs = append(transs, trans)
 

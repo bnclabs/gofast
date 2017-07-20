@@ -57,7 +57,9 @@ func runserver(lis net.Listener) {
 						// Fill up your handler code here.
 						return nil
 					})
-				trans.Handshake()
+				if err := trans.Handshake(); err != nil {
+					panic(err)
+				}
 				//tick := time.Tick(1 * time.Second)
 				//for {
 				//	<-tick

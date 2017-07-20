@@ -164,7 +164,8 @@ func NewTransport(
 			t.tagdec[tagid] = dec
 			continue
 		}
-		panic(fmt.Errorf("%v unknown tag %v", t.logprefix, tag))
+		log.Errorf("%v unknown tag %v", t.logprefix, tag)
+		return nil, ErrorInvalidTag
 	}
 	log.Verbosef("%v pre-initialized ...\n", t.logprefix)
 
@@ -203,15 +204,14 @@ func (t *Transport) DefaultHandler(handler RequestCallback) *Transport {
 // information will be gathered from romote:
 //   * Peer version, can later be queried via PeerVersion() API.
 //   * Tags settings.
-func (t *Transport) Handshake() *Transport {
-
+func (t *Transport) Handshake() error {
 	// now spawn the socket receiver, do this only after all messages
 	// are subscribed.
 	go t.syncRx() // shall spawn another go-routine doRx().
 
 	wai, err := t.Whoami()
 	if err != nil {
-		panic(fmt.Errorf("%v Handshake(): %v", t.logprefix, err))
+		return err
 	}
 
 	t.peerver.Store(wai.version)
@@ -233,7 +233,7 @@ func (t *Transport) Handshake() *Transport {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	return t
+	return nil
 }
 
 // Close this transport, connection shall be closed as well.

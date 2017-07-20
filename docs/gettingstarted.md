@@ -91,7 +91,9 @@ go func(trans *gf.Transport) {
             // Fill up your handler code here.
             return nil
         })
-    trans.Handshake()
+    if err := trans.Handshake(); err != nil {
+        panic(err)
+    }
 }(trans)
 ```
 
@@ -104,7 +106,9 @@ trans, err := gf.NewTransport("example-client", conn, gofast.Version64, setts)
 trans.FlushPeriod(flushtick * time.Millisecond)
 trans.SendHeartbeat(1 * time.Second)
 trans.SubscribeMessage(&msgPost{}, nil)
-trans.Handshake()
+if err := trans.Handshake(); err != nil {
+    panic(err)
+}
 ```
 
 **To configure range of opaque values**

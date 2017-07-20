@@ -111,7 +111,9 @@ func doTransport() map[string]uint64 {
 			trans.SubscribeMessage(&msgReqsp{}, nil)
 			trans.SubscribeMessage(&msgStreamRx{}, nil)
 			trans.SubscribeMessage(&msgStreamTx{}, nil)
-			trans.Handshake()
+			if err := trans.Handshake(); err != nil {
+				panic(err)
+			}
 
 			transs = append(transs, trans)
 
