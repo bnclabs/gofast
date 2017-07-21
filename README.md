@@ -222,7 +222,7 @@ Panic and Recovery
 ------------------
 
 Panics are to expected when APIs are misused. Programmers might choose
-to ignore the errors and cannot ignore panics. For example:
+to ignore the errors, but not panics. For example:
 
 * When trying to subscribe message to transport whose ID is already
   reserved.
