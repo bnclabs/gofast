@@ -1,10 +1,7 @@
 package gofast
 
 import "testing"
-import "fmt"
 import "bytes"
-
-var _ = fmt.Sprintf("dummy")
 
 func TestPost(t *testing.T) {
 	addr := <-testBindAddrs

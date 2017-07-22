@@ -1,11 +1,8 @@
 package gofast
 
 import "testing"
-import "fmt"
 import "bytes"
 import "reflect"
-
-var _ = fmt.Sprintf("dummy")
 
 func TestReadtagp(t *testing.T) {
 	// read tag and its payload

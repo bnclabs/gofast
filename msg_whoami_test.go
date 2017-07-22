@@ -4,9 +4,6 @@ import "testing"
 import "bytes"
 import "time"
 import "reflect"
-import "fmt"
-
-var _ = fmt.Sprintf("dummy")
 
 func TestWaiEncode(t *testing.T) {
 	addr := <-testBindAddrs

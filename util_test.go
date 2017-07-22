@@ -3,10 +3,7 @@ package gofast
 import "testing"
 import "reflect"
 import "strings"
-import "fmt"
 import "runtime/debug"
-
-var _ = fmt.Sprintf("dummy")
 
 func TestBytes2Str(t *testing.T) {
 	if bytes2str(nil) != "" {

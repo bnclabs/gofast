@@ -1,11 +1,7 @@
 package gofast
 
 import "testing"
-
 import "io/ioutil"
-import "fmt"
-
-var _ = fmt.Sprintf("dummy")
 
 func TestTagLzw(t *testing.T) {
 	tag, enc, dec := makeLZW(nil, nil)

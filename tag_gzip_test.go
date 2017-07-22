@@ -3,11 +3,8 @@ package gofast
 import "testing"
 import "compress/flate"
 import "io/ioutil"
-import "fmt"
 
 import s "github.com/prataprc/gosettings"
-
-var _ = fmt.Sprintf("dummy")
 
 func TestTagGzip(t *testing.T) {
 	settings := s.Settings{

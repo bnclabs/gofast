@@ -1,9 +1,6 @@
 package gofast
 
 import "testing"
-import "fmt"
-
-var _ = fmt.Sprintf("dummy")
 
 func TestVersion64(t *testing.T) {
 	ver1 := Version64(2)

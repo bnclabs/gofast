@@ -3,9 +3,6 @@ package gofast
 import "testing"
 import "bytes"
 import "reflect"
-import "fmt"
-
-var _ = fmt.Sprintf("dummy")
 
 func TestHbEncode(t *testing.T) {
 	out := make([]byte, 1024)
