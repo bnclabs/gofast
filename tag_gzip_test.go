@@ -4,7 +4,7 @@ import "testing"
 import "compress/flate"
 import "io/ioutil"
 
-import s "github.com/prataprc/gosettings"
+import s "github.com/bnclabs/gosettings"
 
 func TestTagGzip(t *testing.T) {
 	settings := s.Settings{

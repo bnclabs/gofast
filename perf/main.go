@@ -8,8 +8,8 @@ import "runtime"
 import "net/http"
 import _ "net/http/pprof"
 
-import golog "github.com/prataprc/golog"
-import s "github.com/prataprc/gosettings"
+import golog "github.com/bnclabs/golog"
+import s "github.com/bnclabs/gosettings"
 
 var options struct {
 	// general options.

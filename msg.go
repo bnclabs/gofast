@@ -4,7 +4,7 @@ import "sync/atomic"
 import "time"
 import "reflect"
 
-import "github.com/prataprc/golog"
+import "github.com/bnclabs/golog"
 
 const (
 	msgStart     uint64 = 0x1000 // reserve start.

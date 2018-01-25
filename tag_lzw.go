@@ -5,7 +5,7 @@ import "bytes"
 import "io"
 import "fmt"
 
-import s "github.com/prataprc/gosettings"
+import s "github.com/bnclabs/gosettings"
 
 func makeLZW(t *Transport, _ s.Settings) (uint64, tagfn, tagfn) {
 	var wbuf bytes.Buffer

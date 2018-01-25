@@ -4,7 +4,7 @@ import "sync/atomic"
 import "fmt"
 import "runtime/debug"
 
-import "github.com/prataprc/golog"
+import "github.com/bnclabs/golog"
 
 type rxpacket struct {
 	stream  *Stream

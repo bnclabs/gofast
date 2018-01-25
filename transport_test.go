@@ -10,8 +10,8 @@ import "time"
 import "sync"
 import "strings"
 
-import s "github.com/prataprc/gosettings"
-import "github.com/prataprc/golog"
+import s "github.com/bnclabs/gosettings"
+import "github.com/bnclabs/golog"
 
 func TestTransport(t *testing.T) {
 	ver, addr := testVersion(1), <-testBindAddrs

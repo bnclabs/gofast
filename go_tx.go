@@ -4,7 +4,7 @@ import "fmt"
 import "runtime/debug"
 import "sync/atomic"
 
-import "github.com/prataprc/golog"
+import "github.com/bnclabs/golog"
 
 func (t *Transport) doTx() {
 	defer func() {

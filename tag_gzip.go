@@ -4,7 +4,7 @@ import "compress/gzip"
 import "bytes"
 import "fmt"
 
-import s "github.com/prataprc/gosettings"
+import s "github.com/bnclabs/gosettings"
 
 func makeGzip(t *Transport, settings s.Settings) (uint64, tagfn, tagfn) {
 	enc := func(in, out []byte) int {

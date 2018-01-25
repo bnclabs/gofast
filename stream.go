@@ -2,7 +2,7 @@ package gofast
 
 import "sync/atomic"
 
-import "github.com/prataprc/golog"
+import "github.com/bnclabs/golog"
 
 // Stream for a newly started stream on the transport. Refer to
 // Stream() method on the transport.

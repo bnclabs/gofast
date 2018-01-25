@@ -8,8 +8,8 @@ import "strings"
 import "net"
 import "time"
 
-import s "github.com/prataprc/gosettings"
-import "github.com/prataprc/golog"
+import s "github.com/bnclabs/gosettings"
+import "github.com/bnclabs/golog"
 
 type tagfn func(in, out []byte) int
 type fnTagFactory func(*Transport, s.Settings) (uint64, tagfn, tagfn)
