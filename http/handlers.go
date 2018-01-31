@@ -68,8 +68,8 @@ func memstats(w http.ResponseWriter, r *http.Request) {
 	oldNumGC = ms.NumGC
 
 	// marshal and send
-	buf, conf := make([]byte, 1024), gson.NewDefaultConfig()
-	jsonstats := conf.NewValue(stats).Tojson(conf.NewJson(buf, 0)).Bytes()
+	buf, conf := make([]byte, 0, 1024), gson.NewDefaultConfig()
+	jsonstats := conf.NewValue(stats).Tojson(conf.NewJson(buf)).Bytes()
 
 	// TODO: remove this once gson becomes stable.
 	//jsonstats, err := json.Marshal(stats)

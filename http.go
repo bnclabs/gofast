@@ -27,8 +27,8 @@ func Statshandler(w http.ResponseWriter, r *http.Request) {
 		stats = filterstats(stats, keys)
 		stats["timestamp"] = uint64(time.Now().UnixNano())
 
-		buf, conf := make([]byte, 1024), gson.NewDefaultConfig()
-		jsonstats := conf.NewValue(stats).Tojson(conf.NewJson(buf, 0)).Bytes()
+		buf, conf := make([]byte, 0, 1024), gson.NewDefaultConfig()
+		jsonstats := conf.NewValue(stats).Tojson(conf.NewJson(buf)).Bytes()
 
 		// TODO: remove this once gson becomes stable.
 		//jsonstats, err := json.Marshal(stats)
