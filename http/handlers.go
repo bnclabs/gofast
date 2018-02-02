@@ -25,7 +25,7 @@ import "runtime"
 import "strings"
 import "net/http"
 
-import "github.com/prataprc/gson"
+import "github.com/bnclabs/gson"
 import "github.com/prataprc/gofast"
 
 func init() {

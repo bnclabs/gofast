@@ -4,7 +4,7 @@ import "strings"
 import "net/http"
 import "time"
 
-import "github.com/prataprc/gson"
+import "github.com/bnclabs/gson"
 
 // Statshandler http handler to handle statistics endpoint, returns
 // statistics for specified transport or aggregate statistics of all
