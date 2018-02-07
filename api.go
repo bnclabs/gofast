@@ -13,13 +13,14 @@ type Streamer interface {
 	Close() error
 }
 
-// BinMessage is a tuple of {id, encodedmsg-slice}
+// BinMessage is a tuple of {id, encodedmsg-slice}. This type is used on
+// the receiver side of the transport.
 type BinMessage struct {
 	ID   uint64
 	Data []byte
 }
 
-// Message interface, implemented by all messages exchanged via
+// Message interface, shall implemented by all messages exchanged via
 // gofast-transport.
 type Message interface {
 	// ID return a unique message identifier.

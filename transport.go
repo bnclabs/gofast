@@ -17,18 +17,22 @@ type fnTagFactory func(*Transport, s.Settings) (uint64, tagfn, tagfn)
 var tagFactory = make(map[string]fnTagFactory)
 var transports = unsafe.Pointer(&map[string]*Transporter{})
 
-// RequestCallback handler called for an incoming post, or request,
-// or stream message. On either side of the connection, RequestCallback
-// initiates a new exchange - be it a Post or Request or Stream type.
-// Applications should first register request-handler for expecting
-// message-ids, and register a default handler to catch all other
-// messages:
-//
-//   * Stream pointer will be nil if incoming message is a POST.
-//   * Handler shall not block and must be as light-weight as possible
-//   * If request is initiating a stream of messages from remote,
-//   handler should return a stream-callback. StreamCallback will
-//   dispatched for every new messages on this stream.
+/*
+RequestCallback handler called for an incoming post, or request,
+or stream message. On either side of the connection, RequestCallback
+initiates a new incoming exchange - be it a Post or Request or
+Stream type. Applications should first register request-handler for
+expecting message-ids, and also register a default handler to catch
+all other messages:
+
+Stream pointer will be nil if incoming message is a POST.
+
+Handler shall not block and must be as light-weight as possible.
+
+If request is initiating a stream of messages from remote, handler
+should return a stream-callback. StreamCallback will dispatched for
+every new messages on this stream.
+*/
 type RequestCallback func(*Stream, BinMessage) StreamCallback
 
 // StreamCallback handler called for an incoming message on a stream,
@@ -345,79 +349,62 @@ func Stats() map[string]uint64 {
 	return stats
 }
 
-// Stat count for specified transport object.
-//
-// Available statistics:
-//
-// "n_tx"
-//		number of messages transmitted.
-//
-// "n_flushes"
-//		number of times message-batches where flushed.
-//
-// "n_txbyte"
-//		number of bytes transmitted on socket.
-//
-// "n_txpost"
-//		number of post messages transmitted.
-//
-// "n_txreq"
-//		number of request messages transmitted.
-//
-// "n_txresp"
-//		number of response messages transmitted.
-//
-// "n_txstart"
-//		number of start messages transmitted, indicates the number of
-//		streams started by this local node.
-//
-// "n_txstream"
-//		number of stream messages transmitted.
-//
-// "n_txfin"
-//		number of finish messages transmitted, indicates the number of
-//		streams closed by this local node, should always match "n_txstart"
-//		plus active streams.
-//
-// "n_rx"
-//		number of packets received.
-//
-// "n_rxbyte"
-//		number of bytes received from socket.
-//
-// "n_rxpost"
-//		number of post messages received.
-//
-// "n_rxreq"
-//		number of request messages received.
-//
-// "n_rxresp"
-//		number of response messages received.
-//
-// "n_rxstart"
-//		number of start messages received, indicates the number of
-//		streams started by the remote node.
-//
-// "n_rxstream"
-//		number of stream messages received.
-//
-// "n_rxfin"
-//		number of finish messages received, indicates the number
-//		of streams closed by the remote node, should always match
-//		"n_rxstart" plus active streams.
-//
-// "n_rxbeats"
-//		number of heartbeats received.
-//
-// "n_dropped"
-//		bytes dropped.
-//
-// "n_mdrops"
-//		messages dropped.
-//
-// Note that `n_dropped` and `n_mdrops` are counted because gofast
-// supports either end to finish an ongoing stream of messages.
-// It might be normal to see non-ZERO values.
+/*
+Stat count for named transport object, every Transport instance can be
+named.
+
+Available statistics:
+
+"n_tx", number of messages transmitted.
+
+"n_flushes", number of times message-batches where flushed.
+
+"n_txbyte", number of bytes transmitted on socket.
+
+"n_txpost", number of post messages transmitted.
+
+"n_txreq", number of request messages transmitted.
+
+"n_txresp", number of response messages transmitted.
+
+"n_txstart", number of start messages transmitted, indicates the number of
+streams started by this local node.
+
+"n_txstream", number of stream messages transmitted.
+
+"n_txfin", number of finish messages transmitted, indicates the number of
+streams closed by this local node, should always match "n_txstart" plus
+active streams.
+
+"n_rx", number of packets received.
+
+"n_rxbyte", number of bytes received from socket.
+
+"n_rxpost", number of post messages received.
+
+"n_rxreq", number of request messages received.
+
+"n_rxresp", number of response messages received.
+
+"n_rxstart", number of start messages received, indicates the number of
+streams started by the remote node.
+
+"n_rxstream", number of stream messages received.
+
+"n_rxfin", number of finish messages received, indicates the number
+of streams closed by the remote node, should always match "n_rxstart"
+plus active streams.
+
+"n_rxbeats", number of heartbeats received.
+
+"n_dropped", bytes dropped.
+
+"n_mdrops", messages dropped.
+
+Note that `n_dropped` and `n_mdrops` are counted because gofast
+supports either end to finish an ongoing stream of messages.
+It might be normal to see non-ZERO values.
+*/
 func Stat(name string) map[string]uint64 {
 	op := atomic.LoadPointer(&transports)
 	transm := (*map[string]*Transport)(op)

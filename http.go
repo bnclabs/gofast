@@ -9,6 +9,9 @@ import "github.com/bnclabs/gson"
 // Statshandler http handler to handle statistics endpoint, returns
 // statistics for specified transport or aggregate statistics of all
 // transports, based on the query parameters.
+//
+// NOTE: This handler is used by gofast/http package. Typical application
+// are not expected to use this function directly.
 func Statshandler(w http.ResponseWriter, r *http.Request) {
 	if query := r.URL.Query(); query != nil {
 		name, _ := query["name"]

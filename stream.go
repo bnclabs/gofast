@@ -4,8 +4,9 @@ import "sync/atomic"
 
 import "github.com/bnclabs/golog"
 
-// Stream for a newly started stream on the transport. Refer to
-// Stream() method on the transport.
+// Stream for a newly started stream on the transport. Sender can
+// initiate a new stream by calling Transport.Stream() API, while
+// receiver will return a Stream instance via RequestCallback.
 type Stream struct {
 	transport         *Transport
 	rxcallb           StreamCallback
