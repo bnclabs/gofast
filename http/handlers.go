@@ -1,7 +1,7 @@
 // Package http implement gofast http endpoints, subscribed
 // to net/http.DefaultServerMux.
 //
-// import _ github.com/prataprc/gofast/http
+// import _ github.com/bnclabs/gofast/http
 //
 // will automatically mount,
 //
@@ -26,7 +26,7 @@ import "strings"
 import "net/http"
 
 import "github.com/bnclabs/gson"
-import "github.com/prataprc/gofast"
+import "github.com/bnclabs/gofast"
 
 func init() {
 	http.HandleFunc("/gofast/statistics", gofast.Statshandler)

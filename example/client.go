@@ -8,7 +8,7 @@ import "fmt"
 import "strconv"
 import "math/rand"
 
-import gf "github.com/prataprc/gofast"
+import gf "github.com/bnclabs/gofast"
 
 var av = &averageInt64{}
 

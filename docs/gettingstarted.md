@@ -217,5 +217,5 @@ Note that either node can request a stream from remote node. Once
 request is initiated with remote, either node can send (aka stream)
 messages to remote.
 
-[message-link]: https://godoc.org/github.com/prataprc/gofast#Message
-[settings-link]: https://godoc.org/github.com/prataprc/gofast#DefaultSettings
+[message-link]: https://godoc.org/github.com/bnclabs/gofast#Message
+[settings-link]: https://godoc.org/github.com/bnclabs/gofast#DefaultSettings

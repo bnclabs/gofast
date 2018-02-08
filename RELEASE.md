@@ -35,8 +35,8 @@ Badges
 * Coverage badge
 * Godoc reference.
 * Issue stats badge for response time.
-  http://issuestats.com/github/prataprc/goparsec
+  http://issuestats.com/github/bnclabs/gofast
 * Sourcegraph for "used by projects" badge
-  https://sourcegraph.com/github.com/prataprc/goparsec/-/badge.svg
+  https://sourcegraph.com/github.com/bnclabs/gofast/-/badge.svg
 * Report card.
-  https://goreportcard.com/report/github.com/prataprc/goparsec
+  https://goreportcard.com/report/github.com/bnclabs/gofast

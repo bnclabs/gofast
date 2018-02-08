@@ -7,8 +7,8 @@ import "net"
 import "net/http"
 import "fmt"
 
-import gf "github.com/prataprc/gofast"
-import _ "github.com/prataprc/gofast/http"
+import gf "github.com/bnclabs/gofast"
+import _ "github.com/bnclabs/gofast/http"
 
 var mu sync.Mutex
 var transs = make([]*gf.Transport, 0, 100)

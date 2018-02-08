@@ -4,10 +4,10 @@ Summary
 **High performance protocol for distributed applications.**
 
 [![talk on matrix](https://github.com/prataprc/dotfiles/blob/master/assets/talkonmatrix.svg)](https://riot.im/app/#/user/@prataprc:matrix.org?action=chat)
-[![Build Status](https://travis-ci.org/prataprc/gofast.png)](https://travis-ci.org/prataprc/gofast)
-[![Coverage Status](https://coveralls.io/repos/prataprc/gofast/badge.png?branch=master&service=github)](https://coveralls.io/github/prataprc/gofast?branch=master)
-[![GoDoc](https://godoc.org/github.com/prataprc/gofast?status.png)](https://godoc.org/github.com/prataprc/gofast)
-[![Go Report Card](https://goreportcard.com/badge/github.com/prataprc/gofast)](https://goreportcard.com/report/github.com/prataprc/gofast)
+[![Build Status](https://travis-ci.org/bnclabs/gofast.png)](https://travis-ci.org/bnclabs/gofast)
+[![Coverage Status](https://coveralls.io/repos/bnclabs/gofast/badge.png?branch=master&service=github)](https://coveralls.io/github/bnclabs/gofast?branch=master)
+[![GoDoc](https://godoc.org/github.com/bnclabs/gofast?status.png)](https://godoc.org/github.com/bnclabs/gofast)
+[![Go Report Card](https://goreportcard.com/badge/github.com/bnclabs/gofast)](https://goreportcard.com/report/github.com/bnclabs/gofast)
 
 * [CBOR](http://cbor.io),(Concise Binary Object Representation) based
   protocol, avoids yet another protocol frame. Well formed gofast packets
@@ -192,7 +192,7 @@ tag values will speed-up frame encoding and decoding.
     TagLzw, following CBOR byte array is compressed using gzip encoding.
 
 These reserved tags are not part of CBOR specification or IANA registry,
-please refer/follow issue [#1](https://github.com/prataprc/gofast/issues/1).
+please refer/follow issue [#1](https://github.com/bnclabs/gofast/issues/1).
 
 Sizing
 ------
@@ -242,8 +242,8 @@ godoc documentation.
 How to contribute
 -----------------
 
-[![Issue Stats](http://issuestats.com/github/prataprc/gofast/badge/pr)](http://issuestats.com/github/prataprc/gofast)
-[![Issue Stats](http://issuestats.com/github/prataprc/gofast/badge/issue)](http://issuestats.com/github/prataprc/gofast)
+[![Issue Stats](http://issuestats.com/github/bnclabs/gofast/badge/pr)](http://issuestats.com/github/bnclabs/gofast)
+[![Issue Stats](http://issuestats.com/github/bnclabs/gofast/badge/issue)](http://issuestats.com/github/bnclabs/gofast)
 
 * Pick an issue, or create an new issue. Provide adequate documentation for
   the issue.
@@ -256,5 +256,5 @@ How to contribute
 * As of now, branch ``master`` is the development branch.
 
 [perf-article]: https://prataprc.github.io/gofast-standalone-performance.html
-[settings-link]: https://godoc.org/github.com/prataprc/gofast#DefaultSettings
-[report-link]: https://goreportcard.com/report/github.com/prataprc/gofast
+[settings-link]: https://godoc.org/github.com/bnclabs/gofast#DefaultSettings
+[report-link]: https://goreportcard.com/report/github.com/bnclabs/gofast
