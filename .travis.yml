@@ -20,6 +20,3 @@ script:
   - $HOME/gopath/bin/goveralls -coverprofile=.coverprofile  -service=travis-ci
   - cd perf
   - go build
-  - nohup ./perf -s -addr :9900&
-  - time ./perf -c -addr localhost:9900 -do post -count 1000000
-  - killall perf
