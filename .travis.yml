@@ -9,6 +9,7 @@ go:
 before_install:
   - go get github.com/axw/gocov/gocov
   - go get github.com/mattn/goveralls
+  - go get -d github.com/bnclabs/gofast-tools/...
   - if ! go get github.com/golang/tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
 
 script:
@@ -20,3 +21,5 @@ script:
   - $HOME/gopath/bin/goveralls -coverprofile=.coverprofile  -service=travis-ci
   - cd perf
   - go build
+  - cd $HOME/gopath/src/github.com/bnclabs/gofast-tools
+  - make travis
