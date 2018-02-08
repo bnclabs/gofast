@@ -4,3 +4,4 @@ perf/*.mprof
 perf/*.pprof
 perf/*.svg
 perf/perf
+perf/nohup.out
