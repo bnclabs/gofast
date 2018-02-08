@@ -1,21 +1,19 @@
--------
 Summary
--------
+=======
 
-High performance protocol for distributed applications.
+**High performance protocol for distributed applications.**
 
+[![talk on matrix](https://github.com/prataprc/dotfiles/blob/master/assets/talkonmatrix.svg)](https://riot.im/app/#/user/@prataprc:matrix.org?action=chat)
 [![Build Status](https://travis-ci.org/prataprc/gofast.png)](https://travis-ci.org/prataprc/gofast)
 [![Coverage Status](https://coveralls.io/repos/prataprc/gofast/badge.png?branch=master&service=github)](https://coveralls.io/github/prataprc/gofast?branch=master)
 [![GoDoc](https://godoc.org/github.com/prataprc/gofast?status.png)](https://godoc.org/github.com/prataprc/gofast)
-
-Goal
-----
+[![Go Report Card](https://goreportcard.com/badge/github.com/prataprc/gofast)](https://goreportcard.com/report/github.com/prataprc/gofast)
 
 * [CBOR](http://cbor.io),(Concise Binary Object Representation) based
-  protocol, avoids yet another protocol frame.
-* Well formed gofast packets are fully [CBOR](http://cbor.io) compliant.
-* Symmetric protocol - like all socket programming client initiates
-  the connection, but there after client and server can exchange
+  protocol, avoids yet another protocol frame. Well formed gofast packets
+  are fully [CBOR](http://cbor.io) compliant.
+* Symmetric protocol - communication starts by client initiating
+  the connection with server, but there after client and server can exchange
   messages like peers, that is both ends can:
   - `POST` messages to remote node.
   - `REQUEST` a `RESPONSE` from remote node.
@@ -34,9 +32,9 @@ Quick links
 -----------
 
 * [Frame-format](#frame-format).
-* [Settings](https://godoc.org/github.com/prataprc/gofast#DefaultSettings).
+* [Settings][settings-link].
 * [Getting-started](docs/gettingstarted.md).
-* [Performance benchmark](perf/README.md).
+* [Performance benchmark][perf-article].
 * [How to contribute](#how-to-contribute).
 
 **dev-notes**
@@ -66,10 +64,10 @@ as one of the following:
 the stream by sending a 0xff:
 
 ```text
-     | 0xd9 0xd9f7         | 0x9f | packet1    |
-            | 0xd9 0xd9f7  | 0xc7 | packet2    |
-            ...
-            | 0xd9 0xd9f7  | 0xc8 | end-packet |
+ | 0xd9 0xd9f7         | 0x9f | packet1    |
+        | 0xd9 0xd9f7  | 0xc7 | packet2    |
+        ...
+        | 0xd9 0xd9f7  | 0xc8 | end-packet |
 ```
 
 * `0xd9` says frame is a tag with 2-bye extension.
@@ -155,7 +153,7 @@ from the socket to complete the entire packet.
 
 **Regarding Opaque-value**
 
-By design opaque value should be >= 256. These are ephimeral tag values
+By design opaque value should be >= 256. These are ephemeral tag values
 that do not carry any meaning other than identifying the stream. Opaque
 values will continuously reused for the life-time of connection. Users
 are expected to give a range of these ephemeral tag-values, and gofast
@@ -205,16 +203,12 @@ sizing.
 * Batch of packets copied into a single buffers before flushing into socket:
   `writebuf := make([]byte, batchsize*buffersize)`
   for configured range of opaque space between [opaque.start, opaque.end]
-
 * As many stream{} objects will be pre-created and pooled:
   `((opaque.end-opaque.start)+1) * sizeof(stream{})`
-
 * Each stream will allocate 3 buffers for sending/receiving packets.
   `buffersize * 3`
-
 * As many txproto{} objects will be pre-create and pooled:
   `((opaque.end-opaque.start)+1) * sizeof(txproto{})`
-
 * As many tx protocol encode buffers will be pre-created and pooled:
   `((opaque.end-opaque.start)+1) * buffersize`
 
@@ -248,9 +242,19 @@ godoc documentation.
 How to contribute
 -----------------
 
+[![Issue Stats](http://issuestats.com/github/prataprc/gofast/badge/pr)](http://issuestats.com/github/prataprc/gofast)
+[![Issue Stats](http://issuestats.com/github/prataprc/gofast/badge/issue)](http://issuestats.com/github/prataprc/gofast)
+
 * Pick an issue, or create an new issue. Provide adequate documentation for
   the issue.
 * Assign the issue or get it assigned.
 * Work on the code, once finished, raise a pull request.
-* Golog is written in [golang](https://golang.org/), hence expected to follow the
-  global guidelines for writing go programs.
+* Golog is written in [golang](https://golang.org/), hence expected to
+  follow the global guidelines for writing go programs.
+* If the changeset is more than few lines, please generate a
+  [report card][report-link].
+* As of now, branch ``master`` is the development branch.
+
+[perf-article]: https://prataprc.github.io/gofast-standalone-performance.html
+[settings-link]: https://godoc.org/github.com/prataprc/gofast#DefaultSettings
+[report-link]: https://goreportcard.com/report/github.com/prataprc/gofast

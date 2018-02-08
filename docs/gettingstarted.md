@@ -1,5 +1,4 @@
-Getting started with gofast
-===========================
+# Getting started with gofast
 
 Before diving into code let us see some basic ideas that will come together
 when we start coding with gofast.
@@ -7,11 +6,10 @@ when we start coding with gofast.
 **Message**
 
 All messages exchanged via gofast transport must implement the
-[Message](https://godoc.org/github.com/prataprc/gofast#Message)
-interface. After initializing the transport and once Handshake() is called
-with remote, the transport object can be concurrently shared by several
-go-routines, each routine, can initiate a new request with remote and exchange
-one or more messages.
+[Message][message-link] interface. After initializing the transport and
+once Handshake() is called with remote, the transport object can be
+concurrently shared by several go-routines, and each routine, can initiate
+a new request with remote and exchange one or more messages.
 
 **BinMessage**
 
@@ -22,17 +20,17 @@ one or more messages.
 **RequestCallback**
 
 * Before calling Handshake() with remote node, application
-must register a callback for every message-id, with SubscribeMessage.
-Each concrete type can be assigned a message-id.
+  must register a callback for every message-id, with SubscribeMessage.
+  Each concrete type can be assigned a message-id.
 * Applications can also register a catch-all callback with
-DefaultHandler().
+  DefaultHandler().
 * For every registered incoming message, RequestHandler will be dispatched
-with adequate arguments.
+  with adequate arguments.
 * Handler shall not block and must be as light weight as possible. In
-other-words, it should quickly return back to the caller, or else it will
-impact the latency and eventually throughput.
+  other-words, it should quickly return back to the caller, or else it will
+  impact the latency and eventually throughput.
 * If request is initiating a stream of messages from remote,
-handler should return a stream-callback.
+  handler should return a stream-callback.
 
 **Stream object**
 
@@ -41,10 +39,10 @@ Stream objects are obtained in two ways:
 * When a call to transport.Stream() succeeds, a new stream object is returned.
 * As part of RequestCallback argument.
 
-Once the request is initiated, all communication with remote must happen
+Once stream-request is initiated, all communication with remote must happen
 on the stream object, via its `Response()`, `Stream()`, `Close()` methods.
-Again, once the request is initiated, either node can send messages to
-remote.
+Note that once the request is initiated either node can send one or more
+messages to remote.
 
 Note that POST requests don't involve streams.
 
@@ -54,12 +52,12 @@ Similar to sending messages via stream-objects, incoming messages are
 dispatched via stream-callback.
 
 * Node which initiates a stream-request, via `transport.Stream()`, should
-supply the StreamCallback as argument.
+  supply the StreamCallback as argument.
 * Node which is receiving the new request should supply the
-StreamCallback as part of the request-handler's return value.
+  StreamCallback as part of the request-handler's return value.
 * Similar to RequestCallback, StreamCallback should not block and must be
-as light-weight as possible. In other-words, it should quickly return back
-to the caller, or else it will impact the latency and eventually throughput.
+  as light-weight as possible. In other-words, it should quickly return back
+  to the caller, or else it will impact the latency and eventually throughput.
 
 **IMPORTANT: Both sides must close the stream to release the stream object
 back to the transport**
@@ -69,11 +67,9 @@ back to the transport**
 It is possible to tune gofast transport for latency, throughput, and memory
 footprint. If settings argument to NewTransport is passed as nil, transport
 will fall back to the default settings. Settings can be configured for each
-Transport instance. To learn more about settings parameters
-[refer here](https://godoc.org/github.com/prataprc/gofast#DefaultSettings)
+Transport instance. Learn more about [settings parameters][settings-link]
 
-Get coding
-----------
+## Start coding
 
 **Example server-code**
 
@@ -149,7 +145,8 @@ no other exchange for that request.
 **To request a stream response from remote**
 
 Streaming protocols have some learning curve. Gofast is no exception. But once
-the basic idea is understood peer-to-peer, bi-directional streaming becomes easy.
+the basic idea is understood peer-to-peer, bi-directional streaming becomes
+easy.
 
 ```go
 var resps []*RangeResponse // place to collect all streamed response.
@@ -219,3 +216,6 @@ BinMessage argument.
 Note that either node can request a stream from remote node. Once
 request is initiated with remote, either node can send (aka stream)
 messages to remote.
+
+[message-link]: https://godoc.org/github.com/prataprc/gofast#Message
+[settings-link]: https://godoc.org/github.com/prataprc/gofast#DefaultSettings

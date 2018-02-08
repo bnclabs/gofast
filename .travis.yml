@@ -15,4 +15,10 @@ script:
   - go get ./...
   - go test -v -race -test.run= -test.bench=. -test.benchmem=true ./...
   - go test -coverprofile=.coverprofile .
+  - make test
+  - make coverage
   - $HOME/gopath/bin/goveralls -coverprofile=.coverprofile  -service=travis-ci
+  - cd perf
+  - go build
+  - ./perf -s -addr :9900&
+  - time ./perf -c -addr localhost:9900 -do post -count 1000000
