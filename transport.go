@@ -1,12 +1,13 @@
 package gofast
 
-import "sync"
-import "sync/atomic"
-import "unsafe"
 import "fmt"
-import "strings"
 import "net"
 import "time"
+import "sort"
+import "sync"
+import "strings"
+import "unsafe"
+import "sync/atomic"
 
 import s "github.com/bnclabs/gosettings"
 import "github.com/bnclabs/golog"
@@ -629,6 +630,20 @@ func deltransport(name string) *Transport {
 			return t
 		}
 	}
+}
+
+func listtransports() []interface{} {
+	names := []string{}
+	trans := (*map[string]*Transport)(atomic.LoadPointer(&transports))
+	for name := range *trans {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	list := []interface{}{}
+	for _, name := range names {
+		list = append(list, name)
+	}
+	return list
 }
 
 func istagok(tag uint64) bool {
