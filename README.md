@@ -34,6 +34,7 @@ Quick links
 * [Frame-format](#frame-format).
 * [Settings][settings-link].
 * [Getting-started](docs/gettingstarted.md).
+* [Http-endpoints](docs/httpendpoints.md).
 * [Performance benchmark][perf-article].
 * [How to contribute](#how-to-contribute).
 
@@ -231,13 +232,6 @@ to ignore the errors, but not panics. For example:
 * When unforeseen panic happens in syncRx() routine, it recovers from
   panic, dumps the stack trace, closes the transport, all live pending
   streams and exits.
-
-Http-endpoints
---------------
-
-Gofast exports per transport statistics and aggregated statistics for
-debugging and performance tracking. For more details check out the
-godoc documentation.
 
 How to contribute
 -----------------
