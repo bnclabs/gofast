@@ -7,8 +7,8 @@ import "github.com/bnclabs/golog"
 var logok = int64(0)
 
 // LogComponents enable logging. By default logging is disabled,
-// if applications want log information from gofast components
-// call this function with "self" or "all" or "gofast" argument.
+// if applications want log information for gofast components
+// call this function with "self" or "all" or "gofast" as argument.
 func LogComponents(components ...string) {
 	for _, comp := range components {
 		switch comp {
