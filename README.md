@@ -243,7 +243,7 @@ How to contribute
   the issue.
 * Assign the issue or get it assigned.
 * Work on the code, once finished, raise a pull request.
-* Golog is written in [golang](https://golang.org/), hence expected to
+* Gofast is written in [golang](https://golang.org/), hence expected to
   follow the global guidelines for writing go programs.
 * If the changeset is more than few lines, please generate a
   [report card][report-link].
