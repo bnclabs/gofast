@@ -18,7 +18,6 @@ coverage:
 	rm -rf coverage.out
 
 clean:
-	rm -f tools/client/{client,client.mprof,client.pprof,*.svg}
-	rm -f tools/server/{server,server.mprof,server.pprof,*.svg}
-	rm -f tools/{*.mprof,*.pprof,*.svg}
-	rm -rf escapel escapem escapelines example/example example/*.svg
+	rm -rf *.svg *.pprof *.mprof
+	make -C perf clean
+	make -C example clean
