@@ -5,3 +5,8 @@ perf/*.pprof
 perf/*.svg
 perf/perf
 perf/nohup.out
+example/example
+example/*.svg
+example/*.svg
+example/*.mprof
+example/*.pprof

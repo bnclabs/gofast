@@ -4,6 +4,9 @@ build:
 test:
 	go test -v -race -timeout 4000s -test.run=. -test.bench=. -test.benchmem=true
 
+bench:
+	go test -v -timeout 4000s -test.run=. -test.bench=. -test.benchmem=true
+
 heaptest:
 	go test -gcflags '-m -l' -timeout 4000s -test.run=. -test.bench=. -test.benchmem=true > escapel 2>&1
 	grep "^\.\/.*escapes to heap" escapel | tee escapelines

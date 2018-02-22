@@ -10,7 +10,6 @@ import "unsafe"
 import "sync/atomic"
 
 import s "github.com/bnclabs/gosettings"
-import "github.com/bnclabs/golog"
 
 type tagfn func(in, out []byte) int
 type fnTagFactory func(*Transport, s.Settings) (uint64, tagfn, tagfn)
@@ -169,14 +168,14 @@ func NewTransport(
 			t.tagdec[tagid] = dec
 			continue
 		}
-		log.Errorf("%v unknown tag %v", t.logprefix, tag)
+		errorf("%v unknown tag %v", t.logprefix, tag)
 		return nil, ErrorInvalidTag
 	}
-	log.Verbosef("%v pre-initialized ...\n", t.logprefix)
+	verbosef("%v pre-initialized ...\n", t.logprefix)
 
 	go t.doTx()
 
-	log.Infof("%v started ...\n", t.logprefix)
+	infof("%v started ...\n", t.logprefix)
 	return t, nil
 }
 
@@ -200,7 +199,7 @@ func (t *Transport) SubscribeMessage(msg Message, handler RequestCallback) *Tran
 // NOTE: handler shall not block and must be as light-weight as possible
 func (t *Transport) DefaultHandler(handler RequestCallback) *Transport {
 	t.defaulth = handler
-	log.Verbosef("%v subscribed default handler\n", t.logprefix)
+	verbosef("%v subscribed default handler\n", t.logprefix)
 	return t
 }
 
@@ -228,10 +227,10 @@ func (t *Transport) Handshake() error {
 			t.tagenc[tagid] = enc
 			continue
 		}
-		log.Warnf("%v remote ask for unknown tag: %v\n", t.logprefix, tag)
+		warnf("%v remote ask for unknown tag: %v\n", t.logprefix, tag)
 	}
 	fmsg := "%v handshake completed with peer: %#v ...\n"
-	log.Verbosef(fmsg, t.logprefix, wai)
+	verbosef(fmsg, t.logprefix, wai)
 
 	atomic.AddInt64(&t.xchngok, 1)
 	for atomic.LoadInt64(&t.xchngok) < 2 { // wait till remote handshake
@@ -246,7 +245,7 @@ func (t *Transport) Close() error {
 	defer func() {
 		if r := recover(); r != nil {
 			fmsg := "%v transport.Close() recovered: %v\n"
-			log.Infof(fmsg, t.logprefix, r)
+			infof(fmsg, t.logprefix, r)
 		}
 	}()
 
@@ -255,7 +254,7 @@ func (t *Transport) Close() error {
 	// b. close all active streams.
 	close(t.killch)
 	deltransport(t.name)
-	log.Infof("%v ... closed\n", t.logprefix)
+	infof("%v ... closed\n", t.logprefix)
 	// finally close the connection itself.
 	return t.conn.Close()
 }
@@ -498,7 +497,7 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 		panic(fmt.Errorf(fmsg, t.logprefix, tagos, tagoe, start, end))
 	}
 	fmsg = "%v local streams (%v,%v) pre-created\n"
-	log.Debugf(fmsg, t.logprefix, start, end)
+	debugf(fmsg, t.logprefix, start, end)
 
 	t.pStrms = make(chan *Stream, end-start+1) // inclusive [start,end]
 	for opaque := start; opaque <= end; opaque++ {
@@ -515,7 +514,7 @@ func (t *Transport) setOpaqueRange(start, end uint64) {
 		}
 		t.pStrms <- stream
 		fmsg := "%v ##%d(remote:%v) stream created ...\n"
-		log.Verbosef(fmsg, t.logprefix, opaque, false)
+		verbosef(fmsg, t.logprefix, opaque, false)
 	}
 
 	t.pTxcmd = make(chan *txproto, end-start+1+uint64(t.batchsize))
@@ -537,7 +536,7 @@ func (t *Transport) subscribeMessage(m Message, h RequestCallback) *Transport {
 	id := m.ID()
 	t.messages[id] = m
 	t.handlers[id] = h
-	log.Verbosef("%v subscribed %v\n", t.logprefix, m)
+	verbosef("%v subscribed %v\n", t.logprefix, m)
 	return t
 }
 

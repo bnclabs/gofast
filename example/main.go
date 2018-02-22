@@ -13,6 +13,7 @@ import "net/http"
 import _ "net/http/pprof"
 
 import golog "github.com/bnclabs/golog"
+import "github.com/bnclabs/gofast"
 import s "github.com/bnclabs/gosettings"
 
 var options struct {
@@ -86,6 +87,7 @@ func main() {
 
 	log.Printf("setting gofast logging\n")
 	golog.SetLogger(nil, s.Settings{"log.level": "warn", "log.file": ""})
+	gofast.LogComponents("self")
 
 	go func() {
 		log.Println(http.ListenAndServe("localhost:6062", nil))

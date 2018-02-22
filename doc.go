@@ -23,6 +23,7 @@
 //
 //  setts := gosettings.Settings{"log.level": "info", "log.file": logfile}
 //  golog.SetLogger(nil /* use-default-logging */, setts)
+//  LogComponents("gofast")
 //
 //  t := NewTransport(conn, &ver, nil, settings)
 //  t.SubscribeMessage(&msg1, handler1) // subscribe message

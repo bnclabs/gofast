@@ -1070,4 +1070,5 @@ func init() {
 
 	logsetts := map[string]interface{}{"log.level": "warn", "log.file": ""}
 	log.SetLogger(nil, logsetts)
+	LogComponents("gofast")
 }

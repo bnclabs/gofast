@@ -2,8 +2,6 @@ package gofast
 
 import "sync/atomic"
 
-import "github.com/bnclabs/golog"
-
 // Stream for a newly started stream on the transport. Sender can
 // initiate a new stream by calling Transport.Stream() API, while
 // receiver will return a Stream instance via RequestCallback.
@@ -21,7 +19,7 @@ func (t *Transport) newremotestream(opaque uint64) *Stream {
 
 	//TODO: Issue #2, remove or prevent value escape to heap
 	//fmsg := "%v ##%d(remote:%v) stream created ...\n"
-	//log.Verbosef(fmsg, t.logprefix, opaque, remote)
+	//verbosef(fmsg, t.logprefix, opaque, remote)
 
 	// reset all fields (it is coming from a pool)
 	stream.transport, stream.remote, stream.opaque = t, true, opaque
@@ -44,12 +42,12 @@ func (t *Transport) putstream(opaque uint64, stream *Stream, tellrx bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmsg := "%v ##%v putstream recovered: %v\n"
-			log.Errorf(fmsg, t.logprefix, opaque, r)
+			errorf(fmsg, t.logprefix, opaque, r)
 		}
 	}()
 
 	if stream == nil {
-		log.Errorf("%v ##%v unknown stream\n", t.logprefix, opaque)
+		errorf("%v ##%v unknown stream\n", t.logprefix, opaque)
 		return
 	}
 	if tellrx {

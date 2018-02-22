@@ -4,8 +4,6 @@ import "sync/atomic"
 import "fmt"
 import "runtime/debug"
 
-import "github.com/bnclabs/golog"
-
 type rxpacket struct {
 	stream  *Stream
 	msg     BinMessage
@@ -22,8 +20,8 @@ func (t *Transport) syncRx() {
 	livestreams := make(map[uint64]*Stream)
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf("syncRx() panic: %v\n", r)
-			log.Errorf("\n%s", getStackTrace(2, debug.Stack()))
+			errorf("syncRx() panic: %v\n", r)
+			errorf("\n%s", getStackTrace(2, debug.Stack()))
 			go t.Close()
 		}
 		// unblock routines waiting on this stream
@@ -40,7 +38,7 @@ func (t *Transport) syncRx() {
 		if ok && stream.rxcallb == nil {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream closed ...\n"
-			//log.Debugf(fmsg, t.logprefix, stream.opaque)
+			//debugf(fmsg, t.logprefix, stream.opaque)
 			delete(livestreams, stream.opaque)
 			if stream.remote == false {
 				t.pStrms <- stream // don't collect remote streams
@@ -48,7 +46,7 @@ func (t *Transport) syncRx() {
 		} else if stream.rxcallb != nil {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream started ...\n"
-			//log.Verbosef(fmsg, t.logprefix, stream.opaque)
+			//verbosef(fmsg, t.logprefix, stream.opaque)
 			livestreams[stream.opaque] = stream
 		}
 	}
@@ -59,7 +57,7 @@ func (t *Transport) syncRx() {
 		if streamok && rxpkt.finish {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d stream closed by remote ...\n"
-			//log.Debugf(fmsg, t.logprefix, stream.opaque)
+			//debugf(fmsg, t.logprefix, stream.opaque)
 			if stream.rxcallb != nil {
 				stream.rxcallb(BinMessage{}, false)
 			}
@@ -71,13 +69,13 @@ func (t *Transport) syncRx() {
 		} else if rxpkt.finish {
 			//TODO: Issue #2, remove or prevent value escape to heap
 			//fmsg := "%v ##%d unknown stream-fin from remote ...\n"
-			//log.Debugf(fmsg, t.logprefix, rxpkt.opaque)
+			//debugf(fmsg, t.logprefix, rxpkt.opaque)
 			atomic.AddUint64(&t.nMdrops, 1)
 			return
 		}
 		//TODO: Issue #2, remove or prevent value escape to heap
 		//fmsg := "%v received msg %#v streamok:%v\n"
-		//log.Debugf(fmsg, t.logprefix, rxpkt.msg.ID, streamok)
+		//debugf(fmsg, t.logprefix, rxpkt.msg.ID, streamok)
 		if streamok == false { // post, request, stream-start
 			if rxpkt.post {
 				t.requestCallback(nil /*stream*/, rxpkt.msg)
@@ -112,7 +110,7 @@ func (t *Transport) syncRx() {
 			atomic.AddUint64(&t.nRxstream, 1)
 		} else {
 			fmsg := "%v duplicate rxpkt ##%d for stream ##%d %#v ...\n"
-			log.Warnf(fmsg, t.logprefix, rxpkt.opaque, stream.opaque, rxpkt)
+			warnf(fmsg, t.logprefix, rxpkt.opaque, stream.opaque, rxpkt)
 			atomic.AddUint64(&t.nMdrops, 1)
 		}
 	}
@@ -120,7 +118,7 @@ func (t *Transport) syncRx() {
 	go t.doRx()
 
 	fmsg := "%v syncRx(chansize:%v) started ...\n"
-	log.Infof(fmsg, t.logprefix, chansize)
+	infof(fmsg, t.logprefix, chansize)
 loop:
 	for {
 		select {
@@ -141,7 +139,7 @@ loop:
 		}
 	}
 
-	log.Infof("%v syncRx() ... stopped\n", t.logprefix)
+	infof("%v syncRx() ... stopped\n", t.logprefix)
 }
 
 func (t *Transport) putch(ch chan rxpacket, val rxpacket) bool {

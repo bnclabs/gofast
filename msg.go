@@ -4,8 +4,6 @@ import "sync/atomic"
 import "time"
 import "reflect"
 
-import "github.com/bnclabs/golog"
-
 const (
 	msgStart     uint64 = 0x1000 // reserve start.
 	msgPing             = 0x1001 // to ping/echo with peer.
@@ -27,7 +25,7 @@ func (t *Transport) msghandler(stream *Stream, msg BinMessage) StreamCallback {
 		m.Decode(msg.Data)
 		rv := newPing(m.echo) // respond back
 		if err := stream.Response(rv, false /*flush*/); err != nil {
-			log.Errorf("%v response-ping: %v\n", t.logprefix, err)
+			errorf("%v response-ping: %v\n", t.logprefix, err)
 		}
 
 	case msgWhoami:
@@ -40,13 +38,13 @@ func (t *Transport) msghandler(stream *Stream, msg BinMessage) StreamCallback {
 		t.peerver.Store(m.version)
 		rv := newWhoami(t) // respond back
 		if err := stream.Response(rv, true /*flush*/); err != nil {
-			log.Errorf("%v response-whoami: %v\n", t.logprefix, err)
+			errorf("%v response-whoami: %v\n", t.logprefix, err)
 		} else {
 			atomic.AddInt64(&t.xchngok, 1)
 		}
 
 	default:
-		log.Errorf("%v message %T:%v not expected\n", t.logprefix, msg, msg)
+		errorf("%v message %T:%v not expected\n", t.logprefix, msg, msg)
 	}
 	return nil
 }
