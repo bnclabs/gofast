@@ -22,6 +22,8 @@ func TestTransport(t *testing.T) {
 	}
 	transv := <-serverch
 
+	time.Sleep(1 * time.Second)
+
 	cCounts := transv.Stat()
 	sCounts := transv.Stat()
 	// test
